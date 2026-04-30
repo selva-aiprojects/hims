@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id                  String               @id @default(uuid())
+  name                String               @unique
+  dbName              String               @unique @map("db_name")
+  plan                String
+  defaultPwd          String?              @map("default_pwd")
+  // UI Settings
+  backgroundColor     String?              @default("#ffffff") @map("background_color")
+  textColor           String?              @default("#1e293b") @map("text_color")
+  heroBackgroundColor String?              @default("#f8fafc") @map("hero_background_color")
+  overallTextColor    String?              @default("#475569") @map("overall_text_color")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  adminContacts       TenantAdminContact[]
+
+  @@map("tenants")
+}
+
+model Patient {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("patients")
+}
+
+model Appointment {
+  id        String   @id @default(uuid())
+  patientId String   @map("patient_id")
+  doctorId  String   @map("doctor_id")
+  time      DateTime
+  status    String   @default("Scheduled")
+
+  @@map("appointments")
+}
+
+model Encounter {
+  id        String   @id @default(uuid())
+  patientId String   @map("patient_id")
+  doctorId  String   @map("doctor_id")
+  diagnosis String?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("encounters")
+}
+
+model Prescription {
+  id          String @id @default(uuid())
+  encounterId String @map("encounter_id")
+  drugName    String @map("drug_name")
+
+  @@map("prescriptions")
+}
+
+model Bill {
+  id        String @id @default(uuid())
+  patientId String @map("patient_id")
+  total     Float
+  status    String @default("Pending")
+
+  @@map("bills")
+}
+
+model TenantAdminContact {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  contactName String?  @map("contact_name")
+  email       String?
+  phone       String?
+  address     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("tenant_admin_contacts")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String
+  name         String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("users")
+}
