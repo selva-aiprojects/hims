@@ -1,0 +1,132 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import NexusSidebar from "../../components/NexusSidebar";
+import NexusHeader from "../../components/NexusHeader";
+
+const Icons = {
+  Tenants: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+    </svg>
+  ),
+  Activity: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  ),
+  Settings: () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  ),
+  Plus: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+  Users: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+    </svg>
+  )
+};
+
+export default function NexusDashboardPage() {
+  const navigate = useNavigate();
+  const role = localStorage.getItem("role");
+
+  useEffect(() => {
+    if (role !== 'nexus') {
+       navigate("/");
+    }
+  }, [role, navigate]);
+
+  return (
+    <div className="dashboard-layout">
+      <NexusSidebar />
+      <main className="main-content">
+        <NexusHeader />
+
+        {/* Stats Grid */}
+        <div className="stats-grid">
+          <div className="stat-card" style={{ padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', background: 'white' }}>
+            <div className="stat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>
+                <Icons.Tenants />
+              </div>
+              <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 700 }}>+4 New</span>
+            </div>
+            <div>
+              <div className="stat-value" style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>128</div>
+              <div className="stat-label" style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Active Hospital Shards</div>
+            </div>
+          </div>
+
+          <div className="stat-card" style={{ padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', background: 'white' }}>
+            <div className="stat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
+                <Icons.Activity />
+              </div>
+              <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 700 }}>Live</span>
+            </div>
+            <div>
+              <div className="stat-value" style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>99.9%</div>
+              <div className="stat-label" style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Service Uptime</div>
+            </div>
+          </div>
+
+          <div className="stat-card" style={{ padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', background: 'white' }}>
+            <div className="stat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+                <Icons.Settings />
+              </div>
+              <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 700 }}>Normal</span>
+            </div>
+            <div>
+              <div className="stat-value" style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>1.2ms</div>
+              <div className="stat-label" style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Avg. API Latency</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <h2 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '24px', color: '#0f172a', marginTop: '48px' }}>Management Actions</h2>
+        <div className="action-grid">
+          <div className="action-card" onClick={() => navigate('/nexus/tenants')}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(139, 92, 246, 0.5)' }}>
+              <Icons.Plus />
+            </div>
+            <div className="action-content">
+              <h3 style={{ fontWeight: 800 }}>Provision Shard</h3>
+              <p>Setup a new hospital instance</p>
+            </div>
+          </div>
+
+          <div className="action-card" onClick={() => navigate('/nexus/users')}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(59, 130, 246, 0.5)' }}>
+              <Icons.Users />
+            </div>
+            <div className="action-content">
+              <h3 style={{ fontWeight: 800 }}>RBAC Controls</h3>
+              <p>Configure Super Admin access</p>
+            </div>
+          </div>
+
+          <div className="action-card" onClick={() => navigate('/nexus/activity')}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(16, 185, 129, 0.5)' }}>
+              <Icons.Activity />
+            </div>
+            <div className="action-content">
+              <h3 style={{ fontWeight: 800 }}>Audit Logs</h3>
+              <p>System telemetry & history</p>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

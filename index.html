@@ -3,42 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HIMS by Healthezee</title>
+<title>HIMS :: Smart Healthcare System</title>
+<link rel="icon" href="/favicon.png" type="image/png">
 <style>
-body { font-family: Arial; margin:0; background:#f9fafb; }
-header { background:#2563EB; color:white; padding:20px; text-align:center; }
-section { padding:40px; text-align:center; }
-.btn { background:#22C55E; color:white; padding:12px 20px; text-decoration:none; border-radius:6px; }
-.features { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; }
-.card { background:white; padding:20px; border-radius:10px; width:250px; box-shadow:0 2px 10px rgba(0,0,0,0.1); }
-footer { background:#0F172A; color:white; text-align:center; padding:20px; }
+body { font-family: 'Inter', sans-serif; margin:0; background:#f9fafb; color: #1e293b; }
+header { background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%); color:white; padding:80px 20px; text-align:center; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); }
+header h1 { margin: 0; font-size: 42px; font-weight: 800; letter-spacing: -1px; }
+header p { margin-top: 12px; opacity: 0.9; font-size: 20px; }
+section { padding:80px 20px; text-align:center; }
+.btn { background:#22C55E; color:white; padding:16px 32px; text-decoration:none; border-radius:12px; font-weight: 600; font-size: 18px; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+.btn:hover { background: #16a34a; transform: translateY(-2px); }
+.features { display:flex; justify-content:center; gap:32px; flex-wrap:wrap; margin-top: 60px; }
+.card { background:white; padding:32px; border-radius:24px; width:280px; box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1); border: 1px solid #e2e8f0; }
+.card h3 { color: #2563eb; margin-top: 0; }
+footer { background:#0F172A; color:white; text-align:center; padding:40px; }
+.promo-box { position: relative; max-width: 1000px; margin: 40px auto; border-radius: 32px; overflow: hidden; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); }
+.promo-image { width: 100%; display: block; filter: brightness(0.7); }
+.promo-content { position: absolute; bottom: 0; left: 0; right: 0; padding: 60px; text-align: left; color: white; }
 </style>
 </head>
 <body>
 
 <header>
-<h1>HIMS by Healthezee</h1>
-<p>AI-Ready Healthcare Platform for Clinics & Hospitals</p>
+    <img src="/logo.png" alt="HIMS Logo" style="width: 140px; margin-bottom: 24px; filter: brightness(0) invert(1);">
+    <h1>HIMS :: Smart Healthcare System</h1>
+    <p>The Intelligent Foundation for Modern Clinical Excellence</p>
 </header>
 
 <section>
-<h2>Modern Healthcare Simplified</h2>
-<p>Manage OPD, IPD, Billing, Pharmacy & Insurance in one platform.</p>
-<a href="#" class="btn">Get Started</a>
+    <h2>The Future of Medicine, Simplified</h2>
+    <p style="color: #64748b; font-size: 20px; max-width: 700px; margin: 0 auto 40px;">HIMS empowers healthcare providers with precision-engineered tools for operational excellence and superior patient care.</p>
+    <a href="/login" class="btn">Launch Workspace</a>
+    
+    <div class="promo-box">
+        <img src="/ad-graphic.png" alt="Smart Healthcare System" class="promo-image">
+        <div class="promo-content">
+            <h3 style="font-size: 32px; margin-bottom: 12px;">Next-Gen Clinical Interface</h3>
+            <p style="font-size: 18px; opacity: 0.9;">Designed for precision. Optimized for speed. Built for the future.</p>
+        </div>
+    </div>
 </section>
 
-<section>
-<h2>Core Features</h2>
-<div class="features">
-<div class="card"><h3>OPD</h3><p>Fast consultations & prescriptions</p></div>
-<div class="card"><h3>IPD</h3><p>Admissions & bed management</p></div>
-<div class="card"><h3>Billing</h3><p>Smart billing & payments</p></div>
-<div class="card"><h3>AI Insights</h3><p>Future-ready AI features</p></div>
-</div>
+<section style="background: white;">
+    <h2>Core Modules</h2>
+    <div class="features">
+        <div class="card"><h3>OPD</h3><p>Fast consultations, digital prescriptions, and queue management.</p></div>
+        <div class="card"><h3>IPD</h3><p>Real-time bed tracking, nursing stations, and admission workflows.</p></div>
+        <div class="card"><h3>Pharmacy</h3><p>Smart inventory, stock alerts, and automated dispensing.</p></div>
+        <div class="card"><h3>Laboratory</h3><p>LIS integration, automated report delivery, and history tracking.</p></div>
+    </div>
 </section>
 
 <footer>
-<p>© 2026 Healthezee</p>
+    <p>© 2026 HIMS :: Smart Healthcare System. All Rights Reserved.</p>
 </footer>
 
 </body>

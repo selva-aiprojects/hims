@@ -1,8 +1,0 @@
-{
-  "/nexus/dashboard/page": "app/nexus/dashboard/page.js",
-  "/nexus/settings/page": "app/nexus/settings/page.js",
-  "/nexus/tenants/[id]/page": "app/nexus/tenants/[id]/page.js",
-  "/nexus/users/page": "app/nexus/users/page.js",
-  "/nexus/activity/page": "app/nexus/activity/page.js",
-  "/page": "app/page.js"
-}

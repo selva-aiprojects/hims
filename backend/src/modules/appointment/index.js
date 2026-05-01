@@ -3,54 +3,34 @@ const router = express.Router();
 
 router.get("/", async (req, res, next) => {
   try {
-    const appointments = await req.prisma.appointment.findMany();
+    const appointments = await req.prisma.$queryRawUnsafe(`
+      SELECT a.*, p.name as patient_name, u.name as doctor_name
+      FROM "${req.schemaName}".appointments a
+      JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
+      JOIN "${req.schemaName}".users u ON a.doctor_id = u.id
+      ORDER BY a.time ASC
+    `);
     res.json(appointments);
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get("/:id", async (req, res, next) => {
-  try {
-    const appointment = await req.prisma.appointment.findUnique({
-      where: { id: req.params.id },
-    });
-    res.json(appointment);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 router.post("/", async (req, res, next) => {
   try {
-    const appointment = await req.prisma.appointment.create({
-      data: req.body,
-    });
-    res.status(201).json(appointment);
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.put("/:id", async (req, res, next) => {
-  try {
-    const appointment = await req.prisma.appointment.update({
-      where: { id: req.params.id },
-      data: req.body,
-    });
-    res.json(appointment);
-  } catch (error) {
-    next(error);
-  }
+    const { patient_id, doctor_id, time, status } = req.body;
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".appointments (patient_id, doctor_id, time, status) 
+      VALUES ('${patient_id}', '${doctor_id}', '${time}', '${status || 'Scheduled'}')
+      RETURNING *
+    `);
+    res.status(201).json(result[0]);
+  } catch (error) { next(error); }
 });
 
 router.delete("/:id", async (req, res, next) => {
   try {
-    await req.prisma.appointment.delete({ where: { id: req.params.id } });
+    await req.prisma.$executeRawUnsafe(`DELETE FROM "${req.schemaName}".appointments WHERE id = '${req.params.id}'`);
     res.sendStatus(204);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 module.exports = router;
