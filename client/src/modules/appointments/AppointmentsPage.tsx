@@ -55,10 +55,12 @@ export default function AppointmentsPage() {
         <Header title="Appointments" />
 
         <div style={{ maxWidth: '600px' }}>
-          <section style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <div style={{ color: '#3b82f6' }}><Icons.Calendar /></div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Book New Appointment</h3>
+          <section className="form-card">
+            <div className="section-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ color: '#3b82f6' }}><Icons.Calendar /></div>
+                <h3 className="section-title">Book New Appointment</h3>
+              </div>
             </div>
 
             <div className="input-group">
@@ -68,30 +70,30 @@ export default function AppointmentsPage() {
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 className="form-input"
-                style={{ paddingLeft: '16px' }}
               />
             </div>
 
             <button 
               onClick={createAppointment} 
-              className="submit-btn" 
+              className="button-primary" 
               disabled={loading}
-              style={{ background: '#3b82f6' }}
             >
               {loading ? "Booking..." : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icons.Plus /> Book Appointment</div>}
             </button>
           </section>
 
           <div style={{ marginTop: '40px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '20px' }}>Upcoming Today</h3>
-            <div style={{ background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            <div className="section-header">
+              <h3 className="section-title">Upcoming Today</h3>
+            </div>
+            <div className="page-card" style={{ overflow: 'hidden' }}>
               {[1, 2, 3].map(i => (
                 <div key={i} style={{ padding: '20px', borderBottom: i < 3 ? '1px solid #f1f5f9' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <p style={{ fontWeight: 600, fontSize: '15px' }}>Patient #{1000 + i}</p>
                     <p style={{ fontSize: '13px', color: '#64748b' }}>General Checkup • 10:30 AM</p>
                   </div>
-                  <span style={{ padding: '4px 12px', background: '#f0f7ff', color: '#3b82f6', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>Scheduled</span>
+                  <span className="status-pill success">Scheduled</span>
                 </div>
               ))}
             </div>

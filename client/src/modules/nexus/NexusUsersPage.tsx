@@ -27,11 +27,11 @@ export default function NexusUsersPage() {
             <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Super Admin Management</h1>
             <p>Control platform-wide access and permissions.</p>
           </div>
-          <button style={{ padding: '10px 20px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>+ Add Admin</button>
+          <button className="button-primary">+ Add Admin</button>
         </header>
 
-        <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="page-card">
+          <table className="card-table">
             <thead>
               <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
                 <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b', fontWeight: 600 }}>NAME</th>

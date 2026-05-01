@@ -17,26 +17,13 @@ export default function Sidebar() {
   const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
 
   return (
-    <div style={{ 
-      width: '280px', 
-      background: '#0f172a', 
-      height: '100vh', 
-      padding: '32px 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      color: 'white',
-      borderRight: '1px solid rgba(255,255,255,0.05)',
-      overflowY: 'auto',
-      position: 'sticky',
-      top: 0
-    }}>
-      {/* Branding Section */}
-      <div style={{ marginBottom: '48px', padding: '0 12px', flexShrink: 0 }}>
+    <div className="sidebar">
+      <div className="sidebar-logo">
          <BrandLogo size="sm" light={true} />
          <p style={{ fontSize: '10px', color: '#94a3b8', margin: '4px 0 0 52px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical Desk</p>
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+      <nav className="nav-section">
         <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', marginBottom: '12px', textTransform: 'uppercase' }}>Core Operations</p>
         <SidebarLink to="/tenant/dashboard" icon={<Icons.Dashboard />} label="Dashboard" />
         <SidebarLink to="/tenant/opd/registration" icon={<Icons.OPD />} label="OPD Registration" />
@@ -70,19 +57,7 @@ function SidebarLink({ to, icon, label }: { to: string, icon: any, label: string
   return (
     <NavLink 
       to={to} 
-      style={({ isActive }) => ({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '12px',
-        borderRadius: '12px',
-        color: isActive ? 'white' : '#94a3b8',
-        background: isActive ? '#0d9488' : 'transparent',
-        textDecoration: 'none',
-        fontSize: '14px',
-        fontWeight: 600,
-        transition: 'all 0.2s'
-      })}
+      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
     >
       {icon}
       {label}

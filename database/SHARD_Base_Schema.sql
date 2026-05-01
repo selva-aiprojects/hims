@@ -178,7 +178,12 @@ INSERT INTO departments (name, description, hod, specialty) VALUES
 ('Cardiology', 'Heart and cardiovascular health', 'Dr. Sarah James', 'Invasive Cardiology'),
 ('Pediatrics', 'Child healthcare and development', 'Dr. Amit Shah', 'Pediatric Care'),
 ('General Medicine', 'General physician and primary care', 'Dr. Meena Iyer', 'Internal Medicine'),
-('Radiology', 'Imaging and diagnostic services', 'Dr. John Doe', 'Diagnostic Imaging')
+('Radiology', 'Imaging and diagnostic services', 'Dr. John Doe', 'Diagnostic Imaging'),
+('Orthopaedics', 'Bone, joint and spine care', 'Dr. Nisha Patel', 'Orthopedic Surgery'),
+('Obstetrics & Gynecology', 'Women''s health and maternity care', 'Dr. Kavita Sharma', 'OB/GYN'),
+('Neurology', 'Brain and neurological care', 'Dr. Sanjay Menon', 'Neurology'),
+('Oncology', 'Cancer diagnosis and treatment', 'Dr. Priya Nair', 'Medical Oncology'),
+('ENT', 'Ear, nose and throat care', 'Dr. Arjun Rao', 'ENT')
 ON CONFLICT (name) DO NOTHING;
 
 -- 2. Common Diseases (ICD-10 Standards)
@@ -187,7 +192,17 @@ INSERT INTO diseases (name, icd_code, category, severity_level) VALUES
 ('Type 2 diabetes mellitus', 'E11', 'Endocrine', 'Moderate'),
 ('Acute upper respiratory infection', 'J06.9', 'Respiratory', 'Mild'),
 ('Dengue fever', 'A90', 'Infectious', 'Severe'),
-('Urinary tract infection', 'N39.0', 'Urogenital', 'Moderate')
+('Urinary tract infection', 'N39.0', 'Urogenital', 'Moderate'),
+('Bronchial asthma', 'J45.9', 'Respiratory', 'Moderate'),
+('Acute gastroenteritis', 'A09', 'Gastrointestinal', 'Mild'),
+('Osteoarthritis', 'M19.90', 'Musculoskeletal', 'Moderate'),
+('Migraine', 'G43.909', 'Neurological', 'Mild'),
+('Community-acquired pneumonia', 'J18.9', 'Respiratory', 'Severe'),
+('Urinary tract calculus', 'N20.0', 'Urogenital', 'Moderate'),
+('Iron deficiency anaemia', 'D50.9', 'Hematology', 'Mild'),
+('Cholelithiasis', 'K80.20', 'Gastrointestinal', 'Moderate'),
+('Acute appendicitis', 'K35.80', 'Gastrointestinal', 'Severe'),
+('Hyperthyroidism', 'E05.90', 'Endocrine', 'Moderate')
 ON CONFLICT (name) DO NOTHING;
 
 -- 3. Standard Treatments (CPT Standards)
@@ -195,16 +210,31 @@ INSERT INTO treatments (name, description, cpt_code, price, estimated_duration) 
 ('Oxygen Therapy', 'Administration of oxygen at high concentrations', '94640', 500.00, 30),
 ('IV Fluid Resuscitation', 'Intravenous fluid replacement therapy', '96360', 1200.00, 60),
 ('Nebulization', 'Administration of medication in mist form', '94640', 350.00, 15),
-('Wound Dressing', 'Cleaning and dressing of minor wounds', '97597', 450.00, 20)
+('Wound Dressing', 'Cleaning and dressing of minor wounds', '97597', 450.00, 20),
+('Fracture Immobilization', 'Casting or splinting of broken bones', '29065', 1800.00, 45),
+('Endotracheal Intubation', 'Airway management for respiratory support', '31500', 3500.00, 30),
+('Blood Transfusion', 'Red blood cell replacement therapy', '36430', 2200.00, 90),
+('Ultrasound Abdomen', 'Imaging for abdominal evaluation', '76700', 1400.00, 25),
+('Appendectomy', 'Surgical removal of appendix', '44950', 12000.00, 120),
+('Physical Therapy Session', 'Supervised rehabilitative exercise', '97110', 800.00, 45)
 ON CONFLICT (name) DO NOTHING;
 
 -- 4. Diagnostics & Services
 INSERT INTO services (name, category, service_code, price, tax_percent) VALUES 
 ('General Consultation', 'OPD', 'CONS-001', 500.00, 0.00),
 ('Specialist Consultation', 'OPD', 'CONS-002', 1000.00, 0.00),
+('Senior Consultant Consultation', 'OPD', 'CONS-003', 1500.00, 0.00),
 ('Complete Blood Count (CBC)', 'Lab', 'LAB-001', 450.00, 5.00),
+('Serum Creatinine', 'Lab', 'LAB-002', 520.00, 5.00),
+('Lipid Profile', 'Lab', 'LAB-003', 900.00, 5.00),
 ('Chest X-Ray', 'Radiology', 'RAD-001', 850.00, 12.00),
-('ECG', 'Radiology', 'RAD-002', 600.00, 5.00)
+('ECG', 'Radiology', 'RAD-002', 600.00, 5.00),
+('2D Echocardiogram', 'Radiology', 'RAD-003', 2200.00, 12.00),
+('MRI Brain', 'Radiology', 'RAD-004', 9500.00, 18.00),
+('Ultrasound Pelvis', 'Radiology', 'RAD-005', 1200.00, 12.00),
+('Wound Dressing', 'Procedure', 'PROC-001', 450.00, 0.00),
+('IV Cannulation', 'Procedure', 'PROC-002', 300.00, 0.00),
+('Infusion Therapy', 'Procedure', 'PROC-003', 750.00, 0.00)
 ON CONFLICT (name) DO NOTHING;
 
 -- 5. Specialities
@@ -213,7 +243,12 @@ INSERT INTO specialities (name, base_consultation_fee) VALUES
 ('Neurology', 1800.00),
 ('Orthopaedics', 1200.00),
 ('Pediatrics', 800.00),
-('General Medicine', 600.00)
+('General Medicine', 600.00),
+('Obstetrics & Gynecology', 1400.00),
+('Oncology', 2200.00),
+('ENT', 900.00),
+('Urology', 1300.00),
+('Dermatology', 850.00)
 ON CONFLICT (name) DO NOTHING;
 
 -- 6. Consultation Modes
@@ -222,7 +257,8 @@ INSERT INTO consultation_modes (name, surcharge_percent, is_virtual) VALUES
 ('Direct (Walk-in)', 10, FALSE),
 ('Emergency', 50, FALSE),
 ('Telemedicine', 0, TRUE),
-('Virtual (Intl)', 25, TRUE)
+('Virtual (Intl)', 25, TRUE),
+('Home Visit', 15, FALSE)
 ON CONFLICT (name) DO NOTHING;
 
 -- 7. Pharmacy Inventory (Day One Stock)

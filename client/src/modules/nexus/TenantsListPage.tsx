@@ -43,17 +43,17 @@ export default function TenantsListPage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
+    <div className="dashboard-layout">
       <NexusSidebar />
-      <main style={{ flex: 1, padding: '32px' }}>
+      <main className="main-content">
         <NexusHeader title="Infrastructure Control" />
 
-        <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-             <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Active Hospital Shards</h3>
+        <div className="page-card">
+          <div className="section-header" style={{ padding: '24px' }}>
+             <h3 className="section-title">Active Hospital Shards</h3>
              <button 
                onClick={() => navigate('/nexus/tenants/new')}
-               style={{ padding: '10px 20px', borderRadius: '12px', background: '#8b5cf6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
+               className="button-primary"
              >
                + Provision Tenant
              </button>
@@ -62,37 +62,27 @@ export default function TenantsListPage() {
           {loading ? (
             <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Loading shards...</div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table className="card-table">
               <thead>
-                <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b', fontWeight: 600 }}>TENANT NAME</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b', fontWeight: 600 }}>SHARD ID</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b', fontWeight: 600 }}>PLAN</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b', fontWeight: 600 }}>ACTION</th>
+                <tr>
+                  <th>TENANT NAME</th>
+                  <th>SHARD ID</th>
+                  <th>PLAN</th>
+                  <th>ACTION</th>
                 </tr>
               </thead>
               <tbody>
                 {tenants.map((t, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '16px 24px', fontWeight: 600 }}>{t.name}</td>
-                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '13px' }}>{t.dbName || t.code || 'NO_SHARD'}</td>
-                    <td style={{ padding: '16px 24px' }}>
-                       <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '12px' }}>{t.plan || 'Standard'}</span>
+                  <tr key={i}>
+                    <td style={{ fontWeight: 600 }}>{t.name}</td>
+                    <td style={{ color: '#64748b', fontSize: '13px' }}>{t.dbName || t.code || 'NO_SHARD'}</td>
+                    <td>
+                       <span className="status-pill success" style={{ fontWeight: 700 }}>{t.plan || 'Standard'}</span>
                     </td>
-                    <td style={{ padding: '16px 24px' }}>
+                    <td>
                       <div style={{ display: 'flex', gap: '16px' }}>
-                        <button 
-                          onClick={() => navigate(`/nexus/tenants/${t.id}`)}
-                          style={{ color: '#8b5cf6', background: 'none', border: 'none', fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Manage
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(t.id, t.name)}
-                          style={{ color: '#ef4444', background: 'none', border: 'none', fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          Delete
-                        </button>
+                        <button className="button-link" onClick={() => navigate(`/nexus/tenants/${t.id}`)}>Manage</button>
+                        <button className="button-link" style={{ color: '#ef4444' }} onClick={() => handleDelete(t.id, t.name)}>Delete</button>
                       </div>
                     </td>
                   </tr>

@@ -87,8 +87,6 @@ export default function BillingPage() {
     }
   };
 
-  const isInsuranceEligible = billType === 'IPD' || billType === 'DAYCARE' || billType === 'DISCHARGE';
-
   return (
     <div className="dashboard-layout">
       <Sidebar />

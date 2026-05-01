@@ -6,24 +6,15 @@ import Header from "../../../components/Header";
 
 const API_BASE = "http://localhost:4000";
 
-const Icons = {
-  User: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
-  Zap: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
-  Activity: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-};
-
 export default function OPDRegistrationPage() {
   const navigate = useNavigate();
   const [patients, setPatients] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showRegForm, setShowRegForm] = useState(false);
   
   const [newPatient, setNewPatient] = useState({ name: '', phone: '', gender: 'Male', age: '' });
   const [opdEntry, setOpdEntry] = useState({ patientId: '', doctorId: '', departmentId: '', weight: '', height: '', bp: '', temp: '' });
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     const fetchMasters = async () => {
       const headers = { 
@@ -31,12 +22,8 @@ export default function OPDRegistrationPage() {
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
       try {
-        const [docRes, depRes] = await Promise.all([
-          axios.get(`${API_BASE}/api/hospital/staff`, { headers }),
-          axios.get(`${API_BASE}/api/hospital/masters/departments`, { headers })
-        ]);
+        const docRes = await axios.get(`${API_BASE}/api/hospital/staff`, { headers });
         setDoctors(docRes.data.filter((s: any) => s.role === 'doctor'));
-        setDepartments(depRes.data);
       } catch (err) { console.error(err); }
     };
     fetchMasters();
@@ -44,7 +31,6 @@ export default function OPDRegistrationPage() {
 
   const handleSearch = async () => {
     if (!searchTerm) return;
-    setLoading(true);
     const headers = { 
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       "x-tenant-id": localStorage.getItem("tenant") || ""
@@ -52,7 +38,7 @@ export default function OPDRegistrationPage() {
     try {
       const res = await axios.get(`${API_BASE}/api/patients?search=${searchTerm}`, { headers });
       setPatients(res.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { console.error(err); }
   };
 
   const registerPatient = async (e: React.FormEvent) => {
@@ -99,19 +85,22 @@ export default function OPDRegistrationPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
           {/* IDENTIFY PATIENT */}
-          <section style={{ background: 'white', padding: '32px', borderRadius: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>1</div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Identify Patient</h2>
+          <section className="form-card">
+            <div className="section-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>1</div>
+                <h2 className="section-title">Identify Patient</h2>
+              </div>
             </div>
             
             <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
               <input 
                 placeholder="Name or Phone..." 
-                style={{ flex: 1, padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', background: '#f8fafc' }}
+                className="input-field"
+                style={{ flex: 1 }}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               />
-              <button onClick={handleSearch} style={{ padding: '0 24px', background: '#0f172a', color: 'white', borderRadius: '14px', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Search</button>
+              <button onClick={handleSearch} className="button-primary">Search</button>
             </div>
 
             <div style={{ marginBottom: '24px', maxHeight: '200px', overflowY: 'auto' }}>
@@ -123,37 +112,39 @@ export default function OPDRegistrationPage() {
               ))}
             </div>
 
-            <button onClick={() => setShowRegForm(!showRegForm)} style={{ width: '100%', padding: '16px', borderRadius: '16px', border: '2px dashed #3b82f6', background: 'rgba(59, 130, 246, 0.05)', color: '#3b82f6', fontWeight: 800, cursor: 'pointer' }}>+ Register New Patient</button>
+            <button onClick={() => setShowRegForm(!showRegForm)} className="button-secondary" style={{ width: '100%', border: '2px dashed #3b82f6', background: 'rgba(59, 130, 246, 0.05)', color: '#3b82f6' }}>+ Register New Patient</button>
 
             {showRegForm && (
-              <form onSubmit={registerPatient} style={{ marginTop: '24px', padding: '24px', background: '#f8fafc', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-                <input placeholder="Full Name" required style={{ width: '100%', padding: '12px', marginBottom: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
+              <form onSubmit={registerPatient} className="form-card" style={{ marginTop: '24px', background: '#f8fafc' }}>
+                <input placeholder="Full Name" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
                 <div style={{ display: 'flex', gap: '12px' }}>
-                    <input placeholder="Age" type="number" required style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewPatient({...newPatient, age: e.target.value})} />
-                    <select style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewPatient({...newPatient, gender: e.target.value})}><option>Male</option><option>Female</option></select>
+                    <input placeholder="Age" type="number" required className="input-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, age: e.target.value})} />
+                    <select className="select-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, gender: e.target.value})}><option>Male</option><option>Female</option></select>
                 </div>
-                <button type="submit" style={{ width: '100%', padding: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 700, marginTop: '12px' }}>Save Record</button>
+                <button type="submit" className="button-primary" style={{ width: '100%', marginTop: '12px' }}>Save Record</button>
               </form>
             )}
           </section>
 
           {/* VITALS & VISIT */}
-          <section style={{ background: 'white', padding: '32px', borderRadius: '28px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#f0fdf4', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>2</div>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Capture Vitals & Assign</h2>
+          <section className="form-card">
+            <div className="section-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#f0fdf4', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>2</div>
+                <h2 className="section-title">Capture Vitals & Assign</h2>
+              </div>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-               <div><label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Weight (kg)</label><input style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setOpdEntry({...opdEntry, weight: e.target.value})} /></div>
-               <div><label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>BP (120/80)</label><input style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setOpdEntry({...opdEntry, bp: e.target.value})} /></div>
-               <div><label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Temp (°F)</label><input style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setOpdEntry({...opdEntry, temp: e.target.value})} /></div>
-               <div><label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Height (cm)</label><input style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setOpdEntry({...opdEntry, height: e.target.value})} /></div>
+            <div className="form-grid grid-2" style={{ marginBottom: '24px' }}>
+               <div><label className="field-label">Weight (kg)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, weight: e.target.value})} /></div>
+               <div><label className="field-label">BP (120/80)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, bp: e.target.value})} /></div>
+               <div><label className="field-label">Temp (°F)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, temp: e.target.value})} /></div>
+               <div><label className="field-label">Height (cm)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, height: e.target.value})} /></div>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
-               <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Assign Doctor</label>
-               <select style={{ width: '100%', padding: '14px', borderRadius: '14px', border: '1px solid #e2e8f0', background: '#f8fafc' }} onChange={e => setOpdEntry({...opdEntry, doctorId: e.target.value})}>
+               <label className="field-label">Assign Doctor</label>
+               <select className="select-field" onChange={e => setOpdEntry({...opdEntry, doctorId: e.target.value})}>
                   <option value="">Select Doctor</option>
                   {doctors.map(d => <option key={d.id} value={d.id}>{d.name} ({d.role})</option>)}
                </select>

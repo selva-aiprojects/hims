@@ -15,13 +15,13 @@ export default function PatientsPage() {
       <main className="main-content">
         <Header title="Patient Directory" />
 
-        <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-             <h3 style={{ fontSize: '18px', fontWeight: 700 }}>Registered Patients</h3>
-             <button style={{ padding: '10px 20px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>+ Add Patient</button>
+        <div className="page-card">
+          <div className="section-header" style={{ padding: '24px' }}>
+             <h3 className="section-title">Registered Patients</h3>
+             <button className="button-primary">+ Add Patient</button>
           </div>
           
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="card-table">
             <thead>
               <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
                 <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b', fontWeight: 600 }}>PATIENT ID</th>
@@ -33,13 +33,13 @@ export default function PatientsPage() {
             </thead>
             <tbody>
               {patients.map((p, i) => (
-                <tr key={i} style={{ borderTop: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '16px 24px', fontWeight: 600 }}>{p.id}</td>
-                  <td style={{ padding: '16px 24px' }}>{p.name}</td>
-                  <td style={{ padding: '16px 24px', color: '#64748b' }}>{p.phone}</td>
-                  <td style={{ padding: '16px 24px' }}>{p.lastVisit}</td>
-                  <td style={{ padding: '16px 24px' }}>
-                    <button style={{ color: '#3b82f6', background: 'none', border: 'none', fontWeight: 600, cursor: 'pointer' }}>View Case</button>
+                <tr key={i}>
+                  <td>{p.id}</td>
+                  <td>{p.name}</td>
+                  <td style={{ color: '#64748b' }}>{p.phone}</td>
+                  <td>{p.lastVisit}</td>
+                  <td>
+                    <button className="button-link">View Case</button>
                   </td>
                 </tr>
               ))}

@@ -40,7 +40,7 @@ export default function MastersPage() {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
-      const [depRes, disRes, treRes, serRes, medRes, specRes, modeRes] = await Promise.all([
+      const requests = [
         axios.get(`${API_BASE}/api/hospital/masters/departments`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/diseases`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/treatments`, { headers }),
@@ -48,14 +48,30 @@ export default function MastersPage() {
         axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/specialities`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/modes`, { headers })
-      ]);
-      setDepartments(depRes.data);
-      setDiseases(disRes.data);
-      setTreatments(treRes.data);
-      setServices(serRes.data);
-      setMedicines(medRes.data);
-      setSpecialities(specRes.data);
-      setModes(modeRes.data);
+      ];
+
+      const [depRes, disRes, treRes, serRes, medRes, specRes, modeRes] = await Promise.allSettled(requests);
+
+      if (depRes.status === 'fulfilled') setDepartments(depRes.value.data);
+      else console.error('Departments fetch failed', depRes.reason);
+
+      if (disRes.status === 'fulfilled') setDiseases(disRes.value.data);
+      else console.error('Diseases fetch failed', disRes.reason);
+
+      if (treRes.status === 'fulfilled') setTreatments(treRes.value.data);
+      else console.error('Treatments fetch failed', treRes.reason);
+
+      if (serRes.status === 'fulfilled') setServices(serRes.value.data);
+      else console.error('Services fetch failed', serRes.reason);
+
+      if (medRes.status === 'fulfilled') setMedicines(medRes.value.data);
+      else console.error('Medicines fetch failed', medRes.reason);
+
+      if (specRes.status === 'fulfilled') setSpecialities(specRes.value.data);
+      else console.error('Specialities fetch failed', specRes.reason);
+
+      if (modeRes.status === 'fulfilled') setModes(modeRes.value.data);
+      else console.error('Modes fetch failed', modeRes.reason);
     } catch (err) {
       console.error("Failed to fetch masters", err);
     } finally {
@@ -85,185 +101,214 @@ export default function MastersPage() {
     }
   };
 
-  const getActiveData = () => {
-    switch(activeTab) {
-      case 'departments': return departments;
-      case 'diseases': return diseases;
-      case 'treatments': return treatments;
-      case 'services': return services;
-      case 'medicines': return medicines;
-      case 'specialities': return specialities;
-      case 'modes': return modes;
-      default: return [];
+  const tabConfigs: Record<string, any> = {
+    departments: {
+      label: 'Departments',
+      cols: [
+        { header: 'Department', value: (item: any) => item.name },
+        { header: 'Specialty', value: (item: any) => item.specialty },
+        { header: 'HOD', value: (item: any) => item.hod },
+        { header: 'Status', value: (item: any) => item.status }
+      ]
+    },
+    specialities: {
+      label: 'Specialities',
+      cols: [
+        { header: 'Speciality', value: (item: any) => item.name },
+        { header: 'Consultation Fee', value: (item: any) => `₹${item.base_consultation_fee || item.fee || 0}` },
+        { header: 'Notes', value: (item: any) => item.description || '-' }
+      ]
+    },
+    modes: {
+      label: 'Modes',
+      cols: [
+        { header: 'Mode', value: (item: any) => item.name },
+        { header: 'Surcharge', value: (item: any) => `${item.surcharge_percent || item.surcharge || 0}%` },
+        { header: 'Virtual', value: (item: any) => item.is_virtual ? 'Yes' : 'No' }
+      ]
+    },
+    diseases: {
+      label: 'Diseases',
+      cols: [
+        { header: 'Disease', value: (item: any) => item.name },
+        { header: 'ICD Code', value: (item: any) => item.icd_code },
+        { header: 'Category', value: (item: any) => item.category },
+        { header: 'Severity', value: (item: any) => item.severity_level }
+      ]
+    },
+    treatments: {
+      label: 'Treatments',
+      cols: [
+        { header: 'Treatment', value: (item: any) => item.name },
+        { header: 'CPT Code', value: (item: any) => item.cpt_code },
+        { header: 'Duration', value: (item: any) => `${item.estimated_duration || 0} mins` },
+        { header: 'Price', value: (item: any) => `₹${item.price || 0}` }
+      ]
+    },
+    services: {
+      label: 'Services',
+      cols: [
+        { header: 'Service', value: (item: any) => item.name },
+        { header: 'Category', value: (item: any) => item.category },
+        { header: 'Code', value: (item: any) => item.service_code },
+        { header: 'Price', value: (item: any) => `₹${item.price || 0}` }
+      ]
+    },
+    medicines: {
+      label: 'Medicines',
+      cols: [
+        { header: 'Medicine', value: (item: any) => item.name },
+        { header: 'Category', value: (item: any) => item.category },
+        { header: 'Adult Dose', value: (item: any) => item.dosage_adult || '-' },
+        { header: 'Pediatric Dose', value: (item: any) => item.dosage_pediatric || '-' }
+      ]
     }
   };
 
+  const activeConfig = tabConfigs[activeTab];
+  const activeData = activeTab === 'departments'
+    ? departments
+    : activeTab === 'diseases'
+      ? diseases
+      : activeTab === 'treatments'
+        ? treatments
+        : activeTab === 'services'
+          ? services
+          : activeTab === 'medicines'
+            ? medicines
+            : activeTab === 'specialities'
+              ? specialities
+              : activeTab === 'modes'
+                ? modes
+                : [];
+  const totalMasters = departments.length + diseases.length + treatments.length + services.length + medicines.length + specialities.length + modes.length;
+
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f4f6fb' }}>
       <Sidebar />
       <main style={{ flex: 1, padding: '32px' }}>
         <Header title="Master Data Management" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div style={{ display: 'flex', gap: '8px', background: 'white', padding: '6px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-            {['departments', 'specialities', 'modes', 'diseases', 'treatments', 'services', 'medicines'].map(tab => (
-              <button 
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginBottom: '32px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: '42px', height: '42px', borderRadius: '14px', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#4338ca' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
+              </div>
+              <div>
+                <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical configuration</p>
+                <h1 style={{ margin: '8px 0 0', fontSize: '32px', fontWeight: 900, color: '#0f172a' }}>Hospital master catalog</h1>
+              </div>
+            </div>
+            <p style={{ margin: 0, maxWidth: '680px', color: '#64748b', lineHeight: 1.8 }}>Keep the hospital operational masters aligned with the clinical workflow. Use this centralized screen to review services, specialties, classifications, and care protocols.</p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '22px', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.05)' }}>
+              <p style={{ margin: 0, fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Master rows</p>
+              <p style={{ margin: '14px 0 0', fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>{totalMasters}</p>
+            </div>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '22px', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.05)' }}>
+              <p style={{ margin: 0, fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Active section</p>
+              <p style={{ margin: '14px 0 0', fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>{activeConfig.label}</p>
+              <p style={{ margin: '10px 0 0', color: '#475569', fontWeight: 700 }}>{activeData.length} records</p>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', background: 'white', padding: '10px', borderRadius: '18px', border: '1px solid #e2e8f0' }}>
+            {Object.entries(tabConfigs).map(([tab, config]) => (
+              <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                style={{ 
-                  padding: '10px 20px', 
-                  borderRadius: '12px', 
-                  border: 'none', 
-                  background: activeTab === tab ? '#3b82f6' : 'transparent',
-                  color: activeTab === tab ? 'white' : '#64748b',
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '14px',
+                  border: 'none',
+                  background: activeTab === tab ? '#4338ca' : 'transparent',
+                  color: activeTab === tab ? 'white' : '#475569',
                   fontSize: '13px',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  textTransform: 'capitalize',
                   transition: 'all 0.2s'
                 }}
               >
-                {tab}
+                {config.label}
               </button>
             ))}
           </div>
 
-          <button 
+          <button
             onClick={() => setShowAddModal(true)}
-            style={{ 
-              padding: '12px 24px', 
-              borderRadius: '14px', 
-              background: '#0f172a', 
-              color: 'white', 
-              border: 'none', 
-              fontWeight: 800, 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px', 
-              cursor: 'pointer' 
+            style={{
+              padding: '14px 24px',
+              borderRadius: '16px',
+              background: '#4338ca',
+              color: 'white',
+              border: 'none',
+              fontWeight: 800,
+              boxShadow: '0 16px 30px rgba(67, 56, 202, 0.18)',
+              cursor: 'pointer'
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add {activeTab.slice(0, -1)}
+            + Add {activeConfig.label.slice(0, -1)}
           </button>
         </div>
 
         {showAddModal && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '500px', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)', maxHeight: '90vh', overflowY: 'auto' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '24px', textTransform: 'capitalize' }}>Add New {activeTab.slice(0, -1)}</h3>
-                <div style={{ display: 'grid', gap: '16px' }}>
-                   <input 
-                     placeholder="Name / Title" 
-                     style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }}
-                     value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})}
-                   />
-
-                   {activeTab === 'medicines' ? (
-                     <>
-                        <input placeholder="Clinical Category (e.g. Antibiotic)" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} />
-                        <textarea placeholder="Generic Composition / Salts" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '60px' }} value={newItem.composition} onChange={e => setNewItem({...newItem, composition: e.target.value})} />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                          <input placeholder="Adult Dosage" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.dosage_adult} onChange={e => setNewItem({...newItem, dosage_adult: e.target.value})} />
-                          <input placeholder="Pediatric Dosage" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.dosage_pediatric} onChange={e => setNewItem({...newItem, dosage_pediatric: e.target.value})} />
-                        </div>
-                        <input placeholder="Clinical Instructions" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.instructions} onChange={e => setNewItem({...newItem, instructions: e.target.value})} />
-                     </>
-                   ) : (
-                     <>
-                        {activeTab === 'specialities' && (
-                          <input placeholder="Base Consultation Fee (₹)" type="number" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.fee} onChange={e => setNewItem({...newItem, fee: e.target.value})} />
-                        )}
-
-                        {activeTab === 'modes' && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', alignItems: 'center' }}>
-                             <input placeholder="Surcharge %" type="number" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.surcharge} onChange={e => setNewItem({...newItem, surcharge: e.target.value})} />
-                             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
-                                <input type="checkbox" checked={newItem.is_virtual} onChange={e => setNewItem({...newItem, is_virtual: e.target.checked})} />
-                                Is Virtual?
-                             </label>
-                          </div>
-                        )}
-
-                        {activeTab === 'departments' && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                             <input placeholder="HOD Name" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.hod} onChange={e => setNewItem({...newItem, hod: e.target.value})} />
-                             <input placeholder="Specialty" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.specialty} onChange={e => setNewItem({...newItem, specialty: e.target.value})} />
-                          </div>
-                        )}
-
-                        {activeTab === 'diseases' && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                             <input placeholder="ICD Code" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.icd_code} onChange={e => setNewItem({...newItem, icd_code: e.target.value})} />
-                             <select style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.severity_level} onChange={e => setNewItem({...newItem, severity_level: e.target.value})}>
-                                <option value="Mild">Mild</option>
-                                <option value="Moderate">Moderate</option>
-                                <option value="Severe">Severe</option>
-                             </select>
-                          </div>
-                        )}
-
-                        {(activeTab === 'services' || activeTab === 'treatments') && (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                             <input placeholder={activeTab === 'services' ? "Service Code" : "CPT Code"} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={activeTab === 'services' ? newItem.service_code : newItem.cpt_code} onChange={e => setNewItem({...newItem, [activeTab === 'services' ? 'service_code' : 'cpt_code']: e.target.value})} />
-                             <input placeholder="Price (₹)" type="number" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0' }} value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} />
-                          </div>
-                        )}
-
-                        <textarea placeholder="Description / Category" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '60px' }} value={activeTab === 'departments' ? newItem.description : newItem.category} onChange={e => setNewItem({...newItem, [activeTab === 'departments' ? 'description' : 'category']: e.target.value})} />
-                     </>
-                   )}
-
-                   <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                      <button onClick={() => setShowAddModal(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 700 }}>Cancel</button>
-                      <button onClick={handleAdd} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: '#0f172a', color: 'white', fontWeight: 700 }}>Save Master</button>
-                   </div>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ width: '560px', background: 'white', borderRadius: '28px', padding: '32px', boxShadow: '0 35px 90px rgba(15, 23, 42, 0.18)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 900, color: '#0f172a' }}>Add new {activeConfig.label.slice(0, -1)}</h3>
+              <p style={{ margin: '12px 0 24px', color: '#64748b', lineHeight: 1.7 }}>Create a new master record for the selected hospital master category.</p>
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <input placeholder="Name / Title" style={{ width: '100%', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} />
+                {activeTab === 'medicines' && (
+                  <>
+                    <input placeholder="Category" style={{ width: '100%', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })} />
+                    <textarea placeholder="Composition" style={{ width: '100%', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc', minHeight: '100px' }} value={newItem.composition} onChange={e => setNewItem({ ...newItem, composition: e.target.value })} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <input placeholder="Adult dosage" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.dosage_adult} onChange={e => setNewItem({ ...newItem, dosage_adult: e.target.value })} />
+                      <input placeholder="Pediatric dosage" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.dosage_pediatric} onChange={e => setNewItem({ ...newItem, dosage_pediatric: e.target.value })} />
+                    </div>
+                  </>
+                )}
+                {(activeTab === 'services' || activeTab === 'treatments') && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <input placeholder={activeTab === 'services' ? 'Service Code' : 'CPT Code'} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={activeTab === 'services' ? newItem.service_code : newItem.cpt_code} onChange={e => setNewItem({ ...newItem, [activeTab === 'services' ? 'service_code' : 'cpt_code']: e.target.value })} />
+                    <input placeholder="Price" type="number" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
+                  </div>
+                )}
+                <textarea placeholder="Details / Notes" style={{ width: '100%', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc', minHeight: '80px' }} value={newItem.description || newItem.category} onChange={e => setNewItem({ ...newItem, description: e.target.value, category: e.target.value })} />
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={() => setShowAddModal(false)} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: 'white', color: '#475569', fontWeight: 700 }}>Cancel</button>
+                  <button onClick={handleAdd} style={{ flex: 1, padding: '16px', borderRadius: '16px', border: 'none', background: '#4338ca', color: 'white', fontWeight: 800 }}>Save</button>
                 </div>
-             </div>
+              </div>
+            </div>
           </div>
         )}
 
-        <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        <div style={{ background: 'white', borderRadius: '28px', boxShadow: '0 25px 60px rgba(15, 23, 42, 0.08)', overflow: 'hidden' }}>
           {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center' }}>Loading masters...</div>
+            <div style={{ padding: '44px', textAlign: 'center', color: '#64748b' }}>Loading master data...</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>IDENTIFIER / NAME</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>CLINICAL DETAILS</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>STATUS / PRICING</th>
+                <tr style={{ textAlign: 'left', background: '#eef2ff', borderBottom: '1px solid #e2e8f0' }}>
+                  {activeConfig.cols.map((col: any) => (
+                    <th key={col.header} style={{ padding: '18px 24px', fontSize: '13px', fontWeight: 700, color: '#334155', letterSpacing: '0.02em' }}>{col.header}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {getActiveData().length === 0 ? (
-                  <tr><td colSpan={3} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No {activeTab} defined in this shard yet.</td></tr>
-                ) : getActiveData().map((item: any, i: number) => (
+                {activeData.length === 0 ? (
+                  <tr><td colSpan={activeConfig.cols.length} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>No {activeConfig.label.toLowerCase()} defined in this shard yet. Add a new record to get started.</td></tr>
+                ) : activeData.map((item: any, i: number) => (
                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '16px 24px' }}>
-                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.name}</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{item.icd_code || item.cpt_code || item.service_code || 'ID: ' + item.id.slice(0, 8)}</div>
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                      {activeTab === 'medicines' ? (
-                        <>
-                          <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>{item.composition}</div>
-                          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Adult: {item.dosage_adult} | Ped: {item.dosage_pediatric}</div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>{item.category || item.specialty || item.description || '-'}</div>
-                          <div style={{ fontSize: '11px', color: '#94a3b8' }}>{item.instructions || item.hod || '-'}</div>
-                        </>
-                      )}
-                    </td>
-                    <td style={{ padding: '16px 24px' }}>
-                      {item.price || item.base_consultation_fee || item.fee ? (
-                        <div style={{ fontWeight: 800, color: '#0d9488' }}>₹{item.price || item.base_consultation_fee || item.fee}</div>
-                      ) : (
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981', background: '#ecfdf5', padding: '4px 8px', borderRadius: '6px' }}>ACTIVE</span>
-                      )}
-                    </td>
+                    {activeConfig.cols.map((col: any) => (
+                      <td key={col.header} style={{ padding: '18px 24px', fontSize: '14px', color: '#1e293b' }}>{col.value(item)}</td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

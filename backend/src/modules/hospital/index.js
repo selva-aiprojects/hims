@@ -26,22 +26,23 @@ router.post("/masters/departments", async (req, res, next) => {
 // 2. Medicines
 router.get("/masters/medicines", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".pharmacy_inventory ORDER BY drug_name ASC`);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".medicines ORDER BY name ASC`);
     res.json(data);
   } catch (error) { next(error); }
 });
 
 router.post("/masters/medicines", async (req, res, next) => {
   try {
-    const { name, price, stock, uom, instructions, details, category } = req.body;
+    const { name, category, composition, dosage_adult, dosage_pediatric, instructions } = req.body;
     await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".pharmacy_inventory (drug_name, unit_price, stock_quantity, uom, instructions, details, category) 
-      VALUES ('${name}', ${price || 0}, ${stock || 100}, '${uom || ''}', '${instructions || ''}', '${details || ''}', '${category || 'General'}')
-      ON CONFLICT (drug_name) DO UPDATE SET 
-        stock_quantity = pharmacy_inventory.stock_quantity + EXCLUDED.stock_quantity,
-        uom = EXCLUDED.uom,
-        instructions = EXCLUDED.instructions,
-        details = EXCLUDED.details
+      INSERT INTO "${req.schemaName}".medicines (name, category, composition, dosage_adult, dosage_pediatric, instructions) 
+      VALUES ('${name}', '${category || 'General'}', '${composition || ''}', '${dosage_adult || ''}', '${dosage_pediatric || ''}', '${instructions || ''}')
+      ON CONFLICT (name) DO UPDATE SET 
+        category = EXCLUDED.category,
+        composition = EXCLUDED.composition,
+        dosage_adult = EXCLUDED.dosage_adult,
+        dosage_pediatric = EXCLUDED.dosage_pediatric,
+        instructions = EXCLUDED.instructions
     `);
     res.status(201).json({ message: "Medicine added/updated" });
   } catch (error) { next(error); }

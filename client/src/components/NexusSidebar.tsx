@@ -19,22 +19,13 @@ export default function NexusSidebar() {
   };
 
   return (
-    <div style={{ 
-      width: '280px', 
-      background: '#0f172a', 
-      minHeight: '100vh', 
-      padding: '32px 20px',
-      display: 'flex',
-      flexDirection: 'column',
-      color: 'white'
-    }}>
-      {/* Branding Section */}
-      <div style={{ marginBottom: '48px', padding: '0 12px' }}>
+    <div className="sidebar">
+      <div className="sidebar-logo">
          <BrandLogo size="sm" light={true} />
          <p style={{ fontSize: '10px', color: '#94a3b8', margin: '4px 0 0 52px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Nexus Control</p>
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+      <nav className="nav-section">
         <SidebarLink to="/nexus/dashboard" icon={<Icons.Overview />} label="Overview" />
         <SidebarLink to="/nexus/tenants" icon={<Icons.Tenants />} label="Tenants" />
         <SidebarLink to="/nexus/users" icon={<Icons.Admins />} label="Super Admins" />
@@ -45,19 +36,14 @@ export default function NexusSidebar() {
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
         <button 
           onClick={handleLogout}
-          style={{ 
+          className="button-secondary"
+          style={{
             width: '100%',
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '12px', 
-            padding: '12px', 
-            borderRadius: '12px', 
-            color: '#ef4444', 
-            background: 'rgba(239, 68, 68, 0.1)', 
-            border: 'none',
-            fontSize: '14px', 
-            fontWeight: 700, 
-            cursor: 'pointer' 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            color: '#ef4444',
+            background: 'rgba(239, 68, 68, 0.1)'
           }}
         >
           <Icons.Logout />
@@ -72,19 +58,7 @@ function SidebarLink({ to, icon, label }: { to: string, icon: any, label: string
   return (
     <NavLink 
       to={to} 
-      style={({ isActive }) => ({
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '12px',
-        borderRadius: '12px',
-        color: isActive ? 'white' : '#94a3b8',
-        background: isActive ? '#8b5cf6' : 'transparent',
-        textDecoration: 'none',
-        fontSize: '14px',
-        fontWeight: 600,
-        transition: 'all 0.2s'
-      })}
+      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
     >
       {icon}
       {label}

@@ -10,9 +10,9 @@ const bcrypt = require("bcryptjs");
 async function ensureNexusColumns(prisma) {
   try {
     console.log("[NEXUS] Checking Registry Schema...");
-    await prisma.$executeRawUnsafe(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS shard_id VARCHAR(255)`);
-    await prisma.$executeRawUnsafe(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255)`);
-    const countRes = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM tenants`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS shard_id VARCHAR(255)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255)`);
+    const countRes = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM nexus.tenants`);
     console.log(`[NEXUS] Registry contains ${countRes[0].count} tenants.`);
     console.log("[NEXUS] Registry Schema is synchronized.");
   } catch (err) {
@@ -50,25 +50,52 @@ router.get("/tenants/public", async (req, res, next) => {
   }
 });
 
+router.get("/tenants/:id", async (req, res, next) => {
+  try {
+    const tenants = await req.prisma.$queryRawUnsafe(`
+      SELECT id, name, code, db_name, shard_id, plan, admin_email, created_at, background_color, text_color, hero_background_color, overall_text_color
+      FROM nexus.tenants
+      WHERE id = '${req.params.id}'
+      LIMIT 1
+    `);
+
+    if (!tenants || tenants.length === 0) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+
+    res.json(tenants[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/tenants", async (req, res, next) => {
   const { name, dbName, plan, contactName, contactEmail, adminEmail, adminPassword, uiSettings } = req.body;
-  
+  const normalizedDbName = (dbName || "").toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  const tenantCode = normalizedDbName;
+  const schemaName = normalizedDbName;
+  const passwordToUse = adminPassword || "Admin@" + Math.random().toString(36).slice(-4);
+
+  if (!name || !tenantCode || !contactName || !contactEmail || !adminEmail) {
+    return res.status(400).json({ error: "Missing required tenant provisioning fields." });
+  }
+
   try {
     const tenantId = crypto.randomUUID();
-    
+
     // 1. Create Tenant in Global Registry
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO nexus.tenants (id, code, name, db_name, shard_id, plan, background_color, text_color, hero_background_color, overall_text_color, admin_email)
       VALUES (
-        '${tenantId}', 
-        '${dbName}',
-        '${name}', 
-        '${dbName}', 
-        '${dbName}', 
-        '${plan}', 
-        '${uiSettings?.backgroundColor || "#ffffff"}', 
-        '${uiSettings?.textColor || "#1e293b"}', 
-        '${uiSettings?.heroBackgroundColor || "#f8fafc"}', 
+        '${tenantId}',
+        '${tenantCode}',
+        '${name}',
+        '${schemaName}',
+        '${schemaName}',
+        '${plan}',
+        '${uiSettings?.backgroundColor || "#ffffff"}',
+        '${uiSettings?.textColor || "#1e293b"}',
+        '${uiSettings?.heroBackgroundColor || "#f8fafc"}',
         '${uiSettings?.overallTextColor || "#475569"}',
         '${adminEmail}'
       )
@@ -81,29 +108,25 @@ router.post("/tenants", async (req, res, next) => {
     `);
 
     // 2. Initialize Shard Schema (Robust Sequential Execution)
-    const schemaName = dbName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    const passwordToUse = adminPassword || "Admin@" + Math.random().toString(36).slice(-4);
-    
     try {
-      console.log(`[PROVISIONING] Attempting to load schema from: ${path.resolve(path.join(__dirname, "../../../../database/SHARD_Base_Schema.sql"))}`);
       const schemaPath = path.join(__dirname, "../../../../database/SHARD_Base_Schema.sql");
-      
+      console.log(`[PROVISIONING] Attempting to load schema from: ${schemaPath}`);
+
       if (!fs.existsSync(schemaPath)) {
         throw new Error(`Schema file not found at ${schemaPath}`);
       }
-      
+
       const sqlContent = fs.readFileSync(schemaPath, "utf8");
       const statements = sqlContent.split(';').map(s => s.trim()).filter(s => s.length > 0);
       console.log(`[PROVISIONING] Found ${statements.length} SQL statements to execute.`);
 
       await req.prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
-      await req.prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public`);
-      console.log(`[PROVISIONING] Schema "${schemaName}" prepared.`);
+      console.log(`[PROVISIONING] Schema "${schemaName}" created or already exists.`);
 
       let successCount = 0;
       for (const statement of statements) {
         try {
-          await req.prisma.$executeRawUnsafe(statement);
+          await req.prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public; ${statement}`);
           successCount++;
         } catch (stmtErr) {
           console.warn(`[PROVISIONING] Statement ${successCount + 1} warning: ${stmtErr.message.substring(0, 100)}`);
@@ -111,17 +134,15 @@ router.post("/tenants", async (req, res, next) => {
       }
       console.log(`[PROVISIONING] Successfully executed ${successCount}/${statements.length} statements.`);
 
-      // Create Admin User in Shard
-      const loginEmail = adminEmail || contactEmail;
+      const loginEmail = adminEmail;
       const hashedAdminPassword = await bcrypt.hash(passwordToUse, 10);
 
       await req.prisma.$executeRawUnsafe(`
-        INSERT INTO users (email, password_hash, role, name)
+        INSERT INTO "${schemaName}".users (email, password_hash, role, name)
         VALUES ('${loginEmail}', '${hashedAdminPassword}', 'admin', '${contactName}')
       `);
       console.log(`[PROVISIONING] Admin user ${loginEmail} created in shard.`);
 
-      // 3. Communicate Credentials via Resend
       if (process.env.RESEND_API_KEY) {
         const fromEmail = process.env.RESEND_FROM || "HIMS Onboarding <onboarding@cognivectra.com>";
         const emailHtml = `
@@ -131,7 +152,7 @@ router.post("/tenants", async (req, res, next) => {
             <div style="background: #f8fafc; padding: 20px; border-radius: 12px;">
               <p><strong>Admin Email:</strong> ${loginEmail}</p>
               <p><strong>Initial Password:</strong> ${passwordToUse}</p>
-              <p><strong>Tenant Code:</strong> ${dbName}</p>
+              <p><strong>Tenant Code:</strong> ${tenantCode}</p>
             </div>
             <p>Please log in at: <a href="http://localhost:3000">Hospital Dashboard</a></p>
           </div>
@@ -151,12 +172,14 @@ router.post("/tenants", async (req, res, next) => {
           console.error("[COMMUNICATION] Email failed:", emailErr.response?.data || emailErr.message);
         }
       }
-
     } catch (shardErr) {
       console.error("[PROVISIONING] Critical failure in shard init:", shardErr.message);
+      await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.tenant_admin_contacts WHERE tenant_id = '${tenantId}'`);
+      await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.tenants WHERE id = '${tenantId}'`);
+      return next(shardErr);
     }
 
-    res.status(201).json({ id: tenantId, name, dbName, plan });
+    res.status(201).json({ id: tenantId, name, dbName: schemaName, plan, adminEmail });
   } catch (error) {
     console.error("[NEXUS] CRITICAL PROVISIONING ERROR:", error.message);
     if (error.code === 'P2002') {
@@ -175,11 +198,55 @@ router.get("/users", async (req, res, next) => {
   }
 });
 
+router.patch("/tenants/:id/password", async (req, res, next) => {
+  const { id } = req.params;
+  const { newPassword, adminEmail } = req.body;
+
+  if (!newPassword || !adminEmail) {
+    return res.status(400).json({ error: "newPassword and adminEmail are required." });
+  }
+
+  try {
+    const tenants = await req.prisma.$queryRawUnsafe(`
+      SELECT db_name FROM nexus.tenants WHERE id = '${id}' LIMIT 1
+    `);
+
+    if (!tenants || tenants.length === 0) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+
+    const schemaName = tenants[0].db_name;
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${schemaName}".users
+      SET password_hash = '${hashedPassword}'
+      WHERE LOWER(email) = LOWER('${adminEmail}')
+    `);
+
+    res.json({ message: "Password updated" });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete("/tenants/:id", async (req, res, next) => {
   const { id } = req.params;
+
   try {
+    const tenants = await req.prisma.$queryRawUnsafe(`
+      SELECT db_name FROM nexus.tenants WHERE id = '${id}' LIMIT 1
+    `);
+
+    if (!tenants || tenants.length === 0) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+
+    const schemaName = tenants[0].db_name;
+    await req.prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+    await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.tenant_admin_contacts WHERE tenant_id = '${id}'`);
     await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.tenants WHERE id = '${id}'`);
-    res.json({ message: "Tenant deleted" });
+
+    res.json({ message: "Tenant deleted and shard decommissioned" });
   } catch (error) {
     next(error);
   }
