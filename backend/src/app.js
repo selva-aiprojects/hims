@@ -87,9 +87,19 @@ async function seedSamples() {
   }, 3000); 
 }
 
-if (process.env.NODE_ENV !== 'production' || process.env.AUTO_SEED === 'true') {
-  seedSamples();
-}
+// Dedicated Seeding Endpoint (to prevent startup timeouts)
+app.get("/api/nexus/seed-database", async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.AUTO_SEED !== 'true') {
+    return res.status(403).json({ error: "Seeding is disabled in production" });
+  }
+  try {
+    console.log("[SEED] Manual Seed Triggered...");
+    await seedSamples();
+    res.json({ message: "Seeding process started. Check logs for progress." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // CORS configuration
 app.use(cors({
