@@ -8,6 +8,7 @@ interface HeaderProps {
 export default function Header({ title }: HeaderProps) {
   const navigate = useNavigate();
   const userName = localStorage.getItem("userName") || "User";
+  const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
 
   const handleLogout = () => {
     localStorage.clear();
@@ -16,9 +17,24 @@ export default function Header({ title }: HeaderProps) {
 
   return (
     <header className="dashboard-header">
-      <div className="welcome-msg">
-        <h1>{title}</h1>
-        <p className="help-text">Logged in as <span style={{ fontWeight: 700, color: '#0d9488' }}>{userName}</span></p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="welcome-msg">
+          <h1>{title}</h1>
+          <p className="help-text">Logged in as <span style={{ fontWeight: 700, color: '#0d9488' }}>{userName}</span></p>
+        </div>
+        
+        <div style={{ 
+          background: 'rgba(13, 148, 136, 0.1)', 
+          border: '1px solid rgba(13, 148, 136, 0.2)', 
+          padding: '6px 16px', 
+          borderRadius: '100px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <div style={{ width: '8px', height: '8px', background: '#0d9488', borderRadius: '50%' }}></div>
+          <span style={{ fontSize: '12px', fontWeight: 800, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tenantName}</span>
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>

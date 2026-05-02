@@ -66,10 +66,6 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div style={{ marginTop: 'auto', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
-         <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>Current Facility</p>
-         <p style={{ fontSize: '13px', fontWeight: 700, margin: '4px 0 0', color: '#0d9488' }}>{tenantName}</p>
-      </div>
     </div>
   );
 }
