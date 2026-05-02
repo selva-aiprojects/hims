@@ -7,12 +7,10 @@ const API_BASE = "http://127.0.0.1:4000";
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [newStaff, setNewStaff] = useState({ name: '', email: '', role: 'doctor', password: '' });
 
   const fetchStaff = async () => {
-    setLoading(true);
     const headers = { 
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       "x-tenant-id": localStorage.getItem("tenant") || ""
@@ -21,7 +19,6 @@ export default function StaffPage() {
       const res = await axios.get(`${API_BASE}/api/hospital/staff`, { headers });
       setStaff(res.data);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchStaff(); }, []);
