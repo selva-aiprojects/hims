@@ -16,7 +16,7 @@ export default function BrandLogo({ size = 'md', showText = true, light = false 
           height: `${height}px`, 
           width: 'auto',
           display: 'block',
-          filter: light ? 'brightness(0) invert(1)' : 'none' 
+          borderRadius: '8px'
         }} 
       />
     </div>
