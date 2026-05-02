@@ -129,7 +129,10 @@ router.post("/tenants", async (req, res, next) => {
           await req.prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public; ${statement}`);
           successCount++;
         } catch (stmtErr) {
-          console.warn(`[PROVISIONING] Statement ${successCount + 1} warning: ${stmtErr.message.substring(0, 100)}`);
+          console.error(`[PROVISIONING] Statement ${successCount + 1} FAILED:`);
+          console.error(`SQL: ${statement.substring(0, 200)}...`);
+          console.error(`Error: ${stmtErr.message}`);
+          // We continue for now, but maybe we should stop if it's a CREATE TABLE?
         }
       }
       console.log(`[PROVISIONING] Successfully executed ${successCount}/${statements.length} statements.`);

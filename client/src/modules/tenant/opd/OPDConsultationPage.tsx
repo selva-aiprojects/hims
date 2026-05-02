@@ -22,6 +22,7 @@ export default function OPDConsultationPage() {
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
   const [diseases, setDiseases] = useState<any[]>([]);
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -61,22 +62,63 @@ export default function OPDConsultationPage() {
   };
 
   const finishConsultation = async () => {
+    if (!diagnosis) {
+      alert("Please select a diagnosis before finishing.");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
-      alert("Consultation finalized. Patient moved to billing.");
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+
+    try {
+      // 1. Update Encounter with Diagnosis & Notes
+      await axios.put(`${API_BASE}/api/hospital/encounters/${encounter.id}`, {
+        diagnosis: diagnosis,
+        status: 'Completed',
+        notes: notes
+      }, { headers });
+
+      // 2. Save Prescriptions if any
+      if (prescriptions.length > 0) {
+        await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/prescriptions`, {
+          items: prescriptions
+        }, { headers });
+      }
+
+      // 3. Move to Billing
+      localStorage.removeItem("currentEncounter");
       navigate("/billing", { 
         state: { 
           billType: 'OPD', 
-          totalAmount: encounter.reg_fee || 500,
+          totalAmount: 500, // Standard Consultation Fee (Could be dynamic from masters)
           patientName: encounter.patient_name,
-          encounterId: encounter.id
+          encounterId: encounter.id 
         } 
       });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save consultation data.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
-  if (!encounter) return <div style={{ padding: '40px', textAlign: 'center' }}>Loading patient encounter...</div>;
+  if (!encounter) return (
+    <div style={{ padding: '80px', textAlign: 'center', background: '#f8fafc', minHeight: '100vh' }}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'inline-block', maxWidth: '400px' }}>
+        <h2 style={{ fontWeight: 900, color: '#0f172a', marginBottom: '12px' }}>No Patient Selected</h2>
+        <p style={{ color: '#64748b', marginBottom: '24px' }}>Please select a patient from the doctor's queue to start a consultation.</p>
+        <button 
+          onClick={() => navigate("/tenant/opd/queue")}
+          style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
+        >
+          Go to Patient Queue
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
@@ -91,13 +133,15 @@ export default function OPDConsultationPage() {
              </div>
              <div>
                 <h2 style={{ fontSize: '20px', fontWeight: 900, margin: 0 }}>{encounter.patient_name}</h2>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>{encounter.age} yrs • {encounter.gender} • Token <span style={{ fontWeight: 800, color: '#0d9488' }}>#{encounter.token}</span></p>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>
+                   <span style={{ color: '#3b82f6', fontWeight: 800 }}>{encounter.mrn}</span> • {encounter.age} yrs • {encounter.gender} • Token <span style={{ fontWeight: 800, color: '#0d9488' }}>#{encounter.token}</span>
+                </p>
              </div>
           </div>
           <div style={{ display: 'flex', gap: '32px' }}>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>BP</p><p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>{encounter.bp || '120/80'}</p></div>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>Weight</p><p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>{encounter.weight || '70kg'}</p></div>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>Temp</p><p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>{encounter.temp || '98.6°F'}</p></div>
+             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>BP</p><p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>{encounter.vitals?.bp || 'N/A'}</p></div>
+             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>Weight</p><p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>{encounter.vitals?.weight || 'N/A'}kg</p></div>
+             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>Temp</p><p style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>{encounter.vitals?.temp || 'N/A'}°F</p></div>
           </div>
         </div>
 
@@ -118,6 +162,8 @@ export default function OPDConsultationPage() {
                  <textarea 
                     placeholder="Enter clinical notes..." 
                     style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '100px', resize: 'none' }}
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
                  />
               </div>
 
@@ -139,18 +185,61 @@ export default function OPDConsultationPage() {
 
                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {prescriptions.map((p, i) => (
-                      <div key={i} style={{ padding: '16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                         <div>
-                            <p style={{ fontWeight: 800, color: '#0f172a', margin: 0 }}>{p.name}</p>
-                            <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0' }}>{p.composition}</p>
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-                               <span style={{ fontSize: '11px', fontWeight: 800, color: '#0d9488', background: '#f0fdfa', padding: '2px 8px', borderRadius: '6px' }}>{p.dosage}</span>
-                               <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>{p.instructions}</span>
+                      <div key={i} style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                            <div>
+                               <p style={{ fontWeight: 800, color: '#0f172a', margin: 0, fontSize: '15px' }}>{p.name}</p>
+                               <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0' }}>{p.composition}</p>
+                            </div>
+                            <button onClick={() => setPrescriptions(prescriptions.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                         </div>
+                         
+                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                            <div>
+                               <label style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Dosage</label>
+                               <input 
+                                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }}
+                                  value={p.dosage} 
+                                  onChange={e => {
+                                     const newP = [...prescriptions];
+                                     newP[i].dosage = e.target.value;
+                                     setPrescriptions(newP);
+                                  }}
+                               />
+                            </div>
+                            <div>
+                               <label style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Frequency</label>
+                               <input 
+                                  placeholder="1-0-1"
+                                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }}
+                                  value={p.frequency || '1-0-1'} 
+                                  onChange={e => {
+                                     const newP = [...prescriptions];
+                                     newP[i].frequency = e.target.value;
+                                     setPrescriptions(newP);
+                                  }}
+                               />
+                            </div>
+                            <div>
+                               <label style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Duration</label>
+                               <input 
+                                  placeholder="5 days"
+                                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }}
+                                  value={p.duration || '5 days'} 
+                                  onChange={e => {
+                                     const newP = [...prescriptions];
+                                     newP[i].duration = e.target.value;
+                                     setPrescriptions(newP);
+                                  }}
+                               />
                             </div>
                          </div>
-                         <button onClick={() => setPrescriptions(prescriptions.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                         </button>
+                         <div style={{ marginTop: '12px', fontSize: '12px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                            {p.instructions}
+                         </div>
                       </div>
                     ))}
                     {prescriptions.length === 0 && <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '13px', padding: '20px' }}>No medicines prescribed yet.</p>}

@@ -3,52 +3,41 @@ const router = express.Router();
 
 router.get("/", async (req, res, next) => {
   try {
-    const bills = await req.prisma.bill.findMany();
-    res.json(bills);
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.get("/:id", async (req, res, next) => {
-  try {
-    const bill = await req.prisma.bill.findUnique({
-      where: { id: req.params.id },
-    });
-    res.json(bill);
-  } catch (error) {
-    next(error);
-  }
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT i.*, p.name as patient_name 
+      FROM "${req.schemaName}".invoices i
+      JOIN "${req.schemaName}".patients p ON i.patient_id = p.id
+      ORDER BY i.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
 });
 
 router.post("/", async (req, res, next) => {
   try {
-    const bill = await req.prisma.bill.create({ data: req.body });
-    res.status(201).json(bill);
-  } catch (error) {
-    next(error);
-  }
-});
+    const { patientId, encounterId, billType, items, totalAmount, paymentMode, status } = req.body;
+    
+    // 1. Create Invoice Header
+    const subtotal = items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+    const taxTotal = items.reduce((acc, it) => acc + (it.price * it.quantity * (it.tax / 100)), 0);
 
-router.put("/:id", async (req, res, next) => {
-  try {
-    const bill = await req.prisma.bill.update({
-      where: { id: req.params.id },
-      data: req.body,
-    });
-    res.json(bill);
-  } catch (error) {
-    next(error);
-  }
-});
+    const invHeader = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".invoices (patient_id, encounter_id, bill_type, payment_mode, subtotal, tax_total, total, status)
+      VALUES ('${patientId}', ${encounterId ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${totalAmount}, '${status || 'PAID'}')
+      RETURNING id
+    `);
+    const invId = invHeader[0].id;
 
-router.delete("/:id", async (req, res, next) => {
-  try {
-    await req.prisma.bill.delete({ where: { id: req.params.id } });
-    res.sendStatus(204);
-  } catch (error) {
-    next(error);
-  }
+    // 2. Insert Items
+    for (const item of items) {
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".invoice_items (invoice_id, description, quantity, unit_price, tax_percent, amount)
+        VALUES ('${invId}', '${item.description.replace(/'/g, "''")}', ${item.quantity}, ${item.price}, ${item.tax}, ${item.price * item.quantity})
+      `);
+    }
+
+    res.status(201).json({ id: invId, message: "Invoice generated successfully" });
+  } catch (error) { next(error); }
 });
 
 module.exports = router;

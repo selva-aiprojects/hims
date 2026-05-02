@@ -160,7 +160,20 @@ CREATE TABLE medicines (
   dosage_adult VARCHAR(255),
   dosage_pediatric VARCHAR(255),
   instructions TEXT,
+  stock_quantity INTEGER DEFAULT 100,
+  unit_price NUMERIC DEFAULT 0,
+  expiry_date DATE DEFAULT (NOW() + INTERVAL '1 year'),
   is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS wards CASCADE;
+CREATE TABLE wards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100),
+  capacity INTEGER DEFAULT 10,
+  type VARCHAR(50) DEFAULT 'General',
+  floor VARCHAR(20),
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -320,16 +333,24 @@ CREATE TABLE invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES patients(id),
   encounter_id UUID REFERENCES encounters(id),
-  total NUMERIC,
-  status VARCHAR(50) DEFAULT 'Unpaid'
+  bill_type VARCHAR(50),
+  payment_mode VARCHAR(50),
+  subtotal NUMERIC DEFAULT 0,
+  tax_total NUMERIC DEFAULT 0,
+  total NUMERIC DEFAULT 0,
+  status VARCHAR(50) DEFAULT 'Unpaid',
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 DROP TABLE IF EXISTS invoice_items CASCADE;
 CREATE TABLE invoice_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   invoice_id UUID REFERENCES invoices(id),
-  item_type VARCHAR(50),
-  amount NUMERIC
+  description VARCHAR(255),
+  quantity INTEGER DEFAULT 1,
+  unit_price NUMERIC DEFAULT 0,
+  tax_percent NUMERIC DEFAULT 0,
+  amount NUMERIC DEFAULT 0
 );
 
 DROP TABLE IF EXISTS payments CASCADE;
@@ -441,3 +462,15 @@ INSERT INTO consultation_modes (name, surcharge_percent, is_virtual) VALUES
 ('Physical Visit', 0, FALSE),
 ('Video Consult', 10, TRUE),
 ('Home Visit', 25, FALSE);
+
+-- 13. Standard Wards
+INSERT INTO wards (name, capacity, floor, type) VALUES
+('General Ward - Male', 20, '1st Floor', 'General'),
+('General Ward - Female', 20, '1st Floor', 'General'),
+('ICU - Unit A', 8, '2nd Floor', 'Critical Care'),
+('Private Deluxe', 10, '3rd Floor', 'Premium');
+
+-- 14. Update Medicines with Inventory
+UPDATE medicines SET stock_quantity = 500, unit_price = 10.50 WHERE name = 'Paracetamol 500mg';
+UPDATE medicines SET stock_quantity = 250, unit_price = 45.00 WHERE name = 'Amoxicillin 250mg';
+UPDATE medicines SET stock_quantity = 150, unit_price = 12.00 WHERE name = 'Metformin 500mg';

@@ -20,14 +20,14 @@ export default function Sidebar() {
     <div className="sidebar">
       <div className="sidebar-logo">
          <BrandLogo size="sm" light={true} />
-         <p style={{ fontSize: '10px', color: '#94a3b8', margin: '4px 0 0 52px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical Desk</p>
+         <p style={{ fontSize: '9px', color: '#3b82f6', margin: '2px 0 0 48px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.8 }}>Clinical Management Desk</p>
       </div>
 
       <nav className="nav-section">
         <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', marginBottom: '12px', textTransform: 'uppercase' }}>Core Operations</p>
         <SidebarLink to="/tenant/dashboard" icon={<Icons.Dashboard />} label="Dashboard" />
         <SidebarLink to="/tenant/opd/registration" icon={<Icons.OPD />} label="OPD Registration" />
-        <SidebarLink to="/tenant/opd/consultation" icon={<Icons.Doctor />} label="Doctor's Queue" />
+        <SidebarLink to="/tenant/opd/queue" icon={<Icons.Doctor />} label="Doctor's Queue" />
         
         <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', margin: '24px 0 12px', textTransform: 'uppercase' }}>Diagnostics & Pharmacy</p>
         <SidebarLink to="/tenant/lab" icon={<Icons.Lab />} label="Laboratory" />
@@ -41,6 +41,7 @@ export default function Sidebar() {
           <>
             <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', margin: '24px 0 12px', textTransform: 'uppercase' }}>Administration</p>
             <SidebarLink to="/tenant/masters" icon={<Icons.Settings />} label="Masters Hub" />
+            <SidebarLink to="/tenant/staff" icon={<Icons.Doctor />} label="Staff & RBAC" />
           </>
         )}
       </nav>

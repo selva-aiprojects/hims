@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://127.0.0.1:4000";
 
 export default function OPDRegistrationPage() {
   const navigate = useNavigate();
@@ -51,30 +51,47 @@ export default function OPDRegistrationPage() {
       const res = await axios.post(`${API_BASE}/api/patients`, newPatient, { headers });
       setOpdEntry({ ...opdEntry, patientId: res.data.id });
       setShowRegForm(false);
-      alert("Patient Record Created!");
-    } catch (err) { alert("Failed to register patient"); }
+      alert(`Patient Record Created Successfully! MRN: ${res.data.mrn}`);
+    } catch (err: any) { 
+      const status = err.response?.status;
+      const data = JSON.stringify(err.response?.data || "No response data");
+      console.error("Registration Failed:", err);
+      alert(`Registration Error [${status}]: ${data}`); 
+    }
   };
 
   const startVisit = async () => {
-    if (!opdEntry.patientId || !opdEntry.doctorId) return;
+    if (!opdEntry.patientId || !opdEntry.doctorId) {
+      alert("Please select both a patient and a doctor.");
+      return;
+    }
     
-    // Simulate encounter creation
-    const selectedPatient = patients.find(p => p.id === opdEntry.patientId) || { name: "New Patient", age: newPatient.age, gender: newPatient.gender };
-    const selectedDoctor = doctors.find(d => d.id === opdEntry.doctorId);
-
-    const encounterData = {
-      ...opdEntry,
-      patient_name: selectedPatient.name,
-      age: selectedPatient.age,
-      gender: selectedPatient.gender,
-      doctor_name: selectedDoctor?.name || "Doctor",
-      token: Math.floor(Math.random() * 100) + 1,
-      status: 'Draft'
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
     };
 
-    localStorage.setItem("currentEncounter", JSON.stringify(encounterData));
-    alert(`Patient added to queue successfully.`);
-    navigate('/tenant/opd/queue');
+    try {
+      const payload = {
+        patientId: opdEntry.patientId,
+        doctorId: opdEntry.doctorId,
+        type: 'OPD',
+        vitals: {
+          weight: opdEntry.weight,
+          height: opdEntry.height,
+          bp: opdEntry.bp,
+          temp: opdEntry.temp
+        },
+        complaints: '' 
+      };
+
+      await axios.post(`${API_BASE}/api/hospital/encounters`, payload, { headers });
+      alert(`Patient added to queue successfully.`);
+      navigate('/tenant/opd/queue');
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create visit encounter.");
+    }
   };
 
   return (
@@ -117,6 +134,7 @@ export default function OPDRegistrationPage() {
             {showRegForm && (
               <form onSubmit={registerPatient} className="form-card" style={{ marginTop: '24px', background: '#f8fafc' }}>
                 <input placeholder="Full Name" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
+                <input placeholder="Phone Number" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} />
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <input placeholder="Age" type="number" required className="input-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, age: e.target.value})} />
                     <select className="select-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, gender: e.target.value})}><option>Male</option><option>Female</option></select>

@@ -5,7 +5,7 @@ router.get("/", async (req, res, next) => {
   try {
     const search = req.query.search || '';
     const query = search 
-      ? `SELECT * FROM "${req.schemaName}".patients WHERE name ILIKE '%${search}%' OR phone ILIKE '%${search}%' ORDER BY name ASC`
+      ? `SELECT * FROM "${req.schemaName}".patients WHERE name ILIKE '%${search}%' OR phone ILIKE '%${search}%' OR mrn ILIKE '%${search}%' ORDER BY name ASC`
       : `SELECT * FROM "${req.schemaName}".patients ORDER BY name ASC`;
     const patients = await req.prisma.$queryRawUnsafe(query);
     res.json(patients);
@@ -20,15 +20,27 @@ router.get("/:id", async (req, res, next) => {
 });
 
 router.post("/", async (req, res, next) => {
+  console.log(`[PATIENT] Incoming registration request for schema: ${req.schemaName}`);
+  console.log(`[PATIENT] Body:`, req.body);
   try {
     const { name, phone, gender, age } = req.body;
+    
+    // Improved unique MRN generation
+    const mrn = `MRN-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString().slice(-4)}`;
+    
+    // Sanitize name for SQL (escape single quotes)
+    const safeName = name.replace(/'/g, "''");
+    
     const result = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".patients (name, phone, gender, age) 
-      VALUES ('${name}', '${phone}', '${gender}', ${age})
+      INSERT INTO "${req.schemaName}".patients (mrn, name, phone, gender, age) 
+      VALUES ('${mrn}', '${safeName}', '${phone || ''}', '${gender || 'Male'}', ${parseInt(age) || 0})
       RETURNING *
     `);
     res.status(201).json(result[0]);
-  } catch (error) { next(error); }
+  } catch (error) { 
+    console.error("[PATIENT] Registration failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 router.put("/:id", async (req, res, next) => {

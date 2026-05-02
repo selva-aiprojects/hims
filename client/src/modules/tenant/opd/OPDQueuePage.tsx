@@ -52,12 +52,20 @@ export default function OPDQueuePage() {
                 {encounters.map((enc: any, i: number) => (
                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '16px 24px' }}>
-                      <div style={{ fontWeight: 700 }}>{enc.patient_name}</div>
-                      <div style={{ fontSize: '12px', color: '#94a3b8' }}>{enc.gender}, {enc.age} yrs</div>
+                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{enc.patient_name}</div>
+                      <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700, marginBottom: '4px' }}>{enc.mrn}</div>
+                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{enc.gender}, {enc.age} yrs</div>
                     </td>
-                    <td style={{ padding: '16px 24px', fontWeight: 600, color: '#3b82f6' }}>Dr. {enc.doctor_name}</td>
+                    <td style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Dr. {enc.doctor_name}</td>
                     <td style={{ padding: '16px 24px' }}>
-                      <span style={{ fontSize: '12px', background: '#fef2f2', color: '#ef4444', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>{enc.bp || 'N/A'}</span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', background: '#f0fdf4', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                          BP: {enc.vitals?.bp || '--'}
+                        </span>
+                        <span style={{ fontSize: '11px', background: '#fef2f2', color: '#ef4444', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                          {enc.vitals?.temp || '--'}°F
+                        </span>
+                      </div>
                     </td>
                     <td style={{ padding: '16px 24px' }}>
                       <button 
