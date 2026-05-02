@@ -2,12 +2,15 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-// Ensure PDF output directory exists
-const pdfDir = process.env.STORAGE_PATH 
-  ? path.join(process.env.STORAGE_PATH, 'patients') 
-  : path.join(__dirname, '../../uploads/patients');
+const os = require('os');
 
-if (!fs.existsSync(pdfDir)) {
+// Ensure PDF output directory exists - Use /tmp on Vercel/Production
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+const pdfDir = isProduction 
+  ? path.join(os.tmpdir(), 'patients') 
+  : (process.env.STORAGE_PATH ? path.join(process.env.STORAGE_PATH, 'patients') : path.join(__dirname, '../../uploads/patients'));
+
+if (!isProduction && !fs.existsSync(pdfDir)) {
   fs.mkdirSync(pdfDir, { recursive: true });
 }
 
