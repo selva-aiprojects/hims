@@ -8,6 +8,11 @@ const { PrismaClient } = require('@prisma/client');
  */
 console.log("[DB] Initializing Prisma with PostgreSQL Adapter...");
 // Safely parse and clean the URL to prevent SSL verification issues
+if (!process.env.DATABASE_URL) {
+  console.error("[DB] CRITICAL ERROR: DATABASE_URL is not defined in environment variables!");
+  process.exit(1);
+}
+
 const dbUrl = new URL(process.env.DATABASE_URL);
 dbUrl.searchParams.delete('sslmode');
 const connectionString = dbUrl.toString();
