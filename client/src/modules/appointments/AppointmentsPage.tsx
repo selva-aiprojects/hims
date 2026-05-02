@@ -2,8 +2,8 @@ import { useState } from "react";
 import axios from "axios";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import { API_BASE_URL as API_BASE } from "../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 const Icons = {
   Plus: () => (

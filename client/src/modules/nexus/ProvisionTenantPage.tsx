@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import NexusSidebar from "../../components/NexusSidebar";
+import { API_BASE_URL as API_BASE } from "../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 export default function ProvisionTenantPage() {
   const navigate = useNavigate();

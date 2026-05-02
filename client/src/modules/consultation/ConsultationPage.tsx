@@ -3,6 +3,8 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import { API_BASE_URL as API_BASE } from "../../config/api";
+
 
 const Icons = {
   User: () => (
@@ -48,7 +50,7 @@ export default function ConsultationPage() {
   const submit = async () => {
     setLoading(true);
     try {
-      const res = await axios.post("http://localhost:4000/api/consultation", {
+      const res = await axios.post(`${API_BASE}/api/consultation`, {
         patientId,
         doctorId: "doc1",
         diagnosis,

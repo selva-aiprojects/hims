@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);

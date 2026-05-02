@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 export default function PharmacyDashboard() {
   const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, pendingPrescriptions: 0, todaysSales: 0 });

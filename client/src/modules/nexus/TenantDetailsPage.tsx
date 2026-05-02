@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import NexusSidebar from "../../components/NexusSidebar";
+import { API_BASE_URL as API_BASE } from "../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 export default function TenantDetailsPage() {
   const { id } = useParams();

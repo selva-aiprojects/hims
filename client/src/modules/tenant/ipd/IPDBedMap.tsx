@@ -3,8 +3,8 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 const WARD_COLORS: Record<string, { bg: string; badge: string; text: string }> = {
   "General":       { bg: "#eff6ff", badge: "#3b82f6", text: "#1e40af" },

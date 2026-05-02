@@ -3,8 +3,8 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
-const API_BASE = "http://localhost:4000";
 
 export default function PrescriptionQueue() {
   const navigate = useNavigate();

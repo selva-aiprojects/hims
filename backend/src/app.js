@@ -87,7 +87,9 @@ async function seedSamples() {
   }, 3000); 
 }
 
-seedSamples();
+if (process.env.NODE_ENV !== 'production' || process.env.AUTO_SEED === 'true') {
+  seedSamples();
+}
 
 // CORS configuration
 app.use(cors({
