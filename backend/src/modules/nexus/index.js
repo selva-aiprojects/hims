@@ -20,9 +20,11 @@ async function ensureNexusColumns(prisma) {
   }
 }
 
-// MANDATORY: Self-healing MUST run before any routes
+// Only run self-healing in development or if forced
 router.use(async (req, res, next) => {
-  await ensureNexusColumns(req.prisma);
+  if (process.env.NODE_ENV !== 'production' || process.env.FORCE_SYNC === 'true') {
+    await ensureNexusColumns(req.prisma);
+  }
   next();
 });
 

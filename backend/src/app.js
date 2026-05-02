@@ -93,9 +93,10 @@ if (process.env.NODE_ENV !== 'production' || process.env.AUTO_SEED === 'true') {
 
 // CORS configuration
 app.use(cors({
-  origin: "*",
+  origin: true, // Dynamically allow the requesting origin
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-tenant-id"],
+  credentials: true
 }));
 
 app.use(express.json());
