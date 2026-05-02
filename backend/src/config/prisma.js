@@ -5,7 +5,10 @@ let prisma;
 function getPrisma() {
   if (!prisma) {
     console.log("[DB] Lazily Initializing Prisma Client...");
-    prisma = new PrismaClient();
+    prisma = new PrismaClient({
+      datasourceUrl: process.env.DATABASE_URL,
+      log: ['error', 'warn'],
+    });
   }
   return prisma;
 }
