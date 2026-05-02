@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import BrandLogo from "./BrandLogo";
 
 const Icons = {
   Dashboard: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>,
@@ -21,7 +22,10 @@ export default function Sidebar() {
 
   return (
     <div className="sidebar">
-      <div style={{ marginBottom: '48px', padding: '0 8px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ marginBottom: '40px', padding: '0 8px' }}>
+         <div style={{ marginBottom: '24px' }}>
+            <BrandLogo size="sm" light={true} />
+         </div>
          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {logoUrl ? (
               <img src={logoUrl} alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain', backgroundColor: 'white' }} />
@@ -34,7 +38,6 @@ export default function Sidebar() {
               {tenantName}
             </h2>
          </div>
-         <p style={{ fontSize: '9px', color: '#94a3b8', margin: '6px 0 0 44px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', opacity: 0.8, whiteSpace: 'nowrap' }}>Clinical Management Desk</p>
       </div>
 
       <nav className="nav-section">
