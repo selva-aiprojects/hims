@@ -7,7 +7,6 @@ const API_BASE = "http://localhost:4000";
 
 export default function InventoryList() {
   const [inventory, setInventory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchInventory();
@@ -21,7 +20,7 @@ export default function InventoryList() {
     try {
       const res = await axios.get(`${API_BASE}/api/hospital/pharmacy/inventory`, { headers });
       setInventory(res.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { console.error(err); }
   };
 
   return (

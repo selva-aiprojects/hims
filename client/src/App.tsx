@@ -6,7 +6,6 @@ import OPDRegistrationPage from './modules/tenant/opd/OPDRegistrationPage';
 import OPDQueuePage from './modules/tenant/opd/OPDQueuePage';
 import OPDConsultationPage from './modules/tenant/opd/OPDConsultationPage';
 import TenantAppointmentsPage from './modules/tenant/appointments/AppointmentsPage';
-import BedManagementPage from './modules/tenant/ipd/BedManagementPage'; // legacy
 import IPDBedMap from './modules/tenant/ipd/IPDBedMap';
 import IPDAdmissionsList from './modules/tenant/ipd/IPDAdmissionsList';
 import IPDPatientView from './modules/tenant/ipd/IPDPatientView';

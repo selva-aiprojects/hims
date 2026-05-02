@@ -60,6 +60,22 @@ export default function OPDConsultationPage() {
     }
   };
 
+  const addPrescription = (medicineId: string) => {
+    if (!medicineId) return;
+    const medicine = medicines.find(m => m.id === medicineId);
+    if (medicine) {
+      setPrescriptions([...prescriptions, {
+        medicine_id: medicine.id,
+        name: medicine.name,
+        composition: medicine.composition,
+        dosage: '1 Tab',
+        frequency: '1-0-1',
+        duration: '5 days',
+        instructions: 'Take after meals'
+      }]);
+    }
+  };
+
   const finishConsultation = async () => {
     if (!diagnosis) {
       alert("Please select a diagnosis before finishing.");

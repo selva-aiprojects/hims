@@ -9,7 +9,6 @@ const API_BASE = "http://localhost:4000";
 export default function PrescriptionQueue() {
   const navigate = useNavigate();
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activePrescription, setActivePrescription] = useState<any>(null);
   const [inventory, setInventory] = useState<any[]>([]);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
@@ -30,7 +29,7 @@ export default function PrescriptionQueue() {
       ]);
       setPrescriptions(preRes.data);
       setInventory(invRes.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { console.error(err); }
   };
 
   const startDispensing = async (pres: any) => {

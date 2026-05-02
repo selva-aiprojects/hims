@@ -11,7 +11,6 @@ export default function PharmacyManagementPage() {
   const role = localStorage.getItem("role");
   const [inventory, setInventory] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("inventory"); // inventory | prescriptions
   const [activePrescription, setActivePrescription] = useState<any>(null);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
@@ -33,7 +32,7 @@ export default function PharmacyManagementPage() {
       ]);
       setInventory(invRes.data);
       setPrescriptions(preRes.data);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { console.error(err); }
   };
 
   const startDispensing = async (pres: any) => {
