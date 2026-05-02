@@ -1,42 +1,18 @@
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
 
-/**
- * Prisma Client initialization with PostgreSQL Adapter.
- * Required for Prisma 7.x in this environment.
- */
-console.log("[DB] Initializing Prisma with PostgreSQL Adapter...");
-// Safely parse and clean the URL to prevent SSL verification issues
-if (!process.env.DATABASE_URL) {
-  console.error("[DB] CRITICAL ERROR: DATABASE_URL is not defined in environment variables!");
-  process.exit(1);
+let prisma;
+
+try {
+  console.log("[DB] Initializing Prisma Client...");
+  prisma = new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL,
+  });
+  console.log("[DB] Prisma Client initialized successfully.");
+} catch (err) {
+  console.error("[DB] Prisma Initialization Error:", err.message);
 }
 
-const dbUrl = new URL(process.env.DATABASE_URL);
-dbUrl.searchParams.delete('sslmode');
-const connectionString = dbUrl.toString();
-
-const pool = new Pool({ 
-  connectionString: connectionString,
-  ssl: {
-    rejectUnauthorized: false, // Bypass self-signed certificate check
-  },
-  max: 10,
-  idleTimeoutMillis: 30000,
-});
-
-pool.on('error', (err) => {
-  console.error('[DB] Unexpected error on idle client', err);
-});
-
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-console.log("[DB] Prisma Client created with SSL bypass (rejectUnauthorized: false)");
-
 function getPrisma(tenant) {
-  // Return the main prisma instance
   return prisma;
 }
 
