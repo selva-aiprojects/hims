@@ -32,12 +32,10 @@ type BillType = 'OPD' | 'LAB' | 'PHARMACY' | 'IPD' | 'DAYCARE' | 'DISCHARGE';
 export default function BillingPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const role = localStorage.getItem("role");
   const state = location.state as { billType?: BillType; totalAmount?: number; patientName?: string; encounterId?: string } | null;
 
   const [loading, setLoading] = useState(false);
-  const [billType, setBillType] = useState<BillType>(state?.billType || 'OPD');
-  
+  const [billType] = useState<BillType>(state?.billType || 'OPD');
   // Master Data
   const [services, setServices] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([
