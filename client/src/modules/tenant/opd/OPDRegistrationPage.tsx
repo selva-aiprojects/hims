@@ -14,7 +14,10 @@ export default function OPDRegistrationPage() {
   const [showRegForm, setShowRegForm] = useState(false);
   
   const [newPatient, setNewPatient] = useState({ name: '', phone: '', gender: 'Male', age: '' });
+  const [historyFiles, setHistoryFiles] = useState<FileList | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [opdEntry, setOpdEntry] = useState({ patientId: '', doctorId: '', departmentId: '', weight: '', height: '', bp: '', temp: '' });
+  
   useEffect(() => {
     const fetchMasters = async () => {
       const headers = { 
@@ -43,20 +46,38 @@ export default function OPDRegistrationPage() {
 
   const registerPatient = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsRegistering(true);
     const headers = { 
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
     try {
-      const res = await axios.post(`${API_BASE}/api/patients`, newPatient, { headers });
+      const formData = new FormData();
+      formData.append("name", newPatient.name);
+      formData.append("phone", newPatient.phone);
+      formData.append("age", newPatient.age);
+      formData.append("gender", newPatient.gender || 'Male');
+      
+      if (historyFiles) {
+        for (let i = 0; i < historyFiles.length; i++) {
+          formData.append("history_files", historyFiles[i]);
+        }
+      }
+
+      // We don't set Content-Type header manually when using FormData, axios sets it with the boundary
+      const res = await axios.post(`${API_BASE}/api/patients`, formData, { headers });
+      
       setOpdEntry({ ...opdEntry, patientId: res.data.id });
       setShowRegForm(false);
+      setHistoryFiles(null);
       alert(`Patient Record Created Successfully! MRN: ${res.data.mrn}`);
     } catch (err: any) { 
       const status = err.response?.status;
       const data = JSON.stringify(err.response?.data || "No response data");
       console.error("Registration Failed:", err);
       alert(`Registration Error [${status}]: ${data}`); 
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -135,11 +156,17 @@ export default function OPDRegistrationPage() {
               <form onSubmit={registerPatient} className="form-card" style={{ marginTop: '24px', background: '#f8fafc' }}>
                 <input placeholder="Full Name" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
                 <input placeholder="Phone Number" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} />
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                     <input placeholder="Age" type="number" required className="input-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, age: e.target.value})} />
                     <select className="select-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, gender: e.target.value})}><option>Male</option><option>Female</option></select>
                 </div>
-                <button type="submit" className="button-primary" style={{ width: '100%', marginTop: '12px' }}>Save Record</button>
+                <div style={{ marginBottom: '12px', padding: '12px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>Upload History Records (Optional for AI Summary)</label>
+                  <input type="file" multiple accept=".pdf,image/*" onChange={(e) => setHistoryFiles(e.target.files)} style={{ fontSize: '12px' }} />
+                </div>
+                <button type="submit" disabled={isRegistering} className="button-primary" style={{ width: '100%', marginTop: '12px', opacity: isRegistering ? 0.7 : 1 }}>
+                  {isRegistering ? 'Generating AI Summary & Saving...' : 'Save Record & Generate AI Summary'}
+                </button>
               </form>
             )}
           </section>

@@ -22,6 +22,8 @@ export default function OPDConsultationPage() {
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
   const [diseases, setDiseases] = useState<any[]>([]);
+  const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [selectedLabTests, setSelectedLabTests] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -37,27 +39,24 @@ export default function OPDConsultationPage() {
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
       try {
-        const [medRes, disRes] = await Promise.all([
+        const [medRes, disRes, diagRes] = await Promise.all([
           axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers }),
-          axios.get(`${API_BASE}/api/hospital/masters/diseases`, { headers })
+          axios.get(`${API_BASE}/api/hospital/masters/diseases`, { headers }),
+          axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers })
         ]);
         setMedicines(medRes.data);
         setDiseases(disRes.data);
+        setDiagnostics(diagRes.data);
       } catch (err) { console.error(err); }
     };
     fetchData();
   }, [role, navigate]);
 
-  const addPrescription = (medId: string) => {
-    const med = medicines.find(m => m.id === medId);
-    if (med) {
-      setPrescriptions([...prescriptions, {
-        id: med.id,
-        name: med.name, // Clinical Generic Name
-        composition: med.composition,
-        dosage: encounter.age < 12 ? med.dosage_pediatric : med.dosage_adult,
-        instructions: med.instructions || 'As directed'
-      }]);
+  const toggleLabTest = (id: string) => {
+    if (selectedLabTests.includes(id)) {
+      setSelectedLabTests(selectedLabTests.filter(t => t !== id));
+    } else {
+      setSelectedLabTests([...selectedLabTests, id]);
     }
   };
 
@@ -87,12 +86,19 @@ export default function OPDConsultationPage() {
         }, { headers });
       }
 
-      // 3. Move to Billing
+      // 3. Save Lab Orders if any
+      if (selectedLabTests.length > 0) {
+        await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/lab-orders`, {
+          diagnosticIds: selectedLabTests
+        }, { headers });
+      }
+
+      // 4. Move to Billing
       localStorage.removeItem("currentEncounter");
       navigate("/billing", { 
         state: { 
           billType: 'OPD', 
-          totalAmount: 500, // Standard Consultation Fee (Could be dynamic from masters)
+          totalAmount: 500,
           patientName: encounter.patient_name,
           encounterId: encounter.id 
         } 
@@ -253,12 +259,34 @@ export default function OPDConsultationPage() {
                  <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Icons.Flask /> Lab Investigations
                  </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {['Complete Blood Count (CBC)', 'Lipid Profile', 'Chest X-Ray', 'ECG'].map(test => (
-                      <label key={test} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
-                         <input type="checkbox" /> {test}
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {diagnostics.length > 0 ? diagnostics.map(test => (
+                      <label key={test.id} style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '12px', 
+                        padding: '12px', 
+                        borderRadius: '12px', 
+                        border: selectedLabTests.includes(test.id) ? '1px solid #3b82f6' : '1px solid #f1f5f9', 
+                        background: selectedLabTests.includes(test.id) ? '#eff6ff' : 'white',
+                        cursor: 'pointer', 
+                        fontSize: '13px', 
+                        fontWeight: 600 
+                      }}>
+                         <input 
+                           type="checkbox" 
+                           checked={selectedLabTests.includes(test.id)}
+                           onChange={() => toggleLabTest(test.id)}
+                         /> 
+                         <div style={{ flex: 1 }}>
+                            <div>{test.name}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8' }}>{test.type_name || 'Standard Test'}</div>
+                         </div>
+                         <div style={{ color: '#10b981' }}>₹{test.price}</div>
                       </label>
-                    ))}
+                    )) : (
+                      <p style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>No diagnostics masters found.</p>
+                    )}
                  </div>
               </div>
 

@@ -14,6 +14,7 @@ export default function MastersPage() {
   const [treatments, setTreatments] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
+  const [diagnostics, setDiagnostics] = useState<any[]>([]);
   const [specialities, setSpecialities] = useState<any[]>([]);
   const [modes, setModes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,32 +47,21 @@ export default function MastersPage() {
         axios.get(`${API_BASE}/api/hospital/masters/treatments`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/services`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers }),
+        axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/specialities`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/modes`, { headers })
       ];
 
-      const [depRes, disRes, treRes, serRes, medRes, specRes, modeRes] = await Promise.allSettled(requests);
+      const [depRes, disRes, treRes, serRes, medRes, diagRes, specRes, modeRes] = await Promise.allSettled(requests);
 
       if (depRes.status === 'fulfilled') setDepartments(depRes.value.data);
-      else console.error('Departments fetch failed', depRes.reason);
-
       if (disRes.status === 'fulfilled') setDiseases(disRes.value.data);
-      else console.error('Diseases fetch failed', disRes.reason);
-
       if (treRes.status === 'fulfilled') setTreatments(treRes.value.data);
-      else console.error('Treatments fetch failed', treRes.reason);
-
       if (serRes.status === 'fulfilled') setServices(serRes.value.data);
-      else console.error('Services fetch failed', serRes.reason);
-
       if (medRes.status === 'fulfilled') setMedicines(medRes.value.data);
-      else console.error('Medicines fetch failed', medRes.reason);
-
+      if (diagRes.status === 'fulfilled') setDiagnostics(diagRes.value.data);
       if (specRes.status === 'fulfilled') setSpecialities(specRes.value.data);
-      else console.error('Specialities fetch failed', specRes.reason);
-
       if (modeRes.status === 'fulfilled') setModes(modeRes.value.data);
-      else console.error('Modes fetch failed', modeRes.reason);
     } catch (err) {
       console.error("Failed to fetch masters", err);
     } finally {
@@ -85,7 +75,7 @@ export default function MastersPage() {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
-      await axios.post(`${API_BASE}/api/hospital/masters/${activeTab === 'specialities' ? 'specialities' : activeTab === 'modes' ? 'modes' : activeTab}`, newItem, { headers });
+      await axios.post(`${API_BASE}/api/hospital/masters/${activeTab}`, newItem, { headers });
       setShowAddModal(false);
       setNewItem({ 
         name: '', price: '', category: '', description: '',
@@ -145,6 +135,14 @@ export default function MastersPage() {
         { header: 'Price', value: (item: any) => `₹${item.price || 0}` }
       ]
     },
+    diagnostics: {
+      label: 'Diagnostics',
+      cols: [
+        { header: 'Test Name', value: (item: any) => item.name },
+        { header: 'Category', value: (item: any) => item.type_name || 'Standard' },
+        { header: 'Price', value: (item: any) => `₹${item.price || 0}` }
+      ]
+    },
     services: {
       label: 'Services',
       cols: [
@@ -176,12 +174,14 @@ export default function MastersPage() {
           ? services
           : activeTab === 'medicines'
             ? medicines
-            : activeTab === 'specialities'
-              ? specialities
-              : activeTab === 'modes'
-                ? modes
-                : [];
-  const totalMasters = departments.length + diseases.length + treatments.length + services.length + medicines.length + specialities.length + modes.length;
+            : activeTab === 'diagnostics'
+              ? diagnostics
+              : activeTab === 'specialities'
+                ? specialities
+                : activeTab === 'modes'
+                  ? modes
+                  : [];
+  const totalMasters = departments.length + diseases.length + treatments.length + services.length + medicines.length + diagnostics.length + specialities.length + modes.length;
 
   return (
     <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f4f6fb' }}>

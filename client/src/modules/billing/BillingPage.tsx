@@ -41,7 +41,12 @@ export default function BillingPage() {
   // Master Data
   const [services, setServices] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([
-    { description: 'Consultation Fee', price: state?.totalAmount || 500, quantity: 1, tax: 0 }
+    { 
+      description: state?.billType === 'PHARMACY' ? 'Pharmacy Medicines' : 'Consultation Fee', 
+      price: state?.totalAmount || 500, 
+      quantity: 1, 
+      tax: 0 
+    }
   ]);
   const [paymentMode, setPaymentMode] = useState('Cash');
 
@@ -108,7 +113,7 @@ export default function BillingPage() {
 
         <div style={{ maxWidth: '1000px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: '32px' }}>
           <div>
-            <div className="manage-card" style={{ background: 'white', padding: '32px', borderRadius: '28px', border: '1px solid #e2e8f0', marginBottom: '32px' }}>
+            <div className="manage-card no-print" style={{ background: 'white', padding: '32px', borderRadius: '28px', border: '1px solid #e2e8f0', marginBottom: '32px' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
                   <Icons.Shield />
                   <h3 style={{ fontSize: '18px', fontWeight: 800 }}>Patient Lookup (MRN / Name)</h3>
@@ -155,7 +160,7 @@ export default function BillingPage() {
             </div>
 
             {/* Quick Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+            <div className="no-print" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
                <div className="stat-card" style={{ borderLeft: '4px solid #10b981', padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
                   <p style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Daily Collection</p>
                   <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>₹ 14,500.00</p>

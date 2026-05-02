@@ -189,6 +189,7 @@ CREATE TABLE patients (
   age INTEGER,
   phone VARCHAR(20),
   address TEXT,
+  ai_summary TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -474,3 +475,40 @@ INSERT INTO wards (name, capacity, floor, type) VALUES
 UPDATE medicines SET stock_quantity = 500, unit_price = 10.50 WHERE name = 'Paracetamol 500mg';
 UPDATE medicines SET stock_quantity = 250, unit_price = 45.00 WHERE name = 'Amoxicillin 250mg';
 UPDATE medicines SET stock_quantity = 150, unit_price = 12.00 WHERE name = 'Metformin 500mg';
+
+-- ================= IPD ADMISSIONS =================
+
+DROP TABLE IF EXISTS beds CASCADE;
+CREATE TABLE beds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ward_id UUID REFERENCES wards(id),
+  bed_number VARCHAR(20),
+  status VARCHAR(20) DEFAULT 'Vacant', -- Vacant | Occupied | Maintenance
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS ipd_admissions CASCADE;
+CREATE TABLE ipd_admissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id UUID REFERENCES patients(id),
+  bed_id UUID REFERENCES beds(id),
+  ward_id UUID REFERENCES wards(id),
+  encounter_id UUID REFERENCES encounters(id),
+  admitting_doctor_id UUID REFERENCES users(id),
+  admission_reason TEXT,
+  daily_charge NUMERIC DEFAULT 0,
+  status VARCHAR(20) DEFAULT 'Active', -- Active | Discharged
+  admitted_at TIMESTAMP DEFAULT NOW(),
+  discharged_at TIMESTAMP
+);
+
+DROP TABLE IF EXISTS ipd_notes CASCADE;
+CREATE TABLE ipd_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admission_id UUID REFERENCES ipd_admissions(id),
+  doctor_id UUID REFERENCES users(id),
+  note_text TEXT,
+  note_type VARCHAR(50) DEFAULT 'Progress', -- Progress | Nursing | Discharge Summary
+  created_at TIMESTAMP DEFAULT NOW()
+);
+

@@ -14,12 +14,15 @@ export default function StaffManagementPage() {
   const [activeTab, setActiveTab] = useState<'list' | 'rbac'>('list');
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'doctor' });
 
-  const rolePermissions = [
-    { role: 'Admin', icon: '🛡️', permissions: ['Full System Access', 'Manage Staff', 'Financial Reports', 'Settings'] },
-    { role: 'Doctor', icon: '👨‍⚕️', permissions: ['Patient Consultations', 'Prescriptions', 'Clinical Notes', 'Queue Management'] },
-    { role: 'Nurse', icon: '👩‍⚕️', permissions: ['Patient Vitals', 'In-patient Care', 'Lab Orders', 'Registration'] },
-    { role: 'Receptionist', icon: '🏢', permissions: ['Patient Registration', 'Appointments', 'Inquiry Handling'] },
-    { role: 'Billing', icon: '💰', permissions: ['Invoicing', 'Payment Collection', 'Insurance Claims'] }
+  // All valid system roles — maps to requireRole() guards in the backend
+  const ROLES = [
+    { value: 'admin',         label: 'Admin',           desc: 'Full system access' },
+    { value: 'doctor',        label: 'Doctor',          desc: 'OPD, prescriptions, lab orders' },
+    { value: 'lab_assistant', label: 'Lab Assistant',   desc: 'Lab queue, result entry only' },
+    { value: 'pharmacist',    label: 'Pharmacist',      desc: 'Inventory, dispensing, prescription queue' },
+    { value: 'receptionist',  label: 'Receptionist',    desc: 'Patient registration, appointments' },
+    { value: 'nurse',         label: 'Nurse',           desc: 'Vitals, in-patient care' },
+    { value: 'staff',         label: 'General Staff',   desc: 'Read-only access' },
   ];
 
   const fetchStaff = async () => {
@@ -172,23 +175,43 @@ export default function StaffManagementPage() {
             )}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-            {rolePermissions.map((rp, i) => (
-              <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                  <span style={{ fontSize: '24px' }}>{rp.icon}</span>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>{rp.role}</h3>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {rp.permissions.map((p, j) => (
-                    <div key={j} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#475569', fontWeight: 600 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-                      {p}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Role</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Description</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Lab Access</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Pharmacy Access</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>OPD Access</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Admin Access</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { role: 'admin',         lab: '✅ Full',    pharmacy: '✅ Full',    opd: '✅ Full',   admin: '✅ Full' },
+                  { role: 'doctor',        lab: '📋 View',   pharmacy: '📋 View',   opd: '✅ Full',   admin: '❌' },
+                  { role: 'lab_assistant', lab: '✅ Full',    pharmacy: '❌',         opd: '❌',        admin: '❌' },
+                  { role: 'pharmacist',    lab: '❌',         pharmacy: '✅ Full',    opd: '❌',        admin: '❌' },
+                  { role: 'receptionist',  lab: '❌',         pharmacy: '❌',         opd: '📋 Reg only', admin: '❌' },
+                  { role: 'nurse',         lab: '📋 View',   pharmacy: '❌',         opd: '📋 Vitals', admin: '❌' },
+                  { role: 'staff',         lab: '❌',         pharmacy: '❌',         opd: '❌',        admin: '❌' },
+                ].map((r, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '16px 24px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '13px', background: '#f1f5f9', padding: '4px 10px', borderRadius: '8px', color: '#0f172a', textTransform: 'capitalize' }}>
+                        {r.role.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '13px' }}>{ROLES.find(ro => ro.value === r.role)?.desc}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.lab}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.pharmacy}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.opd}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.admin}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
 
@@ -224,11 +247,9 @@ export default function StaffManagementPage() {
                     style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
                     value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}
                   >
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                    <option value="receptionist">Front Desk</option>
-                    <option value="billing">Billing Officer</option>
-                    <option value="admin">Hospital Admin</option>
+                    {ROLES.map(r => (
+                      <option key={r.value} value={r.value}>{r.label} — {r.desc}</option>
+                    ))}
                   </select>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
