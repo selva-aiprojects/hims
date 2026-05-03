@@ -18,6 +18,19 @@ export default function Header({ title }: HeaderProps) {
   return (
     <header className="dashboard-header">
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <button 
+          className="hamburger-menu"
+          onClick={() => {
+            document.querySelector('.sidebar')?.classList.add('mobile-open');
+            document.querySelector('.mobile-overlay')?.classList.add('active');
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="4" y1="7" x2="20" y2="7"></line>
+            <line x1="4" y1="12" x2="20" y2="12"></line>
+            <line x1="4" y1="17" x2="20" y2="17"></line>
+          </svg>
+        </button>
         <div className="welcome-msg">
           <h1>{title}</h1>
           <p className="help-text">Logged in as <span style={{ fontWeight: 700, color: '#0d9488' }}>{userName}</span></p>
@@ -37,8 +50,13 @@ export default function Header({ title }: HeaderProps) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-        <div style={{ transform: 'scale(0.8)', transformOrigin: 'right center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+        <div style={{ 
+          transform: 'scale(0.55)', 
+          transformOrigin: 'right center',
+          opacity: 0.6,
+          marginTop: '-10px'
+        }}>
           <BrandLogo size="sm" />
         </div>
 

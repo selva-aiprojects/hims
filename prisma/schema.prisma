@@ -90,9 +90,75 @@ model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String   @map("password_hash")
-  role         String
+  role         String   // Fallback role
   name         String?
   createdAt    DateTime @default(now()) @map("created_at")
+  
+  userRoles    UserRole[]
 
   @@map("users")
+}
+
+// --- RBAC CORE TABLES ---
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  menus       RoleMenu[]
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("rbac_roles")
+}
+
+model Menu {
+  id        String   @id @default(uuid())
+  label     String
+  path      String
+  icon      String?
+  parentId  String?  @map("parent_id")
+  sortOrder Int      @default(0) @map("sort_order")
+  roles     RoleMenu[]
+
+  @@map("rbac_menus")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+  roles       RolePermission[]
+
+  @@map("rbac_permissions")
+}
+
+model RoleMenu {
+  roleId String @map("role_id")
+  menuId String @map("menu_id")
+  role   Role   @relation(fields: [roleId], references: [id])
+  menu   Menu   @relation(fields: [menuId], references: [id])
+
+  @@id([roleId, menuId])
+  @@map("rbac_role_menus")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("rbac_role_permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+  role   Role   @relation(fields: [roleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("rbac_user_roles")
 }

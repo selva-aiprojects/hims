@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 
-const API_BASE = "http://127.0.0.1:4000";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 export default function MastersPage() {
   const navigate = useNavigate();
@@ -30,7 +30,8 @@ export default function MastersPage() {
   });
 
   useEffect(() => {
-    if (role !== 'admin') { navigate("/tenant/dashboard"); return; }
+    // Normalize role — backend seeds as uppercase (ADMIN), users table as lowercase (admin)
+    if ((role || '').toLowerCase() !== 'admin') { navigate("/tenant/dashboard"); return; }
     fetchData();
   }, [role, navigate]);
 

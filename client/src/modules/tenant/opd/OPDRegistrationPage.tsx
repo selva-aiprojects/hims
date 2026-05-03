@@ -3,13 +3,14 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
-
-const API_BASE = "http://127.0.0.1:4000";
+import PrivacyValue from "../../../components/PrivacyValue";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 export default function OPDRegistrationPage() {
   const navigate = useNavigate();
   const [patients, setPatients] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showRegForm, setShowRegForm] = useState(false);
   
@@ -25,13 +26,19 @@ export default function OPDRegistrationPage() {
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
       try {
-        const docRes = await axios.get(`${API_BASE}/api/hospital/staff`, { headers });
+        const [docRes, srvRes] = await Promise.all([
+          axios.get(`${API_BASE}/api/hospital/staff`, { headers }),
+          axios.get(`${API_BASE}/api/hospital/masters/services`, { headers })
+        ]);
         setDoctors(docRes.data.filter((s: any) => s.role === 'doctor'));
+        setServices(srvRes.data);
       } catch (err) { console.error(err); }
     };
     fetchMasters();
   }, []);
 
+  const consultationService = services.find(s => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation')) || { price: 0 };
+  
   const handleSearch = async () => {
     if (!searchTerm) return;
     const headers = { 
@@ -64,7 +71,6 @@ export default function OPDRegistrationPage() {
         }
       }
 
-      // We don't set Content-Type header manually when using FormData, axios sets it with the boundary
       const res = await axios.post(`${API_BASE}/api/patients`, formData, { headers });
       
       setOpdEntry({ ...opdEntry, patientId: res.data.id });
@@ -72,10 +78,8 @@ export default function OPDRegistrationPage() {
       setHistoryFiles(null);
       alert(`Patient Record Created Successfully! MRN: ${res.data.mrn}`);
     } catch (err: any) { 
-      const status = err.response?.status;
-      const data = JSON.stringify(err.response?.data || "No response data");
       console.error("Registration Failed:", err);
-      alert(`Registration Error [${status}]: ${data}`); 
+      alert(`Registration Error: ${err.message}`); 
     } finally {
       setIsRegistering(false);
     }
@@ -145,7 +149,9 @@ export default function OPDRegistrationPage() {
               {patients.map(p => (
                 <div key={p.id} onClick={() => setOpdEntry({ ...opdEntry, patientId: p.id })} style={{ padding: '16px', borderRadius: '16px', border: `2px solid ${opdEntry.patientId === p.id ? '#3b82f6' : '#e2e8f0'}`, marginBottom: '10px', cursor: 'pointer', background: opdEntry.patientId === p.id ? '#f0f9ff' : 'white' }}>
                   <div style={{ fontWeight: 800 }}>{p.name}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>{p.phone} • {p.age} Yrs</div>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    <PrivacyValue value={p.phone} type="phone" /> • {p.age} Yrs
+                  </div>
                 </div>
               ))}
             </div>
@@ -196,8 +202,8 @@ export default function OPDRegistrationPage() {
             </div>
 
             <div style={{ padding: '24px', background: '#0f172a', borderRadius: '24px', color: 'white', marginBottom: '24px' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span style={{ color: '#94a3b8' }}>Service Fee</span><span style={{ fontWeight: 800 }}>--</span></div>
-               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}><span style={{ fontWeight: 700 }}>Payable Now</span><span style={{ fontSize: '24px', fontWeight: 900, color: '#3b82f6' }}>₹0.00</span></div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span style={{ color: '#94a3b8' }}>Service Fee</span><span style={{ fontWeight: 800 }}>₹{consultationService.price || '0.00'}</span></div>
+               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}><span style={{ fontWeight: 700 }}>Payable Now</span><span style={{ fontSize: '24px', fontWeight: 900, color: '#3b82f6' }}>₹{consultationService.price || '0.00'}</span></div>
             </div>
 
             <button disabled={!opdEntry.patientId || !opdEntry.doctorId} onClick={startVisit} style={{ width: '100%', padding: '20px', borderRadius: '20px', border: 'none', background: opdEntry.patientId && opdEntry.doctorId ? '#3b82f6' : '#f1f5f9', color: opdEntry.patientId && opdEntry.doctorId ? 'white' : '#94a3b8', fontWeight: 900, fontSize: '16px', cursor: 'pointer' }}>Generate Token & Start Visit</button>

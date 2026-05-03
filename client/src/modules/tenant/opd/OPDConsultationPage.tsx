@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import PrivacyValue from "../../../components/PrivacyValue";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
@@ -110,11 +111,13 @@ export default function OPDConsultationPage() {
       }
 
       // 4. Move to Billing
+      const consultationFee = medicines.find(m => m.category === 'Consultation' || m.name.toLowerCase().includes('consultation'))?.price || 0;
+      
       localStorage.removeItem("currentEncounter");
       navigate("/billing", { 
         state: { 
           billType: 'OPD', 
-          totalAmount: 500,
+          totalAmount: consultationFee,
           patientName: encounter.patient_name,
           encounterId: encounter.id 
         } 
@@ -155,9 +158,17 @@ export default function OPDConsultationPage() {
              </div>
              <div>
                 <h2 style={{ fontSize: '20px', fontWeight: 900, margin: 0 }}>{encounter.patient_name}</h2>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>
-                   <span style={{ color: '#3b82f6', fontWeight: 800 }}>{encounter.mrn}</span> • {encounter.age} yrs • {encounter.gender} • Token <span style={{ fontWeight: 800, color: '#0d9488' }}>#{encounter.token}</span>
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                   <span style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 800 }}>{encounter.mrn}</span>
+                   <span style={{ color: '#e2e8f0' }}>|</span>
+                   <span style={{ fontSize: '13px', color: '#64748b' }}>{encounter.age} yrs • {encounter.gender}</span>
+                   <span style={{ color: '#e2e8f0' }}>|</span>
+                   <div style={{ fontSize: '13px' }}>
+                      <PrivacyValue value={encounter.phone} type="phone" ownerId={encounter.doctor_id} />
+                   </div>
+                   <span style={{ color: '#e2e8f0' }}>|</span>
+                   <span style={{ fontSize: '11px', background: '#ecfdf5', color: '#0d9488', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>TOKEN #{encounter.token}</span>
+                </div>
              </div>
           </div>
           <div style={{ display: 'flex', gap: '32px' }}>

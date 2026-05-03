@@ -6,11 +6,12 @@ interface BrandLogoProps {
 
 export default function BrandLogo({ size = 'md', showText = true, light = false }: BrandLogoProps) {
   const height = size === 'sm' ? 28 : size === 'md' ? 48 : 72;
+  const customLogo = localStorage.getItem('theme_logo_url');
   
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
       <img 
-        src="/logo.png" 
+        src={customLogo || "/logo.png"} 
         alt="Healthezee Logo" 
         style={{ 
           height: `${height}px`, 

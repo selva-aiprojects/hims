@@ -26,8 +26,17 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
   try {
     const { name, phone, gender, age } = req.body;
     
-    // Improved unique MRN generation
-    const mrn = `MRN-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString().slice(-4)}`;
+    // Healthcare Standard MRN Generation: MRN-[YYMM]-[6-Digit Sequence]
+    const date = new Date();
+    const yy = String(date.getFullYear()).slice(-2);
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    
+    // Get total count for sequence (pseudo-sequential)
+    const countRes = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM "${req.schemaName}".patients`);
+    const count = Number(countRes[0]?.count || 0) + 1;
+    const sequence = String(count).padStart(6, '0');
+    
+    const mrn = `MRN-${yy}${mm}-${sequence}`;
     
     // Sanitize name for SQL (escape single quotes)
     const safeName = name ? name.replace(/'/g, "''") : 'Unknown';
@@ -42,7 +51,7 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
       console.log(`[PATIENT] AI Summary generated successfully.`);
     }
     
-    const safeSummary = aiSummary.replace(/'/g, "''");
+    const safeSummary = (aiSummary || '').replace(/'/g, "''");
 
     const result = await req.prisma.$queryRawUnsafe(`
       INSERT INTO "${req.schemaName}".patients (mrn, name, phone, gender, age, ai_summary) 
@@ -52,7 +61,11 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
     res.status(201).json(result[0]);
   } catch (error) { 
     console.error("[PATIENT] Registration failed:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: "Registration failed", 
+      message: error.message,
+      details: error.code === 'P2010' ? "Database schema mismatch (possibly missing ai_summary column)" : error.message
+    });
   }
 });
 

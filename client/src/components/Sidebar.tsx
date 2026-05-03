@@ -16,57 +16,85 @@ const Icons = {
 };
 
 export default function Sidebar() {
-  const role = localStorage.getItem("role") || "staff";
   const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
-  const logoUrl = localStorage.getItem("theme_logo_url");
+  const plan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
+  
+  // Dynamic menus loaded from database via login response
+  const rawMenus = localStorage.getItem("userMenus");
+  const dynamicMenus = rawMenus ? JSON.parse(rawMenus) : [];
 
   return (
-    <div className="sidebar">
-      <div style={{ marginBottom: '40px', padding: '0 8px' }}>
-         <div style={{ marginBottom: '24px' }}>
-            <BrandLogo size="sm" light={true} />
-         </div>
-         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {logoUrl ? (
-              <img src={logoUrl} alt="Logo" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain', backgroundColor: 'white' }} />
-            ) : (
-              <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #3b82f6, #2dd4bf)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 900, fontSize: '18px' }}>
-                {tenantName.charAt(0)}
-              </div>
-            )}
-            <h2 style={{ fontSize: '16px', fontWeight: 800, color: 'white', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={tenantName}>
+    <>
+      <div className="mobile-overlay" onClick={() => {
+        document.querySelector('.sidebar')?.classList.remove('mobile-open');
+        document.querySelector('.mobile-overlay')?.classList.remove('active');
+      }}></div>
+      <div className="sidebar">
+        <button className="sidebar-close" onClick={() => {
+          document.querySelector('.sidebar')?.classList.remove('mobile-open');
+          document.querySelector('.mobile-overlay')?.classList.remove('active');
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <div style={{ padding: '0 8px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ 
+            width: '40px', 
+            height: '40px', 
+            background: 'linear-gradient(135deg, #0d9488, #0f766e)', 
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            fontWeight: 800,
+            color: 'white',
+            boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
+          }}>
+            {tenantName.charAt(0)}
+          </div>
+          <div style={{ overflow: 'hidden' }}>
+            <h2 style={{ 
+              fontSize: '15px', 
+              fontWeight: 800, 
+              color: 'white', 
+              margin: 0,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
               {tenantName}
             </h2>
-         </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 900, color: plan === 'enterprise' ? '#f59e0b' : '#64748b', textTransform: 'uppercase' }}>
+                {plan} TIER
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <nav className="nav-section">
-        <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', marginBottom: '12px', textTransform: 'uppercase' }}>Core Operations</p>
-        <SidebarLink to="/tenant/dashboard" icon={<Icons.Dashboard />} label="Dashboard" />
-        <SidebarLink to="/tenant/opd/registration" icon={<Icons.OPD />} label="OPD Registration" />
-        <SidebarLink to="/tenant/opd/queue" icon={<Icons.Doctor />} label="Doctor's Queue" />
-        
-        <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', margin: '24px 0 12px', textTransform: 'uppercase' }}>Diagnostics & Pharmacy</p>
-        <SidebarLink to="/tenant/lab" icon={<Icons.Lab />} label="Laboratory" />
-        <SidebarLink to="/tenant/pharmacy/dashboard" icon={<Icons.Pharmacy />} label="Pharmacy Dashboard" />
-        <SidebarLink to="/tenant/pharmacy/inventory" icon={<Icons.Pill />} label="Stock Inventory" />
-        <SidebarLink to="/tenant/pharmacy/queue" icon={<Icons.Receipt />} label="Prescription Queue" />
-        <SidebarLink to="/tenant/ipd/beds" icon={<Icons.Bed />} label="Bed Map" />
-        <SidebarLink to="/tenant/ipd/admissions" icon={<Icons.Clipboard />} label="IPD Census" />
-
-        <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', margin: '24px 0 12px', textTransform: 'uppercase' }}>Financials</p>
-        <SidebarLink to="/billing" icon={<Icons.Billing />} label="Invoicing & Billing" />
-
-        {role === 'admin' && (
-          <>
-            <p style={{ fontSize: '11px', color: '#475569', fontWeight: 800, padding: '0 12px', margin: '24px 0 12px', textTransform: 'uppercase' }}>Administration</p>
-            <SidebarLink to="/tenant/masters" icon={<Icons.Settings />} label="Masters Hub" />
-            <SidebarLink to="/tenant/staff" icon={<Icons.Doctor />} label="Staff & RBAC" />
-          </>
+        {dynamicMenus.length > 0 ? (
+          dynamicMenus.map((menu: any, idx: number) => {
+            const IconComponent = Icons[menu.icon as keyof typeof Icons] || Icons.Dashboard;
+            return (
+              <SidebarLink 
+                key={idx}
+                to={menu.path} 
+                icon={<IconComponent />} 
+                label={menu.label} 
+              />
+            );
+          })
+        ) : (
+          <p style={{ padding: '20px', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
+            No authorized menus found. Please contact administrator.
+          </p>
         )}
       </nav>
-
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -75,6 +103,10 @@ function SidebarLink({ to, icon, label }: { to: string, icon: any, label: string
     <NavLink 
       to={to} 
       className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+      onClick={() => {
+        document.querySelector('.sidebar')?.classList.remove('mobile-open');
+        document.querySelector('.mobile-overlay')?.classList.remove('active');
+      }}
     >
       {icon}
       {label}

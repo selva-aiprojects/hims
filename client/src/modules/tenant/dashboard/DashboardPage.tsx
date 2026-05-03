@@ -143,23 +143,27 @@ export default function DashboardPage() {
           </div>
           
           <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: 800 }}>Department Load</h3>
+            <h3 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: 800 }}>Clinical Load</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-               {[
-                 { name: 'OPD', count: stats?.metrics?.patientInflow || 0, color: '#3b82f6' },
-                 { name: 'Emergency', count: 0, color: '#ef4444' },
-                 { name: 'Radiology', count: 0, color: '#8b5cf6' }
-               ].map((dept, i) => (
-                 <div key={i}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                       <span>{dept.name}</span>
-                       <span>{dept.count} Active</span>
-                    </div>
-                    <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                       <div style={{ width: `${(dept.count / 10) * 100}%`, height: '100%', background: dept.color }}></div>
-                    </div>
-                 </div>
-               ))}
+               {stats?.departmentLoad?.length > 0 ? (
+                 stats.departmentLoad.map((dept: any, i: number) => (
+                   <div key={i}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
+                         <span>{dept.name}</span>
+                         <span>{dept.count} Active</span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                         <div style={{ 
+                           width: `${Math.min((dept.count / (stats.metrics.patientInflow || 1)) * 100, 100)}%`, 
+                           height: '100%', 
+                           background: '#3b82f6' 
+                         }}></div>
+                      </div>
+                   </div>
+                 ))
+               ) : (
+                 <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>No active clinical sessions.</div>
+               )}
             </div>
           </div>
         </div>

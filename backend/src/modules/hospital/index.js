@@ -1,30 +1,61 @@
 const express = require("express");
 const router = express.Router();
-const { requireRole } = require("../../middleware/rbac");
+const { checkPermission } = require("../../middleware/rbac");
 const aiService = require("../../services/aiService");
 const pdfService = require("../../services/pdfService");
 const upload = require("../../config/upload");
 
 // --- Staff & Management ---
 
-router.get("/staff", async (req, res, next) => {
+router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`SELECT id, name, role, email, created_at FROM "${req.schemaName}".users ORDER BY name ASC`);
     res.json(data);
   } catch (error) { next(error); }
 });
 
-router.post("/staff", async (req, res, next) => {
+router.post("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body;
     const bcrypt = require("bcryptjs");
     const hashedPassword = await bcrypt.hash(password || "HIMS@123", 10);
+    const schema = req.schemaName;
     
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".users (name, email, password_hash, role)
-      VALUES ('${name}', '${email}', '${hashedPassword}', '${role || 'staff'}')
+    // 1. Insert user
+    const newUser = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${schema}".users (name, email, password_hash, role)
+      VALUES ('${name.replace(/'/g, "''")}', '${email}', '${hashedPassword}', '${role || 'staff'}')
+      RETURNING id
     `);
-    res.status(201).json({ message: "Staff member created" });
+    const userId = newUser[0].id;
+
+    // 2. Map users.role → rbac_roles.name (normalize to uppercase RBAC role)
+    const roleMap = {
+      'admin':         'ADMIN',
+      'doctor':        'DOCTOR',
+      'nurse':         'NURSE',
+      'pharmacist':    'PHARMACIST',
+      'lab_assistant': 'LAB_TECH',
+      'lab_tech':      'LAB_TECH',
+      'receptionist':  'RECEPTIONIST',
+      'staff':         'SUPPORT',
+      'support':       'SUPPORT',
+    };
+    const rbacRoleName = roleMap[(role || 'staff').toLowerCase()] || 'SUPPORT';
+
+    // 3. Link user to RBAC role
+    try {
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${schema}".rbac_user_roles (user_id, role_id)
+        SELECT '${userId}', id FROM "${schema}".rbac_roles WHERE name = '${rbacRoleName}'
+        ON CONFLICT DO NOTHING
+      `);
+      console.log(`[STAFF] Linked ${email} (${role}) → RBAC:${rbacRoleName}`);
+    } catch (rbacErr) {
+      console.warn(`[STAFF] RBAC link failed for ${email}: ${rbacErr.message}`);
+    }
+
+    res.status(201).json({ message: "Staff member created", userId });
   } catch (error) { 
     if (error.message.includes("unique constraint") || error.message.includes("already exists")) {
       return res.status(400).json({ error: "A staff member with this email already exists." });
@@ -36,7 +67,7 @@ router.post("/staff", async (req, res, next) => {
 // --- Master Data Management ---
 
 // 1. Departments
-router.get("/masters/departments", async (req, res, next) => {
+router.get("/masters/departments", checkPermission('MASTERS_MANAGE'), async (req, res, next) => {
   try {
     console.log(`[MASTERS] Fetching departments for schema: "${req.schemaName}"`);
     const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".departments ORDER BY name ASC`);
@@ -290,7 +321,7 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
 // Lab routes: lab_assistant can view queue & enter results; doctor can order
 
 // Upload and Parse External Lab Report via AI
-router.post("/lab/upload-external", upload.single('lab_report'), requireRole(['lab_assistant', 'doctor']), async (req, res, next) => {
+router.post("/lab/upload-external", upload.single('lab_report'), checkPermission('LAB_MANAGE'), async (req, res, next) => {
   try {
     const { patientId } = req.body;
     if (!req.file || !patientId) return res.status(400).json({ error: "Missing file or patientId" });
@@ -333,10 +364,10 @@ router.post("/lab/upload-external", upload.single('lab_report'), requireRole(['l
   } catch (error) { next(error); }
 });
 
-router.get("/lab/orders", requireRole(['lab_assistant', 'doctor']), async (req, res, next) => {
+router.get("/lab/orders", checkPermission('LAB_MANAGE'), async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT lo.*, p.name as patient_name, p.mrn, d.name as test_name
+      SELECT lo.*, p.name as patient_name, p.mrn, d.name as test_name, d.price
       FROM "${req.schemaName}".lab_orders lo
       JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
       JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
@@ -347,7 +378,7 @@ router.get("/lab/orders", requireRole(['lab_assistant', 'doctor']), async (req, 
   } catch (error) { next(error); }
 });
 
-router.put("/lab/orders/:id", requireRole(['lab_assistant']), async (req, res, next) => {
+router.put("/lab/orders/:id", checkPermission('LAB_MANAGE'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const { result_data } = req.body;
@@ -368,9 +399,32 @@ router.put("/lab/orders/:id", requireRole(['lab_assistant']), async (req, res, n
 });
 
 // --- Pharmacy ---
+router.get("/pharmacy/stats", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    const dailyRevenue = await req.prisma.$queryRawUnsafe(`
+      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices 
+      WHERE bill_type = 'PHARMACY' AND status = 'PAID' AND created_at > NOW() - INTERVAL '24 hours'
+    `);
+
+    const recentDispenses = await req.prisma.$queryRawUnsafe(`
+      SELECT i.total, p.name as patient_name, i.created_at
+      FROM "${req.schemaName}".invoices i
+      JOIN "${req.schemaName}".patients p ON i.patient_id = p.id
+      WHERE i.bill_type = 'PHARMACY'
+      ORDER BY i.created_at DESC
+      LIMIT 5
+    `);
+
+    res.json({
+      todaysSales: Number(dailyRevenue[0]?.sum || 0),
+      recentDispenses: recentDispenses
+    });
+  } catch (error) { next(error); }
+});
+
 // Pharmacy routes: pharmacist manages stock & dispensing; doctor can view inventory for reference
 
-router.get("/pharmacy/inventory", requireRole(['pharmacist', 'doctor']), async (req, res, next) => {
+router.get("/pharmacy/inventory", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT id, name as drug_name, category, stock_quantity, unit_price, expiry_date 
@@ -381,7 +435,23 @@ router.get("/pharmacy/inventory", requireRole(['pharmacist', 'doctor']), async (
   } catch (error) { next(error); }
 });
 
-router.get("/pharmacy/prescriptions", requireRole(['pharmacist']), async (req, res, next) => {
+router.post("/pharmacy/inventory", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    const { name, category, quantity, price, expiryDate } = req.body;
+    
+    // Fallback safe string
+    const safeName = (name || "").replace(/'/g, "''");
+    
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".medicines (name, category, stock_quantity, unit_price, expiry_date)
+      VALUES ('${safeName}', '${category}', ${parseInt(quantity) || 0}, ${parseFloat(price) || 0}, '${expiryDate}')
+    `);
+    
+    res.status(201).json({ message: "Stock item added successfully" });
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/prescriptions", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT pr.*, p.name as patient_name, p.mrn, e.id as encounter_id
@@ -395,7 +465,7 @@ router.get("/pharmacy/prescriptions", requireRole(['pharmacist']), async (req, r
   } catch (error) { next(error); }
 });
 
-router.get("/pharmacy/prescriptions/:id/items", requireRole(['pharmacist']), async (req, res, next) => {
+router.get("/pharmacy/prescriptions/:id/items", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
   try {
     const { id } = req.params;
     const data = await req.prisma.$queryRawUnsafe(`
@@ -405,7 +475,7 @@ router.get("/pharmacy/prescriptions/:id/items", requireRole(['pharmacist']), asy
   } catch (error) { next(error); }
 });
 
-router.post("/pharmacy/dispense", requireRole(['pharmacist']), async (req, res, next) => {
+router.post("/pharmacy/dispense", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
   try {
     const { encounterId, items } = req.body; // items: [{ drugId, quantity, unitPrice }]
 
@@ -450,12 +520,12 @@ router.get("/ipd/bedmap", async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT 
-        w.id, w.name, w.capacity, w.type, w.floor,
+        w.id, w.name, w.capacity, w.type, w.floor, w.base_charge,
         COUNT(a.id) FILTER (WHERE a.status = 'Active') AS occupied,
         w.capacity - COUNT(a.id) FILTER (WHERE a.status = 'Active') AS available
       FROM "${req.schemaName}".wards w
       LEFT JOIN "${req.schemaName}".ipd_admissions a ON a.ward_id = w.id
-      GROUP BY w.id
+      GROUP BY w.id, w.name, w.capacity, w.type, w.floor, w.base_charge
       ORDER BY w.name ASC
     `);
     res.json(data);
@@ -691,6 +761,161 @@ router.post("/ipd/wards/:wardId/provision-beds", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/rbac/sync", async (req, res, next) => {
+  try {
+    const schema = req.schemaName;
+    console.log(`[RBAC_SYNC] Full RBAC sync triggered for ${schema}`);
+
+    // 1. Ensure RBAC tables exist
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_roles (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(50) UNIQUE NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          label VARCHAR(100) NOT NULL,
+          path VARCHAR(100) NOT NULL,
+          icon VARCHAR(50),
+          required_plan VARCHAR(50) DEFAULT 'basic',
+          parent_id UUID REFERENCES "${schema}".rbac_menus(id),
+          sort_order INT DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_menus (
+          role_id UUID REFERENCES "${schema}".rbac_roles(id) ON DELETE CASCADE,
+          menu_id UUID REFERENCES "${schema}".rbac_menus(id) ON DELETE CASCADE,
+          PRIMARY KEY (role_id, menu_id)
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_permissions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          key VARCHAR(100) UNIQUE NOT NULL,
+          description TEXT
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_permissions (
+          role_id UUID REFERENCES "${schema}".rbac_roles(id) ON DELETE CASCADE,
+          permission_id UUID REFERENCES "${schema}".rbac_permissions(id) ON DELETE CASCADE,
+          PRIMARY KEY (role_id, permission_id)
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_user_roles (
+          user_id UUID REFERENCES "${schema}".users(id) ON DELETE CASCADE,
+          role_id UUID REFERENCES "${schema}".rbac_roles(id) ON DELETE CASCADE,
+          PRIMARY KEY (user_id, role_id)
+      );
+    `);
+
+    // 2. Seed all roles (incl. RECEPTIONIST)
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_roles (name, description) VALUES
+      ('ADMIN',        'Full system access'),
+      ('DOCTOR',       'Clinical access - OPD, consultation, lab orders'),
+      ('NURSE',        'Nursing access - vitals, in-patient care'),
+      ('PHARMACIST',   'Pharmacy access - inventory, dispensing'),
+      ('LAB_TECH',     'Lab access - test queue and result entry'),
+      ('RECEPTIONIST', 'Front desk - patient registration and appointments'),
+      ('SUPPORT',      'General staff - read-only access')
+      ON CONFLICT (name) DO NOTHING
+    `);
+
+    // 3. Seed all menus (complete set across all tiers)
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_menus (label, path, icon, sort_order, required_plan) VALUES
+      ('Dashboard',                   '/tenant/dashboard',            'Dashboard', 1,  'basic'),
+      ('OPD Registration',            '/tenant/opd/registration',     'OPD',       2,  'basic'),
+      ('Doctor''s Queue',             '/tenant/opd/queue',            'Doctor',    3,  'basic'),
+      ('Invoicing & Billing',         '/billing',                     'Billing',   10, 'basic'),
+      ('Branding & UI Settings',      '/tenant/settings',             'Settings',  12, 'basic'),
+      ('Staff & RBAC',                '/tenant/staff',                'Doctor',    13, 'basic'),
+      ('Laboratory',                  '/tenant/lab',                  'Lab',       4,  'standard'),
+      ('Pharmacy Dashboard',          '/tenant/pharmacy/dashboard',   'Pharmacy',  5,  'standard'),
+      ('Stock Inventory',             '/tenant/pharmacy/inventory',   'Pill',      6,  'standard'),
+      ('Prescription Queue',          '/tenant/pharmacy/queue',       'Receipt',   7,  'standard'),
+      ('Hospital Settings (Masters)', '/tenant/masters',              'Settings',  11, 'standard'),
+      ('IPD Bed Map',                 '/tenant/ipd/beds',             'Bed',       8,  'professional'),
+      ('IPD Census & Daycare',        '/tenant/ipd/admissions',       'Clipboard', 9,  'professional'),
+      ('Discharge Summaries',         '/tenant/ipd/discharge',        'Receipt',   15, 'professional'),
+      ('Insurance Management',        '/tenant/billing/insurance',    'Receipt',   14, 'professional')
+      ON CONFLICT (label) DO NOTHING
+    `);
+
+    // 4. Seed role-menu mappings per standard RBAC matrix
+    // ADMIN → ALL menus
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'ADMIN'
+      ON CONFLICT DO NOTHING
+    `);
+    // DOCTOR → Dashboard, Doctor's Queue, Laboratory
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'DOCTOR' AND m.label IN ('Dashboard', 'Doctor''s Queue', 'Laboratory')
+      ON CONFLICT DO NOTHING
+    `);
+    // NURSE → Dashboard only
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'NURSE' AND m.label IN ('Dashboard')
+      ON CONFLICT DO NOTHING
+    `);
+    // PHARMACIST → Dashboard + pharmacy menus
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'PHARMACIST' AND m.label IN ('Dashboard', 'Pharmacy Dashboard', 'Stock Inventory', 'Prescription Queue')
+      ON CONFLICT DO NOTHING
+    `);
+    // LAB_TECH → Dashboard + Laboratory
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'LAB_TECH' AND m.label IN ('Dashboard', 'Laboratory')
+      ON CONFLICT DO NOTHING
+    `);
+    // RECEPTIONIST → Dashboard + OPD Registration
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'RECEPTIONIST' AND m.label IN ('Dashboard', 'OPD Registration')
+      ON CONFLICT DO NOTHING
+    `);
+    // SUPPORT → Dashboard only
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
+      WHERE r.name = 'SUPPORT' AND m.label IN ('Dashboard')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // 5. Link all existing users to their RBAC roles via role name mapping
+    const roleNameMap = {
+      'admin': 'ADMIN', 'doctor': 'DOCTOR', 'nurse': 'NURSE',
+      'pharmacist': 'PHARMACIST', 'lab_assistant': 'LAB_TECH', 'lab_tech': 'LAB_TECH',
+      'receptionist': 'RECEPTIONIST', 'staff': 'SUPPORT', 'support': 'SUPPORT'
+    };
+    const users = await req.prisma.$queryRawUnsafe(`SELECT id, role FROM "${schema}".users`);
+    for (const u of users) {
+      if (u.role) {
+        const mappedRole = roleNameMap[u.role.toLowerCase()] || 'SUPPORT';
+        await req.prisma.$executeRawUnsafe(`
+          INSERT INTO "${schema}".rbac_user_roles (user_id, role_id)
+          SELECT '${u.id}', id FROM "${schema}".rbac_roles WHERE name = '${mappedRole}'
+          ON CONFLICT DO NOTHING
+        `);
+      }
+    }
+
+    console.log(`[RBAC_SYNC] Completed for ${schema}`);
+    res.json({ message: "RBAC fully synchronized — roles, menus, mappings and user links all up to date." });
+  } catch (error) { 
+    console.error(`[RBAC_SYNC] Error: ${error.message}`);
+    next(error); 
+  }
+});
+
 router.get("/stats", async (req, res, next) => {
   try {
     // Use 24-hour rolling window for "Today" to handle timezone offsets gracefully
@@ -710,6 +935,14 @@ router.get("/stats", async (req, res, next) => {
       SELECT SUM(total) as sum FROM "${req.schemaName}".invoices WHERE status = 'PAID' AND created_at > NOW() - INTERVAL '24 hours'
     `);
 
+    const dailyCollection = await req.prisma.$queryRawUnsafe(`
+      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices WHERE status = 'PAID' AND payment_mode != 'Insurance' AND created_at > NOW() - INTERVAL '24 hours'
+    `);
+
+    const pendingInsurance = await req.prisma.$queryRawUnsafe(`
+      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices WHERE payment_mode = 'Insurance' AND status = 'Unpaid'
+    `);
+
     // Weekly flow data - ensure we have data for last 7 days
     const weeklyFlow = await req.prisma.$queryRawUnsafe(`
       SELECT d.date, COALESCE(p.count, 0) as count
@@ -726,16 +959,29 @@ router.get("/stats", async (req, res, next) => {
       ORDER BY d.date ASC
     `);
 
+    const departmentLoad = await req.prisma.$queryRawUnsafe(`
+      SELECT type as name, COUNT(*) as count 
+      FROM "${req.schemaName}".encounters 
+      WHERE status = 'Active' 
+      GROUP BY type
+    `);
+
     res.json({
       metrics: {
         patientInflow: Number(patientInflow[0]?.count || 0),
         activeAdmissions: Number(activeAdmissions[0]?.count || 0),
         pendingBills: Number(pendingBills[0]?.count || 0),
-        dailyRevenue: Number(dailyRevenue[0]?.sum || 0)
+        dailyRevenue: Number(dailyRevenue[0]?.sum || 0),
+        dailyCollection: Number(dailyCollection[0]?.sum || 0),
+        pendingInsurance: Number(pendingInsurance[0]?.sum || 0)
       },
       weeklyFlow: weeklyFlow.map(w => ({
         date: w.date,
         count: Number(w.count)
+      })),
+      departmentLoad: departmentLoad.map(d => ({
+        name: d.name,
+        count: Number(d.count)
       }))
     });
   } catch (error) { 

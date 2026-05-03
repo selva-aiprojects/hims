@@ -17,10 +17,12 @@ interface RoleGuardProps {
  */
 export default function RoleGuard({ allowedRoles, children, moduleName = "This Module" }: RoleGuardProps) {
   const navigate = useNavigate();
-  const role = localStorage.getItem("role") || "";
+  // Normalize to lowercase — backend seeds roles as uppercase (ADMIN, DOCTOR, etc.)
+  const role = (localStorage.getItem("role") || "").toLowerCase();
+  const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
 
-  // Admin bypasses all guards
-  if (role === "admin" || allowedRoles.includes(role)) {
+  // Admin always bypasses all role guards
+  if (role === "admin" || normalizedAllowedRoles.includes(role)) {
     return <>{children}</>;
   }
 

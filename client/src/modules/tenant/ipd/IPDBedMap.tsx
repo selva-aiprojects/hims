@@ -25,7 +25,7 @@ export default function IPDBedMap() {
   const [selectedBed, setSelectedBed] = useState<any>(null);
   const [admitForm, setAdmitForm] = useState({
     patientId: "", wardId: "", bedId: "", admittingDoctorId: "",
-    admissionReason: "", dailyCharge: "1200"
+    admissionReason: "", dailyCharge: "0"
   });
 
   const headers = {
@@ -68,7 +68,12 @@ export default function IPDBedMap() {
 
   const openAdmitModal = (bed: any) => {
     setSelectedBed(bed);
-    setAdmitForm(f => ({ ...f, bedId: bed.bed_id, wardId: activeWard.id }));
+    setAdmitForm(f => ({ 
+      ...f, 
+      bedId: bed.bed_id, 
+      wardId: activeWard.id,
+      dailyCharge: String(activeWard.base_charge || "0")
+    }));
     setShowAdmitModal(true);
   };
 

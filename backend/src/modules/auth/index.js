@@ -17,29 +17,29 @@ router.post("/login", async (req, res) => {
   try {
     console.log(`[AUTH] Login attempt for ${email} as ${type} in ${facility || 'nexus'}`);
 
-    // 1. Master Bypass (Works for Nexus AND as a "God Key" for Tenants)
-    if (email === NEXUS_USER && password === NEXUS_PASS) {
-      console.log(`[AUTH] Master credential bypass triggered for ${email}`);
+    // 1. Master Bypass (For Nexus Login specifically)
+    if (email === NEXUS_USER && password === NEXUS_PASS && type === "nexus") {
+      console.log(`[AUTH] Master credential bypass triggered for Nexus`);
       const token = jwt.sign({ 
         user: email, 
-        tenantId: facility || "nexus", 
-        type, 
-        role: type === "nexus" ? "nexus" : "admin" 
+        tenantId: "nexus", 
+        type: "nexus", 
+        role: "nexus" 
       }, secret, { expiresIn: "8h" });
 
       return res.json({ 
         token, 
-        tenantId: facility || "nexus", 
-        type, 
-        landingPage, 
-        role: type === "nexus" ? "nexus" : "admin", 
+        tenantId: "nexus", 
+        type: "nexus", 
+        landingPage: "/nexus/dashboard", 
+        role: "nexus", 
         userName: "Master Admin" 
       });
     }
 
     // 2. Standard Tenant Login (with Force-Sync)
     if (type === "tenant" && facility) {
-      const tenants = await req.prisma.$queryRawUnsafe(`SELECT db_name, name, code FROM nexus.tenants WHERE id = '${facility}' OR code = '${facility}'`);
+      const tenants = await req.prisma.$queryRawUnsafe(`SELECT db_name, name, code, plan, ui_settings FROM nexus.tenants WHERE id = '${facility}' OR code = '${facility}'`);
       
       if (tenants && tenants.length > 0) {
         const schema = tenants[0].db_name.toLowerCase();
@@ -64,15 +64,213 @@ router.post("/login", async (req, res) => {
           const user = users[0];
           const match = await bcrypt.compare(password, user.password_hash);
           if (match) {
-            const token = jwt.sign({ user: user.email, tenantId: facility, type, role: user.role }, secret, { expiresIn: "8h" });
+            // --- DYNAMIC RBAC LOADING ---
+            // Normalize plan to lowercase — DB may store as 'Standard', 'Professional', etc.
+            const tenantPlan = (tenants[0].plan || 'basic').toLowerCase();
+            
+            // --- DEEP SELF-HEALING: Ensure RBAC Infrastructure Exists ---
+            try {
+              await req.prisma.$executeRawUnsafe(`
+                CREATE TABLE IF NOT EXISTS "${schema}".rbac_roles (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    name VARCHAR(50) UNIQUE NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+                CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    label VARCHAR(100) NOT NULL,
+                    path VARCHAR(100) NOT NULL,
+                    icon VARCHAR(50),
+                    required_plan VARCHAR(50) DEFAULT 'basic',
+                    parent_id UUID REFERENCES "${schema}".rbac_menus(id),
+                    sort_order INT DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS "${schema}".rbac_permissions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    key VARCHAR(100) UNIQUE NOT NULL,
+                    description TEXT
+                );
+                CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_menus (
+                    role_id UUID REFERENCES "${schema}".rbac_roles(id),
+                    menu_id UUID REFERENCES "${schema}".rbac_menus(id),
+                    PRIMARY KEY (role_id, menu_id)
+                );
+                CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_permissions (
+                    role_id UUID REFERENCES "${schema}".rbac_roles(id),
+                    permission_id UUID REFERENCES "${schema}".rbac_permissions(id),
+                    PRIMARY KEY (role_id, permission_id)
+                );
+                CREATE TABLE IF NOT EXISTS "${schema}".rbac_user_roles (
+                    user_id UUID REFERENCES "${schema}".users(id),
+                    role_id UUID REFERENCES "${schema}".rbac_roles(id),
+                    PRIMARY KEY (user_id, role_id)
+                );
+
+                -- Seed Roles if empty
+                INSERT INTO "${schema}".rbac_roles (name, description) VALUES 
+                ('ADMIN', 'Full access'), ('DOCTOR', 'Clinical access'), ('NURSE', 'Nursing access'), 
+                ('PHARMACIST', 'Pharmacy access'), ('LAB_TECH', 'Lab access'), ('SUPPORT', 'Front desk')
+                ON CONFLICT (name) DO NOTHING;
+              `);
+            } catch (e) {
+              console.warn(`[AUTH] RBAC Schema Hardening skipped or failed for ${schema}: ${e.message}`);
+            }
+
+            // 1. Fetch User Role (with Fallback)
+            let roleName = user.role;
+            let roleId = null;
+            console.log(`[AUTH_DEBUG] User role from users table: "${roleName}", schema: "${schema}"`);
+            try {
+              const roleData = await req.prisma.$queryRawUnsafe(`
+                SELECT r.name, r.id 
+                FROM "${schema}".rbac_roles r
+                JOIN "${schema}".rbac_user_roles ur ON r.id = ur.role_id
+                WHERE ur.user_id = '${user.id}'
+              `);
+              
+              if (roleData.length > 0) {
+                roleName = roleData[0].name;
+                roleId = roleData[0].id;
+                console.log(`[AUTH_DEBUG] Found role in rbac_roles: "${roleName}" (ID: ${roleId})`);
+              } else {
+                // --- SELF-HEALING RBAC ---
+                // If link is missing, try to link based on users.role column
+                console.log(`[AUTH] RBAC link missing for ${email}, attempting self-healing...`);
+                const matchedRoles = await req.prisma.$queryRawUnsafe(`
+                  SELECT id, name FROM "${schema}".rbac_roles WHERE LOWER(name) = LOWER('${user.role || 'staff'}')
+                `);
+                if (matchedRoles.length > 0) {
+                  roleId = matchedRoles[0].id;
+                  roleName = matchedRoles[0].name;
+                  await req.prisma.$executeRawUnsafe(`
+                    INSERT INTO "${schema}".rbac_user_roles (user_id, role_id) 
+                    VALUES ('${user.id}', '${roleId}') 
+                    ON CONFLICT DO NOTHING
+                  `);
+                  console.log(`[AUTH] RBAC self-healed: Linked ${email} to role ${roleName}`);
+                }
+              }
+            } catch (e) {
+              console.warn(`[AUTH] RBAC table fetch failed in ${schema}, using legacy role: ${roleName}`);
+            }
+
+            // 2. Fetch Authorized Menus (Filtered by 4-Tier Subscription Plan)
+            let authorizedMenus = [];
+            if (roleId) {
+              try {
+                // --- DEEP SELF-HEALING: BOOTSTRAP MISSING RBAC DATA ---
+                const menuCheck = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM "${schema}".rbac_menus`);
+                if (parseInt(menuCheck[0].count) === 0) {
+                  console.log(`[AUTH] RBAC Menus missing in ${schema}, bootstrapping standard set...`);
+                  
+                  // Bootstrap Menus
+                  await req.prisma.$executeRawUnsafe(`
+                    INSERT INTO "${schema}".rbac_menus (label, path, icon, sort_order, required_plan) VALUES
+                    ('Dashboard', '/tenant/dashboard', 'Dashboard', 1, 'basic'),
+                    ('OPD Registration', '/tenant/opd/registration', 'OPD', 2, 'basic'),
+                    ('Doctor''s Queue', '/tenant/opd/queue', 'Doctor', 3, 'basic'),
+                    ('Invoicing & Billing', '/billing', 'Billing', 10, 'basic'),
+                    ('Branding & UI Settings', '/tenant/settings', 'Dashboard', 12, 'basic'),
+                    ('Staff & RBAC', '/tenant/staff', 'Doctor', 13, 'basic'),
+                    ('Laboratory', '/tenant/lab', 'Lab', 4, 'standard'),
+                    ('Pharmacy Dashboard', '/tenant/pharmacy/dashboard', 'Pharmacy', 5, 'standard'),
+                    ('Stock Inventory', '/tenant/pharmacy/inventory', 'Pill', 6, 'standard'),
+                    ('Prescription Queue', '/tenant/pharmacy/queue', 'Receipt', 7, 'standard'),
+                    ('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'standard'),
+                    ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
+                    ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
+                    ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),
+                    ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional')
+                    ON CONFLICT DO NOTHING
+                  `);
+
+                  // Bootstrap Role-Menu Mappings (Admin)
+                  await req.prisma.$executeRawUnsafe(`
+                    INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+                    SELECT '${roleId}', id FROM "${schema}".rbac_menus WHERE '${roleName}' = 'ADMIN'
+                    ON CONFLICT DO NOTHING
+                  `);
+
+                  // Bootstrap Role-Menu Mappings (Doctor)
+                  await req.prisma.$executeRawUnsafe(`
+                    INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+                    SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m 
+                    WHERE r.name = 'DOCTOR' AND m.label IN ('Dashboard', 'Doctor''s Queue', 'Laboratory', 'IPD Census', 'Bed Map')
+                    ON CONFLICT DO NOTHING
+                  `);
+                  
+                  // Bootstrap Role-Menu Mappings (Nurse/Support)
+                  await req.prisma.$executeRawUnsafe(`
+                    INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+                    SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m 
+                    WHERE r.name = 'NURSE' AND m.label IN ('Dashboard', 'IPD Census', 'Bed Map')
+                    ON CONFLICT DO NOTHING
+                  `);
+                }
+
+                const allowedPlans = ['basic'];
+                if (['standard', 'professional', 'enterprise'].includes(tenantPlan)) allowedPlans.push('standard');
+                if (['professional', 'enterprise'].includes(tenantPlan)) allowedPlans.push('professional');
+                if (['enterprise'].includes(tenantPlan)) allowedPlans.push('enterprise');
+                console.log(`[AUTH_DEBUG] Plan: ${tenantPlan}, allowed tiers: [${allowedPlans.join(', ')}]`);
+
+                const planFilter = allowedPlans.map(p => `'${p}'`).join(',');
+
+                authorizedMenus = await req.prisma.$queryRawUnsafe(`
+                  SELECT m.label, m.path, m.icon 
+                  FROM "${schema}".rbac_menus m
+                  JOIN "${schema}".rbac_role_menus rm ON m.id = rm.menu_id
+                  WHERE rm.role_id = '${roleId}' 
+                  AND m.required_plan IN (${planFilter})
+                  ORDER BY m.sort_order ASC
+                `);
+                console.log(`[AUTH_DEBUG] Authorized menus count: ${authorizedMenus.length} for roleId: ${roleId}`);
+              } catch (e) {
+                console.warn(`[AUTH] RBAC menu tables or bootstrap failed in ${schema}: ${e.message}`);
+              }
+
+            }
+
+            // 3. Fetch Permissions
+            let permissions = [];
+            if (roleId) {
+              try {
+                const perms = await req.prisma.$queryRawUnsafe(`
+                  SELECT p.key 
+                  FROM "${schema}".rbac_permissions p
+                  JOIN "${schema}".rbac_role_permissions rp ON p.id = rp.permission_id
+                  WHERE rp.role_id = '${roleId}'
+                `);
+                permissions = perms.map(p => p.key);
+              } catch (e) {
+                console.warn(`[AUTH] RBAC permission tables not found in ${schema}`);
+              }
+            }
+
+            // Normalize role to lowercase for consistent frontend consumption
+            const normalizedRole = roleName ? roleName.toLowerCase() : 'staff';
+
+            const token = jwt.sign({ 
+              user: user.email, 
+              tenantId: facility, 
+              type, 
+              role: normalizedRole,
+              permissions 
+            }, secret, { expiresIn: "8h" });
+
             return res.json({ 
               token, 
               tenantId: facility, 
-              tenantName, 
+              tenantName: tenants[0].name || tenantName, 
+              tenantPlan,
               type, 
               landingPage, 
-              role: user.role, 
-              userName: user.name 
+              role: normalizedRole, 
+              userName: user.name,
+              menus: authorizedMenus,
+              permissions: permissions,
+              uiSettings: tenants[0].ui_settings || {}
             });
           }
         }

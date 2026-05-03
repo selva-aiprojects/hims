@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 
-const API_BASE = "http://127.0.0.1:4000";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 export default function StaffManagementPage() {
   const navigate = useNavigate();
@@ -26,7 +26,11 @@ export default function StaffManagementPage() {
   ];
 
   const fetchStaff = async () => {
-    const currentRole = localStorage.getItem("role");
+    const currentRole = (localStorage.getItem("role") || "").toLowerCase();
+    const currentPlan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
+
+    // RBAC Guard: Only Admin/Nexus can manage staff
+    // Tier Guard: Staff management is available for Standard and above
     if (currentRole !== 'admin' && currentRole !== 'nexus') {
       navigate("/tenant/dashboard");
       return;
@@ -73,18 +77,14 @@ export default function StaffManagementPage() {
       <main className="main-content">
         <Header title="Staff & RBAC" />
 
-        <header className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div className="welcome-msg">
-            <h1 style={{ fontSize: '24px', fontWeight: 800 }}>Staff & RBAC</h1>
-            <p>Manage hospital users and access permissions.</p>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
           <button 
             onClick={() => setShowModal(true)}
             style={{ padding: '12px 24px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
           >
             + Add Staff Member
           </button>
-        </header>
+        </div>
 
         {/* Staff Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>

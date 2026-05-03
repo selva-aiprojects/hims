@@ -6,7 +6,7 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
 export default function PharmacyDashboard() {
-  const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, pendingPrescriptions: 0, todaysSales: 0 });
+  const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, pendingPrescriptions: 0, todaysSales: 0, recentDispenses: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,15 +19,17 @@ export default function PharmacyDashboard() {
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
     try {
-      const [invRes, preRes] = await Promise.all([
+      const [invRes, preRes, statRes] = await Promise.all([
         axios.get(`${API_BASE}/api/hospital/pharmacy/inventory`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions`, { headers })
+        axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions`, { headers }),
+        axios.get(`${API_BASE}/api/hospital/pharmacy/stats`, { headers })
       ]);
       setStats({
         totalItems: invRes.data.length,
         lowStock: invRes.data.filter((i: any) => i.stock_quantity < 50).length,
         pendingPrescriptions: preRes.data.length,
-        todaysSales: 0 // Placeholder
+        todaysSales: statRes.data.todaysSales,
+        recentDispenses: statRes.data.recentDispenses
       });
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
@@ -48,7 +50,7 @@ export default function PharmacyDashboard() {
             { label: 'Total Stock items', value: stats.totalItems, color: '#3b82f6', icon: '📦' },
             { label: 'Low stock alerts', value: stats.lowStock, color: '#ef4444', icon: '⚠️' },
             { label: 'Pending Orders', value: stats.pendingPrescriptions, color: '#f59e0b', icon: '📋' },
-            { label: 'Revenue (Today)', value: `₹${stats.todaysSales}`, color: '#10b981', icon: '💰' }
+            { label: 'Revenue (Today)', value: `₹${stats.todaysSales.toLocaleString()}`, color: '#10b981', icon: '💰' }
           ].map((s, i) => (
             <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                <div style={{ fontSize: '24px', marginBottom: '12px' }}>{s.icon}</div>
@@ -61,22 +63,32 @@ export default function PharmacyDashboard() {
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '32px' }}>
            <div style={{ background: 'white', padding: '32px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '24px' }}>Inventory Health</h3>
-              <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', border: '2px dashed #f1f5f9', borderRadius: '20px' }}>
-                 Stock Movement Chart Placeholder
+              <div style={{ height: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                 {stats.lowStock > 0 ? (
+                   <div style={{ padding: '20px', background: '#fff1f2', borderRadius: '16px', color: '#be123c', fontWeight: 700 }}>
+                     Critical: {stats.lowStock} items require immediate replenishment.
+                   </div>
+                 ) : (
+                   <div style={{ padding: '20px', background: '#f0fdf4', borderRadius: '16px', color: '#166534', fontWeight: 700 }}>
+                     Inventory levels are healthy. No critical low stock detected.
+                   </div>
+                 )}
               </div>
            </div>
            <div style={{ background: 'white', padding: '32px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '24px' }}>Recent Dispenses</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                 {[1,2,3].map(i => (
+                 {stats.recentDispenses.length > 0 ? stats.recentDispenses.map((disp: any, i: number) => (
                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
                       <div>
-                         <p style={{ margin: 0, fontWeight: 700, fontSize: '14px' }}>Walk-in Patient</p>
-                         <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>Paracetamol 500mg x 10</p>
+                         <p style={{ margin: 0, fontWeight: 700, fontSize: '14px' }}>{disp.patient_name}</p>
+                         <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>Processed: {new Date(disp.created_at).toLocaleTimeString()}</p>
                       </div>
-                      <span style={{ fontWeight: 800, color: '#10b981' }}>₹120.00</span>
+                      <span style={{ fontWeight: 800, color: '#10b981' }}>₹{Number(disp.total).toFixed(2)}</span>
                    </div>
-                 ))}
+                 )) : (
+                   <p style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>No dispense history today.</p>
+                 )}
               </div>
            </div>
         </div>

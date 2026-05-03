@@ -12,6 +12,7 @@ async function ensureNexusColumns(prisma) {
     console.log("[NEXUS] Checking Registry Schema...");
     await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS shard_id VARCHAR(255)`);
     await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS ui_settings JSONB DEFAULT '{}'::jsonb`);
     const countRes = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM nexus.tenants`);
     console.log(`[NEXUS] Registry contains ${countRes[0].count} tenants.`);
     console.log("[NEXUS] Registry Schema is synchronized.");
@@ -69,6 +70,23 @@ router.get("/tenants/:id", async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+router.put("/tenants/:id/branding", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const settings = req.body;
+    
+    // Fallback safe strings
+    const safeName = (settings.hospitalName || "Healthezee Hospital").replace(/'/g, "''");
+    
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE nexus.tenants 
+      SET ui_settings = '${JSON.stringify(settings)}'::jsonb, name = '${safeName}'
+      WHERE id = '${id}'
+    `);
+    res.json({ message: "Branding updated successfully in global registry" });
+  } catch (error) { next(error); }
 });
 
 router.post("/tenants", async (req, res, next) => {
@@ -254,6 +272,133 @@ router.delete("/tenants/:id", async (req, res, next) => {
     res.json({ message: "Tenant deleted and shard decommissioned" });
   } catch (error) {
     next(error);
+  }
+});
+
+router.get("/debug/tenants", async (req, res) => {
+  try {
+    const { schema } = req.query;
+    if (schema) {
+       const users = await req.prisma.$queryRawUnsafe(`SELECT id, name, email, role FROM "${schema}".users`);
+       const roles = await req.prisma.$queryRawUnsafe(`SELECT id, name FROM "${schema}".rbac_roles`);
+       const menus = await req.prisma.$queryRawUnsafe(`SELECT id, label, required_plan FROM "${schema}".rbac_menus`);
+       const userRoles = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${schema}".rbac_user_roles`);
+       const roleMenus = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${schema}".rbac_role_menus`);
+       return res.json({ users, roles, menus, userRoles, roleMenus });
+    }
+    const tenants = await req.prisma.$queryRawUnsafe(`SELECT id, name, db_name, plan FROM nexus.tenants`);
+    res.json(tenants);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get("/debug/rbac-sync", async (req, res) => {
+  try {
+    const { schema } = req.query;
+    if (!schema) return res.status(400).json({ error: "Schema param required" });
+    
+    console.log(`[NEXUS_DEBUG] Triggering RBAC Sync for ${schema}`);
+
+    // 1. Ensure Schema-Level RBAC Tables Exist
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_roles (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(50) UNIQUE NOT NULL,
+          description TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          label VARCHAR(100) NOT NULL,
+          path VARCHAR(100) NOT NULL,
+          icon VARCHAR(50),
+          required_plan VARCHAR(50) DEFAULT 'basic',
+          parent_id UUID REFERENCES "${schema}".rbac_menus(id),
+          sort_order INT DEFAULT 0
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_permissions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          key VARCHAR(100) UNIQUE NOT NULL,
+          description TEXT
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_menus (
+          role_id UUID REFERENCES "${schema}".rbac_roles(id),
+          menu_id UUID REFERENCES "${schema}".rbac_menus(id),
+          PRIMARY KEY (role_id, menu_id)
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_permissions (
+          role_id UUID REFERENCES "${schema}".rbac_roles(id),
+          permission_id UUID REFERENCES "${schema}".rbac_permissions(id),
+          PRIMARY KEY (role_id, permission_id)
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".rbac_user_roles (
+          user_id UUID REFERENCES "${schema}".users(id),
+          role_id UUID REFERENCES "${schema}".rbac_roles(id),
+          PRIMARY KEY (user_id, role_id)
+      );
+    `);
+
+    // 2. Ensure Roles exist
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_roles (name, description) VALUES 
+      ('ADMIN', 'Full access'), ('DOCTOR', 'Clinical access'), ('NURSE', 'Nursing access'), 
+      ('PHARMACIST', 'Pharmacy access'), ('LAB_TECH', 'Lab access'), ('SUPPORT', 'Front desk')
+      ON CONFLICT (name) DO NOTHING
+    `);
+
+    // 3. Ensure Menus exist
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_menus (label, path, icon, sort_order, required_plan) VALUES
+      ('Dashboard', '/tenant/dashboard', 'Dashboard', 1, 'basic'),
+      ('OPD Registration', '/tenant/opd/registration', 'OPD', 2, 'basic'),
+      ('Doctor''s Queue', '/tenant/opd/queue', 'Doctor', 3, 'basic'),
+      ('Invoicing & Billing', '/billing', 'Billing', 10, 'basic'),
+      ('Branding & UI Settings', '/tenant/settings', 'Dashboard', 12, 'basic'),
+      ('Staff & RBAC', '/tenant/staff', 'Doctor', 13, 'basic'),
+      ('Laboratory', '/tenant/lab', 'Lab', 4, 'standard'),
+      ('Pharmacy Dashboard', '/tenant/pharmacy/dashboard', 'Pharmacy', 5, 'standard'),
+      ('Stock Inventory', '/tenant/pharmacy/inventory', 'Pill', 6, 'standard'),
+      ('Prescription Queue', '/tenant/pharmacy/queue', 'Receipt', 7, 'standard'),
+      ('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'standard'),
+      ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
+      ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
+      ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),
+      ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional')
+      ON CONFLICT (label) DO NOTHING
+    `);
+
+    // 4. Link ADMIN to all menus
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m 
+      WHERE r.name = 'ADMIN'
+      ON CONFLICT DO NOTHING
+    `);
+
+    // 5. Link DOCTOR to clinical menus
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m 
+      WHERE r.name = 'DOCTOR' AND m.label IN ('Dashboard', 'Doctor''s Queue', 'Laboratory', 'IPD Census', 'Bed Map')
+      ON CONFLICT DO NOTHING
+    `);
+
+    // 6. Ensure current users are linked to their roles based on users.role column
+    const users = await req.prisma.$queryRawUnsafe(`SELECT id, role FROM "${schema}".users`);
+    for (const u of users) {
+       if (u.role) {
+         await req.prisma.$executeRawUnsafe(`
+           INSERT INTO "${schema}".rbac_user_roles (user_id, role_id)
+           SELECT '${u.id}', id FROM "${schema}".rbac_roles WHERE LOWER(name) = LOWER('${u.role}')
+           ON CONFLICT DO NOTHING
+         `);
+       }
+    }
+
+    res.json({ message: `RBAC Sync successful for ${schema}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

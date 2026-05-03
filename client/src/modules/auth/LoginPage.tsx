@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import BrandLogo from "../../components/BrandLogo";
 import { API_BASE_URL as API_BASE } from "../../config/api";
+import { applyTheme } from "../../config/theme";
 
 
 export default function LoginPage() {
@@ -33,10 +34,31 @@ export default function LoginPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("tenant", data.tenantId);
       localStorage.setItem("tenantName", data.tenantName || "Healthezee Hospital");
+      localStorage.setItem("tenantPlan", data.tenantPlan || "basic");
       localStorage.setItem("landingPage", data.landingPage);
       localStorage.setItem("userType", data.type);
       localStorage.setItem("role", data.role || "");
       localStorage.setItem("userName", data.userName || "User");
+      localStorage.setItem("userId", data.userId || "");
+      
+      // Save dynamic RBAC data
+      localStorage.setItem("userMenus", JSON.stringify(data.menus || []));
+      localStorage.setItem("userPermissions", JSON.stringify(data.permissions || []));
+      
+      // Save branding configuration
+      if (data.uiSettings) {
+         if (data.uiSettings.primaryDark) localStorage.setItem('theme_primary_dark', data.uiSettings.primaryDark);
+         if (data.uiSettings.primaryAccent) localStorage.setItem('theme_primary_accent', data.uiSettings.primaryAccent);
+         if (data.uiSettings.appBg) localStorage.setItem('theme_app_bg', data.uiSettings.appBg);
+         if (data.uiSettings.textMain) localStorage.setItem('theme_text_main', data.uiSettings.textMain);
+         if (data.uiSettings.fontSize) localStorage.setItem('theme_font_size', data.uiSettings.fontSize);
+         if (data.uiSettings.logoUrl) localStorage.setItem('theme_logo_url', data.uiSettings.logoUrl);
+         if (data.uiSettings.heroBg) localStorage.setItem('theme_hero_bg', data.uiSettings.heroBg);
+         if (data.uiSettings.heroText) localStorage.setItem('theme_hero_text', data.uiSettings.heroText);
+      }
+
+      // Apply theme immediately after saving to localStorage
+      applyTheme();
 
       navigate(data.landingPage);
     } catch (err: any) {

@@ -54,7 +54,10 @@ Cloud-native multi-tenant Hospital Information Management System (HIMS) supporti
 
 ### Patient Management
 - Create / update patient
-- MRN
+- Standardized Medical Record Number (MRN) Generation
+  - **Format:** `MRN-{YY}{MM}-{6-Digit-Sequence}` (e.g., `MRN-2605-000001`)
+  - **Logic:** Year and Month prefix for temporal context, followed by a zero-padded sequential integer based on total patient count.
+  - **Compliance:** Aligns with international healthcare standards, ensuring collision-proof uniqueness and chronologically sortable records.
 
 ### Appointment
 - Schedule

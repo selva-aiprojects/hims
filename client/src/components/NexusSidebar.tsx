@@ -19,8 +19,19 @@ export default function NexusSidebar() {
   };
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-logo">
+    <>
+      <div className="mobile-overlay" onClick={() => {
+        document.querySelector('.sidebar')?.classList.remove('mobile-open');
+        document.querySelector('.mobile-overlay')?.classList.remove('active');
+      }}></div>
+      <div className="sidebar">
+        <button className="sidebar-close" onClick={() => {
+          document.querySelector('.sidebar')?.classList.remove('mobile-open');
+          document.querySelector('.mobile-overlay')?.classList.remove('active');
+        }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <div className="sidebar-logo">
          <BrandLogo size="sm" light={true} />
          <p style={{ fontSize: '10px', color: '#94a3b8', margin: '4px 0 0 52px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Nexus Control</p>
       </div>
@@ -50,7 +61,8 @@ export default function NexusSidebar() {
           Logout
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -59,6 +71,10 @@ function SidebarLink({ to, icon, label }: { to: string, icon: any, label: string
     <NavLink 
       to={to} 
       className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+      onClick={() => {
+        document.querySelector('.sidebar')?.classList.remove('mobile-open');
+        document.querySelector('.mobile-overlay')?.classList.remove('active');
+      }}
     >
       {icon}
       {label}

@@ -21,22 +21,57 @@ CREATE TABLE users (
   name VARCHAR(255),
   email VARCHAR(255) UNIQUE,
   password_hash TEXT,
-  role VARCHAR(50) DEFAULT 'staff',
+  role VARCHAR(50) DEFAULT 'staff', -- Legacy role fallback
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-DROP TABLE IF EXISTS roles CASCADE;
-CREATE TABLE roles (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100)
+-- Dynamic RBAC Tables
+DROP TABLE IF EXISTS rbac_roles CASCADE;
+CREATE TABLE rbac_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
-DROP TABLE IF EXISTS user_roles CASCADE;
-CREATE TABLE user_roles (
-  user_id UUID REFERENCES users(id),
-  role_id UUID REFERENCES roles(id),
-  PRIMARY KEY (user_id, role_id)
+DROP TABLE IF EXISTS rbac_menus CASCADE;
+CREATE TABLE rbac_menus (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    label VARCHAR(100) NOT NULL,
+    path VARCHAR(100) NOT NULL,
+    icon VARCHAR(50),
+    required_plan VARCHAR(50) DEFAULT 'basic', -- basic, professional, enterprise
+    parent_id UUID REFERENCES rbac_menus(id),
+    sort_order INT DEFAULT 0
+);
+
+DROP TABLE IF EXISTS rbac_permissions CASCADE;
+CREATE TABLE rbac_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key VARCHAR(100) UNIQUE NOT NULL, -- e.g. 'PATIENT_PII_VIEW'
+    description TEXT
+);
+
+DROP TABLE IF EXISTS rbac_role_menus CASCADE;
+CREATE TABLE rbac_role_menus (
+    role_id UUID REFERENCES rbac_roles(id),
+    menu_id UUID REFERENCES rbac_menus(id),
+    PRIMARY KEY (role_id, menu_id)
+);
+
+DROP TABLE IF EXISTS rbac_role_permissions CASCADE;
+CREATE TABLE rbac_role_permissions (
+    role_id UUID REFERENCES rbac_roles(id),
+    permission_id UUID REFERENCES rbac_permissions(id),
+    PRIMARY KEY (role_id, permission_id)
+);
+
+DROP TABLE IF EXISTS rbac_user_roles CASCADE;
+CREATE TABLE rbac_user_roles (
+    user_id UUID REFERENCES users(id),
+    role_id UUID REFERENCES rbac_roles(id),
+    PRIMARY KEY (user_id, role_id)
 );
 
 -- ================= MASTERS HUB TABLES =================
@@ -441,42 +476,96 @@ INSERT INTO medicines (name, category, composition, dosage_adult, dosage_pediatr
 INSERT INTO diagnostic_types (name) VALUES ('Lab'), ('Radiology'), ('Pathology');
 INSERT INTO diagnostics (name, price, type_id) VALUES ('CBC', 300, (SELECT id FROM diagnostic_types LIMIT 1));
 INSERT INTO designations (name) VALUES ('Consultant'), ('Senior Resident'), ('Staff Nurse');
-INSERT INTO roles (name) VALUES ('admin'), ('doctor'), ('nurse'), ('receptionist'), ('pharmacist');
 
--- 10. Standard Clinical Treatments
-INSERT INTO treatments (name, price, cpt_code, estimated_duration, description) VALUES
-('General Consultation', 500, '99213', 20, 'Routine outpatient consultation'),
-('Specialist Consultation', 1000, '99214', 30, 'Senior consultant review'),
-('Wound Dressing', 350, '12001', 15, 'Standard surgical dressing'),
-('Nebulization', 200, '94640', 15, 'Respiratory therapy session'),
-('ECG Recording', 450, '93000', 10, '12-lead electrocardiogram');
+-- RBAC BOOTSTRAP SEEDING
+INSERT INTO rbac_roles (name, description) VALUES 
+('ADMIN', 'Full access to all modules and system settings'),
+('DOCTOR', 'Clinical access, consultations, and patient EMR'),
+('NURSE', 'Clinical support, vitals, and IPD monitoring'),
+('PHARMACIST', 'Pharmacy inventory and prescription dispensing'),
+('LAB_TECH', 'Laboratory orders and result processing'),
+('SUPPORT', 'Front desk, registration, and administrative support');
 
--- 11. Standard Hospital Services
-INSERT INTO services (name, price, category, service_code, tax_percent) VALUES
-('Registration Fee', 100, 'Administrative', 'REG01', 0),
-('Nursing Charges', 200, 'Clinical', 'NUR01', 0),
-('Medical Report', 150, 'Administrative', 'REP01', 0),
-('Pharmacy Handling', 50, 'Pharmacy', 'PHM01', 5);
+-- Menu Registry with Subscription Mapping (Revised 4-Tier Model)
+INSERT INTO rbac_menus (label, path, icon, sort_order, required_plan) VALUES
+('Dashboard', '/tenant/dashboard', 'Dashboard', 1, 'basic'),
+('OPD Registration', '/tenant/opd/registration', 'OPD', 2, 'basic'),
+('Doctor''s Queue', '/tenant/opd/queue', 'Doctor', 3, 'basic'),
+('Invoicing & Billing', '/billing', 'Billing', 10, 'basic'),
+('Branding & UI Settings', '/tenant/settings', 'Dashboard', 12, 'basic'),
+('Staff & RBAC', '/tenant/staff', 'Doctor', 13, 'basic'),
+('Laboratory', '/tenant/lab', 'Lab', 4, 'standard'),
+('Pharmacy Dashboard', '/tenant/pharmacy/dashboard', 'Pharmacy', 5, 'standard'),
+('Stock Inventory', '/tenant/pharmacy/inventory', 'Pill', 6, 'standard'),
+('Prescription Queue', '/tenant/pharmacy/queue', 'Receipt', 7, 'standard'),
+('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'standard'),
+('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
+('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
+('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),
+('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional');
 
--- 12. Clinical Consultation Modes
-INSERT INTO consultation_modes (name, surcharge_percent, is_virtual) VALUES
-('Physical Visit', 0, FALSE),
-('Video Consult', 10, TRUE),
-('Home Visit', 25, FALSE);
+-- Role-Menu Mappings (ADMIN - ALL)
+INSERT INTO rbac_role_menus (role_id, menu_id)
+SELECT r.id, m.id FROM rbac_roles r, rbac_menus m WHERE r.name = 'ADMIN';
 
--- 13. Standard Wards
-INSERT INTO wards (name, capacity, floor, type) VALUES
-('General Ward - Male', 20, '1st Floor', 'General'),
-('General Ward - Female', 20, '1st Floor', 'General'),
-('ICU - Unit A', 8, '2nd Floor', 'Critical Care'),
-('Private Deluxe', 10, '3rd Floor', 'Premium');
+-- Role-Menu Mappings (DOCTOR)
+INSERT INTO rbac_role_menus (role_id, menu_id)
+SELECT r.id, m.id FROM rbac_roles r, rbac_menus m 
+WHERE r.name = 'DOCTOR' AND m.label IN ('Dashboard', 'Doctor''s Queue', 'Laboratory', 'IPD Census', 'Bed Map');
 
--- 14. Update Medicines with Inventory
-UPDATE medicines SET stock_quantity = 500, unit_price = 10.50 WHERE name = 'Paracetamol 500mg';
-UPDATE medicines SET stock_quantity = 250, unit_price = 45.00 WHERE name = 'Amoxicillin 250mg';
-UPDATE medicines SET stock_quantity = 150, unit_price = 12.00 WHERE name = 'Metformin 500mg';
+-- Role-Menu Mappings (PHARMACIST)
+INSERT INTO rbac_role_menus (role_id, menu_id)
+SELECT r.id, m.id FROM rbac_roles r, rbac_menus m 
+WHERE r.name = 'PHARMACIST' AND m.label IN ('Dashboard', 'Pharmacy Dashboard', 'Stock Inventory', 'Prescription Queue');
+
+-- Role-Menu Mappings (LAB_TECH)
+INSERT INTO rbac_role_menus (role_id, menu_id)
+SELECT r.id, m.id FROM rbac_roles r, rbac_menus m 
+WHERE r.name = 'LAB_TECH' AND m.label IN ('Dashboard', 'Laboratory');
+
+-- Role-Menu Mappings (SUPPORT)
+INSERT INTO rbac_role_menus (role_id, menu_id)
+SELECT r.id, m.id FROM rbac_roles r, rbac_menus m 
+WHERE r.name = 'SUPPORT' AND m.label IN ('Dashboard', 'OPD Registration', 'Invoicing & Billing');
+
+-- Permissions Registry
+INSERT INTO rbac_permissions (key, description) VALUES
+('PATIENT_PII_VIEW_FULL', 'Ability to view unmasked patient contact info'),
+('PATIENT_PII_VIEW_MASKED', 'View masked patient contact info (last 4 digits only)'),
+('STAFF_MANAGE', 'Ability to add, edit or remove staff members'),
+('MASTERS_MANAGE', 'Ability to manage hospital master data (Depts, Services, etc.)'),
+('LAB_MANAGE', 'Ability to process lab orders and enter results'),
+('PHARMACY_MANAGE', 'Ability to manage inventory and dispense medications'),
+('IPD_MANAGE', 'Ability to manage bed assignments and IPD admissions'),
+('BILLING_MANAGE', 'Ability to generate invoices and process payments');
+
+-- Assign Permissions to ADMIN (ALL)
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'ADMIN';
+
+-- Assign Permissions to DOCTOR
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'DOCTOR' AND p.key IN ('PATIENT_PII_VIEW_FULL', 'LAB_MANAGE', 'PHARMACY_MANAGE', 'IPD_MANAGE');
+
+-- Assign Permissions to PHARMACIST
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'PHARMACIST' AND p.key IN ('PHARMACY_MANAGE');
+
+-- Assign Permissions to LAB_TECH
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'LAB_TECH' AND p.key IN ('LAB_MANAGE');
+
+-- Assign Permissions to SUPPORT
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'SUPPORT' AND p.key IN ('PATIENT_PII_VIEW_MASKED', 'MASTERS_MANAGE', 'BILLING_MANAGE');
 
 -- ================= IPD ADMISSIONS =================
+...
 
 DROP TABLE IF EXISTS beds CASCADE;
 CREATE TABLE beds (

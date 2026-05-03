@@ -51,7 +51,7 @@ export default function LabManagementPage() {
       setResultText("");
       fetchOrders();
       if (confirm("Would you like to process billing for this test now?")) {
-        navigate('/billing', { state: { billType: 'LAB', totalAmount: 85.00 } });
+        navigate('/billing', { state: { billType: 'LAB', totalAmount: Number(activeOrder.price || 0) } });
       }
     } catch (err) { 
       alert("Failed to save result"); 
@@ -88,8 +88,9 @@ export default function LabManagementPage() {
       setSelectedPatientId("");
       setSearchTerm("");
       setPatients([]);
-    } catch (err) {
-      alert("Failed to parse external lab report");
+    } catch (err: any) {
+      const msg = err.response?.data?.error || "Failed to parse external lab report";
+      alert(msg);
       console.error(err);
     } finally {
       setIsScanning(false);

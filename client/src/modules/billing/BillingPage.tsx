@@ -38,14 +38,8 @@ export default function BillingPage() {
   const [billType] = useState<BillType>(state?.billType || 'OPD');
   // Master Data
   const [services, setServices] = useState<any[]>([]);
-  const [items, setItems] = useState<any[]>([
-    { 
-      description: state?.billType === 'PHARMACY' ? 'Pharmacy Medicines' : 'Consultation Fee', 
-      price: state?.totalAmount || 500, 
-      quantity: 1, 
-      tax: 0 
-    }
-  ]);
+  const [stats, setStats] = useState<any>({ metrics: { dailyCollection: 0, pendingInsurance: 0 } });
+  const [items, setItems] = useState<any[]>([]);
   const [paymentMode, setPaymentMode] = useState('Cash');
 
   useEffect(() => {
@@ -55,11 +49,22 @@ export default function BillingPage() {
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
       try {
-        const [srvRes, diagRes] = await Promise.all([
+        const [srvRes, diagRes, statRes] = await Promise.all([
           axios.get(`${API_BASE}/api/hospital/masters/services`, { headers }),
-          axios.get(`${API_BASE}/api/hospital/masters/treatments`, { headers })
+          axios.get(`${API_BASE}/api/hospital/masters/treatments`, { headers }),
+          axios.get(`${API_BASE}/api/hospital/stats`, { headers })
         ]);
         setServices([...srvRes.data, ...diagRes.data]);
+        setStats(statRes.data);
+        
+        // Dynamic initial item
+        const consultationPrice = srvRes.data.find((s: any) => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation'))?.price || 500;
+        setItems([{ 
+          description: state?.billType === 'PHARMACY' ? 'Pharmacy Medicines' : 'Consultation Fee', 
+          price: state?.totalAmount || Number(consultationPrice), 
+          quantity: 1, 
+          tax: 0 
+        }]);
       } catch (err) { console.error(err); }
     };
     fetchMasters();
@@ -135,7 +140,9 @@ export default function BillingPage() {
                             (e.target as HTMLInputElement).value = `${p.name} (${p.mrn})`;
                             state!.patientName = p.name;
                             state!.encounterId = p.id;
-                            setItems([{ description: 'General Consultation', price: 500, quantity: 1, tax: 0 }]);
+                            
+                            const consultationPrice = services.find((s: any) => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation'))?.price || 0;
+                            setItems([{ description: 'General Consultation', price: Number(consultationPrice), quantity: 1, tax: 0 }]);
                             alert(`Found Patient: ${p.name}`);
                           } else {
                             alert("No patient found with this MRN/Name");
@@ -161,11 +168,11 @@ export default function BillingPage() {
             <div className="no-print" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
                <div className="stat-card" style={{ borderLeft: '4px solid #10b981', padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
                   <p style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Daily Collection</p>
-                  <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>₹ 14,500.00</p>
+                  <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>₹ {Number(stats.metrics.dailyCollection || 0).toLocaleString()}</p>
                </div>
                <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6', padding: '24px', background: 'white', borderRadius: '20px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
                   <p style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Insurance Pending</p>
-                  <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>₹ 8,200.00</p>
+                  <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>₹ {Number(stats.metrics.pendingInsurance || 0).toLocaleString()}</p>
                </div>
             </div>
 
