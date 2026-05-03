@@ -7,10 +7,11 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
 const WARD_COLORS: Record<string, { bg: string; badge: string; text: string }> = {
-  "General":       { bg: "#eff6ff", badge: "#3b82f6", text: "#1e40af" },
-  "Critical Care": { bg: "#fff7ed", badge: "#f97316", text: "#c2410c" },
-  "Premium":       { bg: "#fdf4ff", badge: "#a855f7", text: "#7e22ce" },
-  "Pediatric":     { bg: "#f0fdf4", badge: "#22c55e", text: "#15803d" },
+  "Regular Care": { bg: "#eff6ff", badge: "#3b82f6", text: "#1e40af" },
+  "ICU":          { bg: "#fff1f2", badge: "#f43f5e", text: "#9f1239" },
+  "Emergency":    { bg: "#fff7ed", badge: "#f97316", text: "#c2410c" },
+  "Daycare":      { bg: "#f0fdf4", badge: "#22c55e", text: "#15803d" },
+  "Special Care": { bg: "#fdf4ff", badge: "#a855f7", text: "#7e22ce" },
 };
 
 export default function IPDBedMap() {
@@ -121,29 +122,36 @@ export default function IPDBedMap() {
           <aside>
             <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
               <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Wards & Floors</h3>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Care Categories</h3>
               </div>
-              <div style={{ padding: '12px' }}>
-                {wards.map((ward, i) => {
-                  const color = WARD_COLORS[ward.type] || WARD_COLORS["General"];
-                  const pct = ward.capacity > 0 ? Math.round((Number(ward.occupied) / Number(ward.capacity)) * 100) : 0;
+              <div style={{ padding: '12px', maxHeight: '70vh', overflowY: 'auto' }}>
+                {["Emergency", "ICU", "Special Care", "Regular Care", "Daycare"].map(category => {
+                  const categoryWards = wards.filter(w => w.type === category);
+                  if (categoryWards.length === 0) return null;
+                  
                   return (
-                    <div key={i} onClick={() => selectWard(ward)} style={{
-                      padding: '16px', borderRadius: '16px', marginBottom: '8px', cursor: 'pointer',
-                      background: activeWard?.id === ward.id ? color.bg : 'transparent',
-                      border: `1px solid ${activeWard?.id === ward.id ? color.badge : 'transparent'}`,
-                      transition: 'all 0.2s'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>{ward.name}</span>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: color.text, background: color.bg, padding: '2px 8px', borderRadius: '6px', border: `1px solid ${color.badge}30` }}>{ward.type}</span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px' }}>
-                        {ward.floor} · {ward.occupied}/{ward.capacity} beds
-                      </div>
-                      <div style={{ height: '4px', background: '#f1f5f9', borderRadius: '2px' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: pct > 80 ? '#ef4444' : color.badge, borderRadius: '2px', transition: 'width 0.4s' }}></div>
-                      </div>
+                    <div key={category} style={{ marginBottom: '20px' }}>
+                      <div style={{ padding: '4px 12px', fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{category}</div>
+                      {categoryWards.map((ward, i) => {
+                        const color = WARD_COLORS[ward.type] || WARD_COLORS["Regular Care"];
+                        const pct = ward.capacity > 0 ? Math.round((Number(ward.occupied) / Number(ward.capacity)) * 100) : 0;
+                        return (
+                          <div key={i} onClick={() => selectWard(ward)} style={{
+                            padding: '12px 16px', borderRadius: '12px', marginTop: '4px', cursor: 'pointer',
+                            background: activeWard?.id === ward.id ? color.bg : 'transparent',
+                            border: `1px solid ${activeWard?.id === ward.id ? color.badge : 'transparent'}`,
+                            transition: 'all 0.2s'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>{ward.name}</span>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: color.text }}>{ward.occupied}/{ward.capacity}</span>
+                            </div>
+                            <div style={{ height: '3px', background: '#f1f5f9', borderRadius: '2px' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: pct > 80 ? '#ef4444' : color.badge, borderRadius: '2px' }}></div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}

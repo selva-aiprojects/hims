@@ -5,44 +5,75 @@ Cloud-native multi-tenant Hospital Information Management System (HIMS) supporti
 
 ---
 
-## 2. Product Scope
+## 2. Product Scope & Tiers
+The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to scale as they grow.
 
-### Tier 1: OPD
-- Patient management
-- Appointments
-- Consultation (EMR)
-- Prescription
-- Billing
+### Tier 1: Basic (OPD & Communications)
+- Patient Management (MRN Generation)
+- Appointment Scheduling
+- OPD Consultation (Core EMR)
+- Prescription Generation
+- Invoicing & Billing
+- **Message Board (Internal Announcements)**
+- **Mail Management (Signal Tracking)**
+- **Support Ticketing System**
 
-### Tier 2: OPD + IPD
-- Admission / discharge
-- Bed management
-- Nursing workflows
-- Insurance (future)
+### Tier 2: Standard (Clinical Services)
+- All Basic Features
+- Laboratory Information System (LIS)
+- Pharmacy Information Management (PIMS)
+- Stock & Inventory Management
+
+### Tier 3: Professional (IPD & In-patient)
+- All Standard Features
+- IPD Admission / Discharge Workflow
+- Bed Management & Real-time Bed Map
+- Nursing Workflows & Vitals
+- Insurance Management
+
+### Tier 4: Enterprise (AI & Multi-Tenant)
+- All Professional Features
+- **AI-Powered Discharge Summaries**
+- **AI Clinical Insights & History Summaries**
+- Nexus Multi-Tenant Management
+- Global Communication Hub & Signal History
 
 ---
 
 ## 3. Architecture
 
 ### Multi-Tenant Model
-- Nexus (Control Plane)
-- Tenant DB (per hospital)
+- **Nexus (Control Plane)**: Centralized orchestration for provisioning, ticketing triage, and global signal monitoring.
+- **Tenant DB (Isolated Shards)**: Secure, isolated data storage for each hospital instance.
 
 ---
 
 ## 4. User Roles
 
-### Nexus
-- Super Admin
-- Support
+### Nexus Admin (Super Admin)
+- Shard Provisioning & Lifecycle
+- Support Ticket Resolution
+- Global Communication Monitoring
 
-### Tenant
-- Doctor
-- Nurse
-- Receptionist
-- Billing staff
+### Tenant Staff
+- Doctor (Clinical)
+- Nurse (In-patient care)
+- Receptionist (OPD Front desk)
+- Pharmacist (Dispensing)
+- Lab Technician (Diagnostics)
+- Billing Staff (Finance)
 
 ---
+
+## Core Modules (Enhanced)
+
+### Support Ticketing
+- Integrated system for tenants to raise technical bugs, feature requests, or plan upgrades.
+- Real-time notification and resolution tracking in Nexus.
+
+### Communication Hub (Global Signals)
+- Nexus-level oversight of all system communications.
+- Tracking password resets, onboarding status, and critical notifications across the platform.
 
 ## 5. Authentication
 - Email + Password + Tenant Code

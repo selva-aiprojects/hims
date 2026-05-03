@@ -17,6 +17,30 @@ async function tenant(req, res, next) {
       // Force search path as a fallback
       await prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public`);
       
+      // Self-Healing: Ensure essential tenant-specific tables exist
+      if (process.env.NODE_ENV !== 'production' || process.env.FORCE_SYNC === 'true') {
+        try {
+          await prisma.$executeRawUnsafe(`
+            CREATE TABLE IF NOT EXISTS communications (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              content TEXT,
+              author_name VARCHAR(100),
+              created_at TIMESTAMP DEFAULT NOW()
+            );
+            CREATE TABLE IF NOT EXISTS communication_logs (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              recipient VARCHAR(255),
+              subject VARCHAR(255),
+              type VARCHAR(50), -- EMAIL, SMS, SIGNAL
+              status VARCHAR(50),
+              created_at TIMESTAMP DEFAULT NOW()
+            );
+          `);
+        } catch (healErr) {
+          console.warn(`[TENANT] Self-healing failed for ${schemaName}:`, healErr.message);
+        }
+      }
+      
       next();
     } else {
       console.warn(`[TENANT] Unknown Tenant ID received: ${tenantId}`);

@@ -21,7 +21,16 @@ export default function Sidebar() {
   
   // Dynamic menus loaded from database via login response
   const rawMenus = localStorage.getItem("userMenus");
-  const dynamicMenus = rawMenus ? JSON.parse(rawMenus) : [];
+  const dynamicMenus: any[] = rawMenus ? JSON.parse(rawMenus) : [];
+
+  const groups = [
+    { title: "Clinical Workflow", items: dynamicMenus.filter(m => ["Doctor's Queue", "IPD Census & Daycare", "OPD Registration", "OPD Queue", "Consultation Desk", "Appointment List", "IPD Bed Map", "Admission Desk", "Discharge Summaries"].includes(m.label)) },
+    { title: "Services & Pharmacy", items: dynamicMenus.filter(m => ["Laboratory", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"].includes(m.label)) },
+    { title: "Billing & Finance", items: dynamicMenus.filter(m => ["Invoicing & Billing", "Hospital Billing", "Insurance Management"].includes(m.label)) },
+    { title: "Management", items: dynamicMenus.filter(m => ["Branding & UI Settings", "Staff & RBAC", "Hospital Settings (Masters)", "Staff Management", "Hospital Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"].includes(m.label)) }
+  ];
+
+  const ungroupped = dynamicMenus.filter(m => !groups.some(g => g.items.some(gi => gi.label === m.label)));
 
   return (
     <>
@@ -37,62 +46,78 @@ export default function Sidebar() {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
         <div style={{ padding: '0 8px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ 
-            width: '40px', 
-            height: '40px', 
-            background: 'linear-gradient(135deg, #0d9488, #0f766e)', 
-            borderRadius: '12px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '20px',
-            fontWeight: 800,
-            color: 'white',
-            boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
-          }}>
-            {tenantName.charAt(0)}
-          </div>
-          <div style={{ overflow: 'hidden' }}>
-            <h2 style={{ 
-              fontSize: '15px', 
-              fontWeight: 800, 
-              color: 'white', 
-              margin: 0,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ 
+              width: '40px', 
+              height: '40px', 
+              background: 'linear-gradient(135deg, #0d9488, #0f766e)', 
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '20px',
+              fontWeight: 800,
+              color: 'white',
+              boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
             }}>
-              {tenantName}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-              <span style={{ fontSize: '9px', fontWeight: 900, color: plan === 'enterprise' ? '#f59e0b' : '#64748b', textTransform: 'uppercase' }}>
-                {plan} TIER
-              </span>
+              {tenantName.charAt(0)}
+            </div>
+            <div style={{ overflow: 'hidden' }}>
+              <h2 style={{ 
+                fontSize: '15px', 
+                fontWeight: 800, 
+                color: 'white', 
+                margin: 0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {tenantName}
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 900, color: plan === 'enterprise' ? '#f59e0b' : '#64748b', textTransform: 'uppercase' }}>
+                  {plan} TIER
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <nav className="nav-section">
-        {dynamicMenus.length > 0 ? (
-          dynamicMenus.map((menu: any, idx: number) => {
+        <nav className="nav-section" style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', paddingRight: '4px' }}>
+          {/* Main Dashboard / Uncategorized */}
+          {ungroupped.map((menu, idx) => {
             const IconComponent = Icons[menu.icon as keyof typeof Icons] || Icons.Dashboard;
-            return (
-              <SidebarLink 
-                key={idx}
-                to={menu.path} 
-                icon={<IconComponent />} 
-                label={menu.label} 
-              />
-            );
-          })
-        ) : (
-          <p style={{ padding: '20px', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
-            No authorized menus found. Please contact administrator.
-          </p>
-        )}
-      </nav>
+            return <SidebarLink key={idx} to={menu.path} icon={<IconComponent />} label={menu.label} />;
+          })}
+
+          {/* Categorized Groups */}
+          {groups.map((group, gIdx) => (
+            group.items.length > 0 && (
+              <div key={gIdx} style={{ marginTop: '24px' }}>
+                <div style={{ 
+                  padding: '0 16px 8px', 
+                  fontSize: '10px', 
+                  fontWeight: 900, 
+                  color: '#4b5563', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '0.08em' 
+                }}>
+                  {group.title}
+                </div>
+                {group.items.map((menu, mIdx) => {
+                  const IconComponent = Icons[menu.icon as keyof typeof Icons] || Icons.Dashboard;
+                  return <SidebarLink key={mIdx} to={menu.path} icon={<IconComponent />} label={menu.label} />;
+                })}
+              </div>
+            )
+          ))}
+
+          {dynamicMenus.length === 0 && (
+            <p style={{ padding: '20px', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
+              No authorized menus found. Please contact administrator.
+            </p>
+          )}
+        </nav>
       </div>
     </>
   );
@@ -109,7 +134,7 @@ function SidebarLink({ to, icon, label }: { to: string, icon: any, label: string
       }}
     >
       {icon}
-      {label}
+      <span>{label}</span>
     </NavLink>
   );
 }

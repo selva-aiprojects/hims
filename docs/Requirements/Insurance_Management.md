@@ -1,8 +1,10 @@
-
 # Insurance Management System
 
 ## Objective
 Handle insurance workflows and claims.
+
+## Subscription Tier
+- **Professional** (Tier 3) or higher.
 
 ## Scope
 ### Policy Management

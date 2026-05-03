@@ -173,6 +173,7 @@ router.post("/login", async (req, res) => {
                     ('Invoicing & Billing', '/billing', 'Billing', 10, 'basic'),
                     ('Branding & UI Settings', '/tenant/settings', 'Dashboard', 12, 'basic'),
                     ('Staff & RBAC', '/tenant/staff', 'Doctor', 13, 'basic'),
+                    ('Help & Support', '/tenant/support', 'Receipt', 16, 'basic'),
                     ('Laboratory', '/tenant/lab', 'Lab', 4, 'standard'),
                     ('Pharmacy Dashboard', '/tenant/pharmacy/dashboard', 'Pharmacy', 5, 'standard'),
                     ('Stock Inventory', '/tenant/pharmacy/inventory', 'Pill', 6, 'standard'),
@@ -180,9 +181,10 @@ router.post("/login", async (req, res) => {
                     ('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'standard'),
                     ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
                     ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
-                    ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),
+                    ('IPD Admission Desk', '/tenant/ipd/admission-desk', 'Clipboard', 9, 'professional'),
+                    ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 14, 'professional'),
                     ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional')
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT (label) DO NOTHING
                   `);
 
                   // Bootstrap Role-Menu Mappings (Admin)

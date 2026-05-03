@@ -17,6 +17,7 @@ export default function MastersPage() {
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
   const [specialities, setSpecialities] = useState<any[]>([]);
   const [modes, setModes] = useState<any[]>([]);
+  const [wards, setWards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("departments");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -50,10 +51,11 @@ export default function MastersPage() {
         axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/specialities`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/masters/modes`, { headers })
+        axios.get(`${API_BASE}/api/hospital/masters/modes`, { headers }),
+        axios.get(`${API_BASE}/api/hospital/masters/wards`, { headers })
       ];
 
-      const [depRes, disRes, treRes, serRes, medRes, diagRes, specRes, modeRes] = await Promise.allSettled(requests);
+      const [depRes, disRes, treRes, serRes, medRes, diagRes, specRes, modeRes, wardsRes] = await Promise.allSettled(requests);
 
       if (depRes.status === 'fulfilled') setDepartments(depRes.value.data);
       if (disRes.status === 'fulfilled') setDiseases(disRes.value.data);
@@ -63,6 +65,7 @@ export default function MastersPage() {
       if (diagRes.status === 'fulfilled') setDiagnostics(diagRes.value.data);
       if (specRes.status === 'fulfilled') setSpecialities(specRes.value.data);
       if (modeRes.status === 'fulfilled') setModes(modeRes.value.data);
+      if (wardsRes.status === 'fulfilled') setWards(wardsRes.value.data);
     } catch (err) {
       console.error("Failed to fetch masters", err);
     } finally {
@@ -89,6 +92,19 @@ export default function MastersPage() {
       fetchData();
     } catch (err) {
       alert("Failed to add master data");
+    }
+  };
+
+  const handleProvision = async (wardId: string) => {
+    try {
+      const headers = { 
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "x-tenant-id": localStorage.getItem("tenant") || ""
+      };
+      await axios.post(`${API_BASE}/api/hospital/ipd/wards/${wardId}/provision-beds`, {}, { headers });
+      alert("Beds provisioned successfully for this ward!");
+    } catch (err) {
+      alert("Failed to provision beds");
     }
   };
 
@@ -161,6 +177,23 @@ export default function MastersPage() {
         { header: 'Adult Dose', value: (item: any) => item.dosage_adult || '-' },
         { header: 'Pediatric Dose', value: (item: any) => item.dosage_pediatric || '-' }
       ]
+    },
+    wards: {
+      label: 'Wards & Beds',
+      cols: [
+        { header: 'Ward Name', value: (item: any) => item.name },
+        { header: 'Category', value: (item: any) => item.type },
+        { header: 'Floor', value: (item: any) => item.floor },
+        { header: 'Capacity', value: (item: any) => `${item.capacity} Beds` },
+        { header: 'Action', value: (item: any) => (
+          <button 
+            onClick={() => handleProvision(item.id)}
+            style={{ fontSize: '11px', background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '4px 8px', borderRadius: '6px', fontWeight: 800, cursor: 'pointer' }}
+          >
+            Provision Beds
+          </button>
+        )}
+      ]
     }
   };
 
@@ -181,8 +214,10 @@ export default function MastersPage() {
                 ? specialities
                 : activeTab === 'modes'
                   ? modes
-                  : [];
-  const totalMasters = departments.length + diseases.length + treatments.length + services.length + medicines.length + diagnostics.length + specialities.length + modes.length;
+                  : activeTab === 'wards'
+                    ? wards
+                    : [];
+  const totalMasters = departments.length + diseases.length + treatments.length + services.length + medicines.length + diagnostics.length + specialities.length + modes.length + wards.length;
 
   return (
     <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f4f6fb' }}>
@@ -279,6 +314,28 @@ export default function MastersPage() {
                     <input placeholder={activeTab === 'services' ? 'Service Code' : 'CPT Code'} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={activeTab === 'services' ? newItem.service_code : newItem.cpt_code} onChange={e => setNewItem({ ...newItem, [activeTab === 'services' ? 'service_code' : 'cpt_code']: e.target.value })} />
                     <input placeholder="Price" type="number" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
                   </div>
+                )}
+                {activeTab === 'wards' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <select 
+                        style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 600 }}
+                        value={newItem.type} onChange={e => setNewItem({ ...newItem, type: e.target.value })}
+                      >
+                        <option value="">Select Care Type...</option>
+                        <option value="Emergency">Emergency</option>
+                        <option value="ICU">ICU</option>
+                        <option value="Special Care">Special Care</option>
+                        <option value="Regular Care">Regular Care</option>
+                        <option value="Daycare">Daycare</option>
+                      </select>
+                      <input placeholder="Floor (e.g. 1st Floor)" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.floor} onChange={e => setNewItem({ ...newItem, floor: e.target.value })} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <input placeholder="Capacity (No. of Beds)" type="number" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.capacity} onChange={e => setNewItem({ ...newItem, capacity: e.target.value })} />
+                      <input placeholder="Base Daily Charge" type="number" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.base_charge} onChange={e => setNewItem({ ...newItem, base_charge: e.target.value })} />
+                    </div>
+                  </>
                 )}
                 <textarea placeholder="Details / Notes" style={{ width: '100%', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc', minHeight: '80px' }} value={newItem.description || newItem.category} onChange={e => setNewItem({ ...newItem, description: e.target.value, category: e.target.value })} />
                 <div style={{ display: 'flex', gap: '12px' }}>

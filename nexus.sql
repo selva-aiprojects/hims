@@ -18,3 +18,16 @@ CREATE TABLE tenant_admin_contacts (
   address VARCHAR,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE support_tickets (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tenant_id VARCHAR(255), -- References tenants(id)
+  subject VARCHAR(255),
+  category VARCHAR(50),
+  priority VARCHAR(20) DEFAULT 'Medium',
+  status VARCHAR(20) DEFAULT 'Open',
+  message TEXT,
+  response TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);

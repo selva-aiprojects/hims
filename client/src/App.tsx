@@ -28,6 +28,13 @@ import NexusActivityPage from './modules/nexus/NexusActivityPage';
 import NexusSettingsPage from './modules/nexus/NexusSettingsPage';
 import TenantDetailsPage from './modules/nexus/TenantDetailsPage';
 import ProvisionTenantPage from './modules/nexus/ProvisionTenantPage';
+import SupportTicketsPage from './modules/tenant/support/SupportTicketsPage';
+import NexusTicketingPage from './modules/nexus/NexusTicketingPage';
+import NexusCommunicationPage from './modules/nexus/NexusCommunicationPage';
+import InsurancePage from './modules/tenant/billing/InsurancePage';
+import DischargeSummariesPage from './modules/tenant/ipd/DischargeSummariesPage';
+import MessageBoardPage from './modules/tenant/communication/MessageBoardPage';
+import MailManagementPage from './modules/tenant/communication/MailManagementPage';
 
 import { useEffect } from 'react';
 import SettingsPage from './modules/tenant/SettingsPage';
@@ -54,6 +61,7 @@ function App() {
         <Route path="/tenant/ipd/admissions" element={<IPDAdmissionsList />} />
         <Route path="/tenant/ipd/admissions/:id" element={<IPDPatientView />} />
         <Route path="/tenant/ipd/admission-desk" element={<AdmissionDeskPage />} />
+        <Route path="/tenant/ipd/discharge" element={<DischargeSummariesPage />} />
         <Route path="/tenant/lab" element={<RoleGuard allowedRoles={['admin', 'lab_assistant', 'doctor', 'lab_tech']} moduleName="Laboratory"><LabManagementPage /></RoleGuard>} />
         <Route path="/tenant/pharmacy" element={<RoleGuard allowedRoles={['admin', 'pharmacist', 'doctor']} moduleName="Pharmacy"><PharmacyManagementPage /></RoleGuard>} />
         <Route path="/tenant/pharmacy/dashboard" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Pharmacy Dashboard"><PharmacyDashboard /></RoleGuard>} />
@@ -61,6 +69,10 @@ function App() {
         <Route path="/tenant/pharmacy/queue" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Prescription Queue"><PrescriptionQueue /></RoleGuard>} />
         <Route path="/tenant/staff" element={<StaffManagementPage />} />
         <Route path="/tenant/settings" element={<SettingsPage />} />
+        <Route path="/tenant/support" element={<SupportTicketsPage />} />
+        <Route path="/tenant/communication" element={<MessageBoardPage />} />
+        <Route path="/tenant/mail" element={<MailManagementPage />} />
+        <Route path="/tenant/billing/insurance" element={<InsurancePage />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/appointments" element={<AppointmentsPage />} />
         <Route path="/patients" element={<PatientsPage />} />
@@ -72,6 +84,8 @@ function App() {
         <Route path="/nexus/tenants/:id" element={<TenantDetailsPage />} />
         <Route path="/nexus/users" element={<NexusUsersPage />} />
         <Route path="/nexus/activity" element={<NexusActivityPage />} />
+        <Route path="/nexus/tickets" element={<NexusTicketingPage />} />
+        <Route path="/nexus/communications" element={<NexusCommunicationPage />} />
         <Route path="/nexus/settings" element={<NexusSettingsPage />} />
         
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -189,10 +189,21 @@ router.post("/masters/specialities", async (req, res, next) => {
 });
 
 // 7. Consultation Modes
-router.get("/masters/modes", async (req, res, next) => {
+router.get("/communications", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".consultation_modes ORDER BY name ASC`);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".communications ORDER BY created_at DESC LIMIT 50`);
     res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/communications", async (req, res, next) => {
+  try {
+    const { content } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".communications (content, created_at)
+      VALUES ('${content.replace(/'/g, "''")}', NOW())
+    `);
+    res.status(201).json({ message: "Message posted" });
   } catch (error) { next(error); }
 });
 
@@ -529,6 +540,17 @@ router.get("/masters/wards", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.post("/masters/wards", async (req, res, next) => {
+  try {
+    const { name, capacity, type, floor, base_charge } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".wards (name, capacity, type, floor, base_charge)
+      VALUES ('${name.replace(/'/g, "''")}', ${parseInt(capacity) || 10}, '${type || 'Regular Care'}', '${floor || 'Ground Floor'}', ${parseFloat(base_charge) || 0})
+    `);
+    res.status(201).json({ message: "Ward created successfully" });
+  } catch (error) { next(error); }
+});
+
 // Live Bed Map: all wards with real-time bed occupancy counts
 router.get("/ipd/bedmap", async (req, res, next) => {
   try {
@@ -580,6 +602,24 @@ router.get("/ipd/admissions", async (req, res, next) => {
       LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
       WHERE a.status = 'Active'
       ORDER BY a.admitted_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// Discharge summaries (completed admissions)
+router.get("/ipd/discharges", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        a.id, a.admitted_at, a.discharged_at as discharge_date,
+        p.name as patient_name, p.mrn,
+        u.name as doctor_name
+      FROM "${req.schemaName}".ipd_admissions a
+      JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
+      WHERE a.status = 'Discharged'
+      ORDER BY a.discharged_at DESC
     `);
     res.json(data);
   } catch (error) { next(error); }
@@ -1025,6 +1065,17 @@ router.post("/masters/diagnostics", async (req, res, next) => {
       VALUES ('${name.replace(/'/g, "''")}', ${price || 0}, ${type_id ? `'${type_id}'` : 'NULL'})
     `);
     res.status(201).json({ message: "Diagnostic test added" });
+  } catch (error) { next(error); }
+});
+
+// 8. Communication Logs (Mail Management)
+router.get("/mail-logs", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".communication_logs 
+      ORDER BY created_at DESC
+    `);
+    res.json(data);
   } catch (error) { next(error); }
 });
 

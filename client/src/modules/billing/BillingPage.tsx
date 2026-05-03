@@ -36,6 +36,11 @@ export default function BillingPage() {
 
   const [loading, setLoading] = useState(false);
   const [billType] = useState<BillType>(state?.billType || 'OPD');
+  
+  // Patient Context (Local state to allow search/override)
+  const [patientName, setPatientName] = useState(state?.patientName || "");
+  const [patientId, setPatientId] = useState(state?.encounterId || "");
+
   // Master Data
   const [services, setServices] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({ metrics: { dailyCollection: 0, pendingInsurance: 0 } });
@@ -83,10 +88,14 @@ export default function BillingPage() {
   const calculateTotal = () => calculateSubtotal() + calculateTax();
 
   const processBilling = async () => {
+    if (!patientId) {
+      alert("Please select a patient first.");
+      return;
+    }
     setLoading(true);
     try {
       await axios.post(`${API_BASE}/api/billing`, {
-        patientId: state?.encounterId || "p1",
+        patientId,
         billType,
         items,
         totalAmount: calculateTotal(),
@@ -98,11 +107,11 @@ export default function BillingPage() {
           "x-tenant-id": localStorage.getItem("tenant") || "",
         }
       });
-      alert(`Invoice generated for ${state?.patientName || "Patient"}. Payment successful via ${paymentMode}.`);
+      alert(`Invoice generated for ${patientName || "Patient"}. Payment successful via ${paymentMode}.`);
       navigate("/tenant/dashboard");
     } catch (err) {
       console.error(err);
-      alert("Billing failed. Please try again.");
+      alert("Billing failed. Check if patient is correctly selected.");
     } finally {
       setLoading(false);
     }
@@ -138,8 +147,8 @@ export default function BillingPage() {
                             const p = res.data[0];
                             // Pre-fill patient info
                             (e.target as HTMLInputElement).value = `${p.name} (${p.mrn})`;
-                            state!.patientName = p.name;
-                            state!.encounterId = p.id;
+                            setPatientName(p.name);
+                            setPatientId(p.id);
                             
                             const consultationPrice = services.find((s: any) => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation'))?.price || 0;
                             setItems([{ description: 'General Consultation', price: Number(consultationPrice), quantity: 1, tax: 0 }]);
@@ -153,11 +162,11 @@ export default function BillingPage() {
                   />
                   <button style={{ padding: '0 24px', borderRadius: '12px', background: '#f1f5f9', color: '#475569', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Search</button>
                </div>
-               {state?.patientName && (
+               {patientName && (
                  <div style={{ marginTop: '20px', padding: '16px', background: '#f0fdf4', borderRadius: '16px', border: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <p style={{ fontSize: '11px', color: '#166534', margin: 0, fontWeight: 700, textTransform: 'uppercase' }}>Active Patient</p>
-                      <p style={{ fontSize: '16px', fontWeight: 900, color: '#166534', margin: 0 }}>{state.patientName}</p>
+                      <p style={{ fontSize: '16px', fontWeight: 900, color: '#166534', margin: 0 }}>{patientName}</p>
                     </div>
                     <span style={{ fontSize: '11px', background: '#166534', color: 'white', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>VERIFIED RECORD</span>
                  </div>

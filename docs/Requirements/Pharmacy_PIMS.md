@@ -1,36 +1,25 @@
-
-# Pharmacy Information Management System (PIMS)
+# Pharmacy Information Management (PIMS)
 
 ## Objective
-Manage drug inventory, dispensing, and billing integration.
+Automate pharmacy dispensing and inventory.
+
+## Subscription Tier
+- **Standard** (Tier 2) or higher.
 
 ## Scope
 ### Inventory
-- Drug master
-- Batch tracking
-- Expiry management
-- Stock levels
-
-### Procurement
-- Supplier management
+- Stock tracking
+- Batch/Expiry management
 - Purchase orders
-- GRN
 
 ### Dispensing
-- Prescription-based dispensing
-- Partial dispensing
+- Prescription fulfillment
+- POS Billing
 
-### Billing Integration
-- Auto-add drugs to bill
-- Pricing rules
-
-### Reports
-- Stock reports
-- Expiry alerts
+### Clinical Safety
+- Drug interaction alerts
+- Stock level warnings
 
 ## Integration
-- Input: Prescription (visit_id)
-- Output: Billing items
-
-## Detachability
-- Can run as standalone Pharmacy POS
+- Input: Prescription
+- Output: Inventory decrement / Billing

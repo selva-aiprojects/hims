@@ -13,6 +13,37 @@ async function ensureNexusColumns(prisma) {
     await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS shard_id VARCHAR(255)`);
     await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255)`);
     await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS ui_settings JSONB DEFAULT '{}'::jsonb`);
+    
+    // Support Ticketing Infrastructure
+    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS nexus.support_tickets (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR(255), -- Use VARCHAR to match either UUID or String IDs from Prisma
+        subject VARCHAR(255),
+        category VARCHAR(50),
+        priority VARCHAR(20) DEFAULT 'Medium',
+        status VARCHAR(20) DEFAULT 'Open',
+        message TEXT,
+        response TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Communication Logs Infrastructure
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS nexus.communication_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR(255),
+        subject VARCHAR(255),
+        recipient VARCHAR(255),
+        status VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
     const countRes = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM nexus.tenants`);
     console.log(`[NEXUS] Registry contains ${countRes[0].count} tenants.`);
     console.log("[NEXUS] Registry Schema is synchronized.");
@@ -38,6 +69,20 @@ router.get("/tenants", async (req, res, next) => {
     res.json(tenants);
   } catch (error) {
     next(error);
+  }
+});
+
+router.get("/communications", async (req, res, next) => {
+  try {
+    const logs = await req.prisma.$queryRawUnsafe(`
+      SELECT l.*, t.name as tenant_name 
+      FROM nexus.communication_logs l
+      LEFT JOIN nexus.tenants t ON l.tenant_id = t.id
+      ORDER BY l.created_at DESC
+    `);
+    res.json(logs);
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -413,6 +458,88 @@ router.get("/debug/rbac-sync", async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// --- TICKETING SYSTEM ---
+
+// 1. Create Ticket (Tenant Side)
+router.post("/tickets", async (req, res, next) => {
+  try {
+    const { tenantId, subject, category, priority, message } = req.body;
+    
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO nexus.support_tickets (tenant_id, subject, category, priority, message)
+      VALUES ('${tenantId}', '${subject.replace(/'/g, "''")}', '${category}', '${priority}', '${message.replace(/'/g, "''")}')
+      RETURNING *
+    `);
+    
+    const ticket = result[0];
+
+    // Notification Email to Admin
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await axios.post('https://api.resend.com/emails', {
+          from: process.env.RESEND_FROM || "HIMS Support <support@cognivectra.com>",
+          to: [process.env.ADMIN_EMAIL || "admin@hims-sys.com"],
+          subject: `[NEW TICKET] ${category}: ${subject}`,
+          html: `<p>A new support ticket has been raised by tenant <strong>${tenantId}</strong>.</p><p><strong>Message:</strong> ${message}</p>`
+        }, { headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' } });
+      } catch (e) { console.error("Email notification failed", e.message); }
+    }
+
+    res.status(201).json(ticket);
+  } catch (error) { next(error); }
+});
+
+// 2. List Tickets (Nexus Side or Tenant Side)
+router.get("/tickets", async (req, res, next) => {
+  try {
+    const { tenantId } = req.query;
+    let query = `
+      SELECT t.*, n.name as tenant_name 
+      FROM nexus.support_tickets t
+      JOIN nexus.tenants n ON t.tenant_id = n.id
+    `;
+    if (tenantId) query += ` WHERE t.tenant_id = '${tenantId}'`;
+    query += ` ORDER BY t.created_at DESC`;
+
+    const data = await req.prisma.$queryRawUnsafe(query);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// 3. Update/Respond to Ticket (Nexus Side)
+router.patch("/tickets/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, response } = req.body;
+    
+    const result = await req.prisma.$queryRawUnsafe(`
+      UPDATE nexus.support_tickets 
+      SET status = '${status}', response = '${response ? response.replace(/'/g, "''") : ""}', updated_at = NOW()
+      WHERE id = '${id}'
+      RETURNING *
+    `);
+
+    const ticket = result[0];
+
+    // Notification Email to Tenant
+    if (process.env.RESEND_API_KEY && ticket) {
+      try {
+        const tenant = await req.prisma.$queryRawUnsafe(`SELECT admin_email FROM nexus.tenants WHERE id = '${ticket.tenant_id}'`);
+        if (tenant[0]?.admin_email) {
+          await axios.post('https://api.resend.com/emails', {
+            from: process.env.RESEND_FROM || "HIMS Support <support@cognivectra.com>",
+            to: [tenant[0].admin_email],
+            subject: `[TICKET UPDATED] ${ticket.subject}`,
+            html: `<p>Your support ticket status has been updated to: <strong>${status}</strong>.</p><p><strong>Response from Support:</strong> ${response || "No comment."}</p>`
+          }, { headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' } });
+        }
+      } catch (e) { console.error("Email notification failed", e.message); }
+    }
+
+    res.json(ticket);
+  } catch (error) { next(error); }
 });
 
 module.exports = router;

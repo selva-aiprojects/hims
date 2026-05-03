@@ -413,6 +413,25 @@ CREATE TABLE insurance_claims (
   status VARCHAR(50)
 );
 
+-- ================= COMMUNICATIONS & TICKETING =================
+DROP TABLE IF EXISTS communications CASCADE;
+CREATE TABLE communications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content TEXT,
+  author_name VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS communication_logs CASCADE;
+CREATE TABLE communication_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient VARCHAR(255),
+  subject VARCHAR(255),
+  type VARCHAR(50), -- EMAIL, SMS, SIGNAL
+  status VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- ================= ACCOUNTING =================
 DROP TABLE IF EXISTS accounts CASCADE;
 CREATE TABLE accounts (
@@ -504,7 +523,9 @@ INSERT INTO rbac_menus (label, path, icon, sort_order, required_plan) VALUES
 ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
 ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),
 ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
-('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional');
+('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional'),
+('Message Board', '/tenant/communication', 'Dashboard', 17, 'basic'),
+('Ticketing Management System', '/tenant/support', 'Receipt', 16, 'basic');
 
 -- Role-Menu Mappings (ADMIN - ALL)
 INSERT INTO rbac_role_menus (role_id, menu_id)
@@ -603,3 +624,12 @@ CREATE TABLE ipd_notes (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ================= SEED DATA: IPD CARE CATEGORIES =================
+INSERT INTO wards (name, floor, type, capacity, base_charge) VALUES
+('Emergency Triage', 'Ground Floor', 'Emergency', 10, 2500),
+('Critical Care ICU', '1st Floor', 'ICU', 8, 6000),
+('Special Care Wing', '2nd Floor', 'Special Care', 15, 4000),
+('Regular Medical Ward', '3rd Floor', 'Regular Care', 25, 1500),
+('Surgical Recovery', '2nd Floor', 'Regular Care', 20, 1800),
+('Daycare Observation', 'Ground Floor', 'Daycare', 10, 900)
+ON CONFLICT DO NOTHING;

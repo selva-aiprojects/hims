@@ -17,15 +17,24 @@ router.post("/", async (req, res, next) => {
   try {
     const { patientId, encounterId, billType, items, totalAmount, paymentMode, status } = req.body;
     
+    // Validation
+    if (!patientId || patientId === 'p1') {
+      return res.status(400).json({ error: "Invalid Patient ID. Please search and select a patient." });
+    }
+
     // 1. Create Invoice Header
     const subtotal = items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
     const taxTotal = items.reduce((acc, it) => acc + (it.price * it.quantity * (it.tax / 100)), 0);
 
     const invHeader = await req.prisma.$queryRawUnsafe(`
       INSERT INTO "${req.schemaName}".invoices (patient_id, encounter_id, bill_type, payment_mode, subtotal, tax_total, total, status)
-      VALUES ('${patientId}', ${encounterId ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${totalAmount}, '${status || 'PAID'}')
+      VALUES ('${patientId}', ${encounterId && encounterId !== 'p1' ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${totalAmount}, '${status || 'PAID'}')
       RETURNING id
     `);
+    
+    if (!invHeader || invHeader.length === 0) {
+      throw new Error("Failed to generate invoice header");
+    }
     const invId = invHeader[0].id;
 
     // 2. Insert Items
@@ -37,7 +46,10 @@ router.post("/", async (req, res, next) => {
     }
 
     res.status(201).json({ id: invId, message: "Invoice generated successfully" });
-  } catch (error) { next(error); }
+  } catch (error) { 
+    console.error("[BILLING_ERROR]", error.message);
+    next(error); 
+  }
 });
 
 module.exports = router;

@@ -1,29 +1,25 @@
-
 # Laboratory / Diagnostics System (LIS)
 
 ## Objective
 Manage lab orders, results, and reporting.
 
+## Subscription Tier
+- **Standard** (Tier 2) or higher.
+
 ## Scope
 ### Test Management
-- Test catalog
-- Panels
+- Catalog of tests
+- Pricing
 
-### Order Management
-- Doctor orders
-- Sample tracking
+### Sample Tracking
+- Collection status
+- Barcoding
 
-### Processing
-- Technician workflow
+### Reporting
 - Result entry
-
-### Reports
-- PDF reports
-- Digital signatures
+- Validation
+- Digital report generation
 
 ## Integration
-- Input: Visit
-- Output: Lab results
-
-## Detachability
-- Can run as standalone Lab system
+- Input: Doctor Order
+- Output: Bill entry / Patient record

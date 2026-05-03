@@ -87,6 +87,154 @@ async function seedSamples() {
   }, 3000); 
 }
 
+// Administrative Route to fix/add menus for existing professional shards
+app.get("/api/nexus/fix-professional-menus", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants WHERE plan IN ('Professional', 'Enterprise')`);
+    let updated = 0;
+    
+    for (const t of tenants) {
+      const schema = t.db_name;
+      
+      // 0. Ensure RBAC Infrastructure exists in this shard
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schema}".rbac_roles (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(50) UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT NOW());
+          CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), label VARCHAR(100) NOT NULL, path VARCHAR(100) NOT NULL, icon VARCHAR(50), required_plan VARCHAR(50) DEFAULT 'basic', sort_order INT DEFAULT 0);
+          CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_menus (role_id UUID REFERENCES "${schema}".rbac_roles(id), menu_id UUID REFERENCES "${schema}".rbac_menus(id), PRIMARY KEY (role_id, menu_id));
+          INSERT INTO "${schema}".rbac_roles (name) VALUES ('ADMIN'), ('DOCTOR'), ('SUPPORT') ON CONFLICT DO NOTHING;
+        `);
+      } catch (e) { console.warn(`RBAC init failed for ${schema}:`, e.message); continue; }
+
+      // 1. Ensure Menu exists
+      const existing = await prisma.$queryRawUnsafe(`SELECT id FROM "${schema}".rbac_menus WHERE label = 'Admission Desk'`);
+      let menuId;
+      if (existing.length === 0) {
+        const result = await prisma.$queryRawUnsafe(`
+          INSERT INTO "${schema}".rbac_menus (label, path, icon, sort_order, required_plan)
+          VALUES ('Admission Desk', '/tenant/ipd/admission-desk', 'Bed', 7, 'professional')
+          RETURNING id
+        `);
+        menuId = result[0].id;
+      } else {
+        menuId = existing[0].id;
+      }
+      
+      // 2. Link to ADMIN, DOCTOR, and SUPPORT roles
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+        SELECT id, '${menuId}' FROM "${schema}".rbac_roles 
+        WHERE name IN ('ADMIN', 'DOCTOR', 'SUPPORT')
+        ON CONFLICT DO NOTHING
+      `);
+      updated++;
+    }
+    res.json({ message: `Successfully synchronized Admission Desk for ${updated} professional shards.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Administrative Route to fix/add system menus for all shards
+app.get("/api/nexus/fix-system-menus", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants`);
+    let updated = 0;
+    
+    for (const t of tenants) {
+      const schema = t.db_name;
+
+      // 0. Ensure Communications table exists
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "${schema}".communications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          content TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        );
+      `);
+
+      const menusToAdd = [
+        { label: 'Admission Desk', path: '/tenant/ipd/admission-desk', icon: 'Bed', sort: 7, plan: 'professional' },
+        { label: 'Insurance Management', path: '/tenant/billing/insurance', icon: 'Receipt', sort: 14, plan: 'professional' },
+        { label: 'Discharge Summaries', path: '/tenant/ipd/discharge', icon: 'Receipt', sort: 15, plan: 'professional' },
+        { label: 'Message Board', path: '/tenant/communication', icon: 'Dashboard', sort: 17, plan: 'basic' },
+        { label: 'Mail Management', path: '/tenant/mail', icon: 'Receipt', sort: 18, plan: 'basic' },
+        { label: 'Ticketing Management System', path: '/tenant/support', icon: 'Receipt', sort: 16, plan: 'basic' }
+      ];
+
+      for (const menu of menusToAdd) {
+        const existing = await prisma.$queryRawUnsafe(`SELECT id FROM "${schema}".rbac_menus WHERE label = '${menu.label}'`);
+        let menuId;
+        if (existing.length === 0) {
+          const result = await prisma.$queryRawUnsafe(`
+            INSERT INTO "${schema}".rbac_menus (label, path, icon, sort_order, required_plan)
+            VALUES ('${menu.label}', '${menu.path}', '${menu.icon}', ${menu.sort}, '${menu.plan}')
+            RETURNING id
+          `);
+          menuId = result[0].id;
+        } else {
+          menuId = existing[0].id;
+        }
+
+        // Link to ADMIN and DOCTOR roles (using more inclusive matching)
+        await prisma.$executeRawUnsafe(`
+          INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+          SELECT id, '${menuId}' FROM "${schema}".rbac_roles 
+          WHERE name IN ('ADMIN', 'DOCTOR', 'System Admin', 'Administrator', 'SUPERADMIN')
+          ON CONFLICT DO NOTHING
+        `);
+      }
+      updated++;
+    }
+    res.json({ message: `Successfully synchronized system menus and tables for ${updated} shards. Please LOGOUT and LOGIN again to see changes.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Administrative Route to synchronize ward categories for existing shards
+app.get("/api/nexus/fix-ward-categories", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants WHERE plan IN ('Professional', 'Enterprise')`);
+    let updated = 0;
+    
+    for (const t of tenants) {
+      const schema = t.db_name;
+
+      // 0. Ensure schema consistency
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "${schema}".wards ADD COLUMN IF NOT EXISTS base_charge NUMERIC DEFAULT 0;
+        ALTER TABLE "${schema}".wards ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 10;
+        ALTER TABLE "${schema}".wards ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'Regular Care';
+        ALTER TABLE "${schema}".wards ADD COLUMN IF NOT EXISTS floor VARCHAR(50);
+      `);
+
+      // 1. Update existing wards to standard categories for testing/demo
+      await prisma.$executeRawUnsafe(`
+        UPDATE "${schema}".wards SET type = 'Emergency' WHERE name ILIKE '%Emergency%' OR type = 'Critical Care';
+        UPDATE "${schema}".wards SET type = 'ICU' WHERE name ILIKE '%ICU%';
+        UPDATE "${schema}".wards SET type = 'Regular Care' WHERE name ILIKE '%General%' OR type = 'General' OR type IS NULL;
+        UPDATE "${schema}".wards SET type = 'Daycare' WHERE name ILIKE '%Day%' OR type = 'Pediatric';
+        UPDATE "${schema}".wards SET type = 'Special Care' WHERE name ILIKE '%Premium%' OR type = 'Premium';
+        
+        -- If no wards exist, create defaults
+        INSERT INTO "${schema}".wards (name, floor, type, capacity, base_charge)
+        SELECT 'Emergency Unit', 'Ground Floor', 'Emergency', 10, 2500 WHERE NOT EXISTS (SELECT 1 FROM "${schema}".wards WHERE type = 'Emergency');
+        INSERT INTO "${schema}".wards (name, floor, type, capacity, base_charge)
+        SELECT 'Main ICU', '1st Floor', 'ICU', 8, 5000 WHERE NOT EXISTS (SELECT 1 FROM "${schema}".wards WHERE type = 'ICU');
+        INSERT INTO "${schema}".wards (name, floor, type, capacity, base_charge)
+        SELECT 'Medical Ward A', '2nd Floor', 'Regular Care', 20, 1500 WHERE NOT EXISTS (SELECT 1 FROM "${schema}".wards WHERE type = 'Regular Care');
+        INSERT INTO "${schema}".wards (name, floor, type, capacity, base_charge)
+        SELECT 'Pediatric Daycare', 'Ground Floor', 'Daycare', 5, 1000 WHERE NOT EXISTS (SELECT 1 FROM "${schema}".wards WHERE type = 'Daycare');
+      `);
+      updated++;
+    }
+    res.json({ message: `Successfully synchronized ward categories for ${updated} shards.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Dedicated Seeding Endpoint (to prevent startup timeouts)
 app.get("/api/nexus/seed-database", async (req, res) => {
   if (process.env.NODE_ENV === 'production' && process.env.AUTO_SEED !== 'true') {
