@@ -1,0 +1,32 @@
+{
+  "patients": [
+    {
+      "name": "John Doe Regression",
+      "gender": "Male",
+      "dob": "1990-05-15",
+      "phone": "9876543210",
+      "address": "123 Test Street, Automation City",
+      "vitals": {
+        "temp": "98.6",
+        "bp": "120/80",
+        "pulse": "72",
+        "spO2": "98"
+      },
+      "complaints": "Regular checkup and persistent headache for 2 days."
+    },
+    {
+      "name": "Jane Smith Regression",
+      "gender": "Female",
+      "dob": "1985-10-20",
+      "phone": "9998887776",
+      "address": "456 Quality Lane, Debugging Town",
+      "vitals": {
+        "temp": "100.2",
+        "bp": "130/85",
+        "pulse": "85",
+        "spO2": "97"
+      },
+      "complaints": "Fever and body aches."
+    }
+  ]
+}

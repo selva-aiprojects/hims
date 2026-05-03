@@ -14,7 +14,10 @@
     "start": "node index.js",
     "serve": "node index.js",
     "build": "npx prisma generate && npm run build -w client",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "playwright test",
+    "test:regression": "playwright test tests/regression",
+    "test:nexus": "playwright test tests/regression/nexus",
+    "test:tenant": "playwright test tests/regression/tenant"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -34,6 +37,7 @@
     "prisma": "^7.8.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.42.1",
     "nodemon": "^3.1.14"
   }
 }

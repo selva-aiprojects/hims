@@ -1,0 +1,22 @@
+{
+  "billings": [
+    {
+      "patientName": "John Doe Regression",
+      "items": [
+        {
+          "description": "Consultation Fee",
+          "quantity": 1,
+          "rate": 500
+        },
+        {
+          "description": "Pharmacy Bill",
+          "quantity": 1,
+          "rate": 25
+        }
+      ],
+      "discount": 50,
+      "tax": 27.5,
+      "total": 502.5
+    }
+  ]
+}
