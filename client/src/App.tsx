@@ -10,6 +10,7 @@ import TenantAppointmentsPage from './modules/tenant/appointments/AppointmentsPa
 import IPDBedMap from './modules/tenant/ipd/IPDBedMap';
 import IPDAdmissionsList from './modules/tenant/ipd/IPDAdmissionsList';
 import IPDPatientView from './modules/tenant/ipd/IPDPatientView';
+import AdmissionDeskPage from './modules/tenant/ipd/AdmissionDeskPage';
 import LabManagementPage from './modules/tenant/lab/LabManagementPage';
 import PharmacyManagementPage from './modules/tenant/pharmacy/PharmacyManagementPage';
 import PharmacyDashboard from './modules/tenant/pharmacy/PharmacyDashboard';
@@ -52,6 +53,7 @@ function App() {
         <Route path="/tenant/ipd/beds" element={<IPDBedMap />} />
         <Route path="/tenant/ipd/admissions" element={<IPDAdmissionsList />} />
         <Route path="/tenant/ipd/admissions/:id" element={<IPDPatientView />} />
+        <Route path="/tenant/ipd/admission-desk" element={<AdmissionDeskPage />} />
         <Route path="/tenant/lab" element={<RoleGuard allowedRoles={['admin', 'lab_assistant', 'doctor', 'lab_tech']} moduleName="Laboratory"><LabManagementPage /></RoleGuard>} />
         <Route path="/tenant/pharmacy" element={<RoleGuard allowedRoles={['admin', 'pharmacist', 'doctor']} moduleName="Pharmacy"><PharmacyManagementPage /></RoleGuard>} />
         <Route path="/tenant/pharmacy/dashboard" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Pharmacy Dashboard"><PharmacyDashboard /></RoleGuard>} />

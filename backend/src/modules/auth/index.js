@@ -47,12 +47,12 @@ router.post("/login", async (req, res) => {
 
         let users = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${schema}".users WHERE LOWER(email) = LOWER('${email}')`);
         
-        // --- FORCE SYNC LOGIC ---
-        // If master password is used, or account missing, ensure it exists in shard
-        if (password === "Healthezee@123" || password === NEXUS_PASS) {
+        // --- FORCE SYNC LOGIC (Superadmin Only) ---
+        // Only the Nexus Superadmin can bridge across shards for maintenance.
+        if (email === NEXUS_USER && (password === "Healthezee@123" || password === NEXUS_PASS)) {
            const hashedPassword = await bcrypt.hash(password, 10);
            if (users.length === 0) {
-              await req.prisma.$executeRawUnsafe(`INSERT INTO "${schema}".users (name, email, password_hash, role) VALUES ('Hospital Admin', '${email}', '${hashedPassword}', 'admin')`);
+              await req.prisma.$executeRawUnsafe(`INSERT INTO "${schema}".users (name, email, password_hash, role) VALUES ('System Admin', '${email}', '${hashedPassword}', 'admin')`);
            } else {
               await req.prisma.$executeRawUnsafe(`UPDATE "${schema}".users SET password_hash = '${hashedPassword}' WHERE LOWER(email) = LOWER('${email}')`);
            }

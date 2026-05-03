@@ -180,22 +180,21 @@ export default function StaffManagementPage() {
               <thead>
                 <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
                   <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Role</th>
-                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Description</th>
-                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Lab Access</th>
-                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Pharmacy Access</th>
-                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>OPD Access</th>
-                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Admin Access</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Scope</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>OPD/IPD Access</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Lab/Pharmacy</th>
+                  <th style={{ padding: '16px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Admin/Masters</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { role: 'admin',         lab: '✅ Full',    pharmacy: '✅ Full',    opd: '✅ Full',   admin: '✅ Full' },
-                  { role: 'doctor',        lab: '📋 View',   pharmacy: '📋 View',   opd: '✅ Full',   admin: '❌' },
-                  { role: 'lab_assistant', lab: '✅ Full',    pharmacy: '❌',         opd: '❌',        admin: '❌' },
-                  { role: 'pharmacist',    lab: '❌',         pharmacy: '✅ Full',    opd: '❌',        admin: '❌' },
-                  { role: 'receptionist',  lab: '❌',         pharmacy: '❌',         opd: '📋 Reg only', admin: '❌' },
-                  { role: 'nurse',         lab: '📋 View',   pharmacy: '❌',         opd: '📋 Vitals', admin: '❌' },
-                  { role: 'staff',         lab: '❌',         pharmacy: '❌',         opd: '❌',        admin: '❌' },
+                  { role: 'admin',         scope: 'Full System', opd_ipd: '✅ Full', diag: '✅ Full', admin: '✅ Full' },
+                  { role: 'doctor',        scope: 'Clinical',    opd_ipd: '✅ Full', diag: '📋 View', admin: '❌' },
+                  { role: 'nurse',         scope: 'Clinical',    opd_ipd: '📋 IPD/Vitals', diag: '❌', admin: '❌' },
+                  { role: 'lab_assistant', scope: 'Diagnostics', opd_ipd: '❌',       diag: '✅ Lab',  admin: '❌' },
+                  { role: 'pharmacist',    scope: 'Diagnostics', opd_ipd: '❌',       diag: '✅ Phar', admin: '❌' },
+                  { role: 'receptionist',  scope: 'Front Office', opd_ipd: '📋 Reg',  diag: '❌',      admin: '❌' },
+                  { role: 'staff',         scope: 'Support',     opd_ipd: '❌',       diag: '❌',      admin: '❌' },
                 ].map((r, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '16px 24px' }}>
@@ -203,11 +202,10 @@ export default function StaffManagementPage() {
                         {r.role.replace('_', ' ')}
                       </span>
                     </td>
-                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '13px' }}>{ROLES.find(ro => ro.value === r.role)?.desc}</td>
-                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.lab}</td>
-                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.pharmacy}</td>
-                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.opd}</td>
-                    <td style={{ padding: '16px 24px', fontSize: '13px' }}>{r.admin}</td>
+                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '13px' }}>{r.scope}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px', fontWeight: 600 }}>{r.opd_ipd}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px', fontWeight: 600 }}>{r.diag}</td>
+                    <td style={{ padding: '16px 24px', fontSize: '13px', fontWeight: 600 }}>{r.admin}</td>
                   </tr>
                 ))}
               </tbody>

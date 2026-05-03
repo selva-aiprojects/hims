@@ -71,8 +71,8 @@ export default function OPDConsultationPage() {
         composition: medicine.composition,
         dosage: '1 Tab',
         frequency: '1-0-1',
-        duration: '5 days',
-        instructions: 'Take after meals'
+        duration: '5 Days',
+        instructions: 'After Food'
       }]);
     }
   };
@@ -192,12 +192,32 @@ export default function OPDConsultationPage() {
                     <option value="">Select ICD-10 Diagnosis...</option>
                     {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
                  </select>
-                 <textarea 
+                  <textarea 
                     placeholder="Enter clinical notes..." 
-                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '100px', resize: 'none' }}
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '100px', resize: 'none', marginBottom: '16px' }}
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                 />
+                  />
+
+                  {/* IPD Admission Recommendation */}
+                  <div style={{ padding: '16px', background: '#fff7ed', borderRadius: '16px', border: '1px solid #ffedd5' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                      <input 
+                        type="checkbox" 
+                        style={{ width: '18px', height: '18px' }}
+                        checked={notes.includes("[ADMISSION_RECOMMENDED]")}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNotes(notes + "\n[ADMISSION_RECOMMENDED]");
+                          } else {
+                            setNotes(notes.replace("\n[ADMISSION_RECOMMENDED]", ""));
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: '#c2410c' }}>Recommend IPD Admission</span>
+                    </label>
+                    <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#9a3412', fontWeight: 600 }}>This will flag the patient for the Admission Desk to assign a ward and bed.</p>
+                  </div>
               </div>
 
               {/* Prescription Section */}
@@ -217,65 +237,97 @@ export default function OPDConsultationPage() {
                  </div>
 
                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {prescriptions.map((p, i) => (
-                      <div key={i} style={{ padding: '20px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                            <div>
-                               <p style={{ fontWeight: 800, color: '#0f172a', margin: 0, fontSize: '15px' }}>{p.name}</p>
-                               <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0' }}>{p.composition}</p>
+                     {prescriptions.map((p, i) => (
+                      <div key={i} style={{ padding: '24px', background: '#ffffff', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', position: 'relative' }}>
+                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                               <div style={{ width: '40px', height: '40px', background: '#eff6ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3b82f6' }}>
+                                  <Icons.Pill />
+                               </div>
+                               <div>
+                                  <p style={{ fontWeight: 800, color: '#0f172a', margin: 0, fontSize: '16px' }}>{p.name}</p>
+                                  <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0', fontWeight: 600 }}>{p.composition}</p>
+                               </div>
                             </div>
-                            <button onClick={() => setPrescriptions(prescriptions.filter((_, idx) => idx !== i))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
-                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            <button onClick={() => setPrescriptions(prescriptions.filter((_, idx) => idx !== i))} style={{ background: '#fee2e2', border: 'none', color: '#ef4444', padding: '8px', borderRadius: '10px', cursor: 'pointer' }}>
+                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
                             </button>
                          </div>
                          
-                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                             <div>
-                               <label style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Dosage</label>
+                               <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Dosage</label>
                                <input 
-                                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }}
+                                  placeholder="1 Tab"
+                                  style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 700 }}
                                   value={p.dosage} 
                                   onChange={e => {
                                      const newP = [...prescriptions];
                                      newP[i].dosage = e.target.value;
                                      setPrescriptions(newP);
                                   }}
-                               />
+                                />
                             </div>
                             <div>
-                               <label style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Frequency</label>
-                               <input 
-                                  placeholder="1-0-1"
-                                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }}
+                               <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Frequency</label>
+                               <select 
+                                  style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 700 }}
                                   value={p.frequency || '1-0-1'} 
                                   onChange={e => {
                                      const newP = [...prescriptions];
                                      newP[i].frequency = e.target.value;
                                      setPrescriptions(newP);
                                   }}
-                               />
+                               >
+                                  <option value="1-0-1">1-0-1 (Twice Daily)</option>
+                                  <option value="1-1-1">1-1-1 (Thrice Daily)</option>
+                                  <option value="1-0-0">1-0-0 (Morning)</option>
+                                  <option value="0-0-1">0-0-1 (Night)</option>
+                                  <option value="SOS">SOS (As needed)</option>
+                               </select>
                             </div>
                             <div>
-                               <label style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Duration</label>
+                               <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Duration</label>
                                <input 
-                                  placeholder="5 days"
-                                  style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }}
-                                  value={p.duration || '5 days'} 
+                                  placeholder="5 Days"
+                                  style={{ width: '100%', padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 700 }}
+                                  value={p.duration} 
                                   onChange={e => {
                                      const newP = [...prescriptions];
                                      newP[i].duration = e.target.value;
                                      setPrescriptions(newP);
                                   }}
-                               />
+                                />
                             </div>
-                         </div>
-                         <div style={{ marginTop: '12px', fontSize: '12px', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                            {p.instructions}
+                            <div>
+                               <label style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>Meal Timing</label>
+                               <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+                                  <button 
+                                     onClick={() => {
+                                        const newP = [...prescriptions];
+                                        newP[i].instructions = 'Before Food';
+                                        setPrescriptions(newP);
+                                     }}
+                                     style={{ flex: 1, padding: '6px', fontSize: '11px', fontWeight: 800, border: 'none', borderRadius: '6px', cursor: 'pointer', background: p.instructions === 'Before Food' ? '#0f172a' : 'transparent', color: p.instructions === 'Before Food' ? 'white' : '#64748b' }}
+                                  >
+                                     BF
+                                  </button>
+                                  <button 
+                                     onClick={() => {
+                                        const newP = [...prescriptions];
+                                        newP[i].instructions = 'After Food';
+                                        setPrescriptions(newP);
+                                     }}
+                                     style={{ flex: 1, padding: '6px', fontSize: '11px', fontWeight: 800, border: 'none', borderRadius: '6px', cursor: 'pointer', background: p.instructions === 'After Food' ? '#0f172a' : 'transparent', color: p.instructions === 'After Food' ? 'white' : '#64748b' }}
+                                  >
+                                     AF
+                                  </button>
+                               </div>
+                            </div>
                          </div>
                       </div>
                     ))}
-                    {prescriptions.length === 0 && <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '13px', padding: '20px' }}>No medicines prescribed yet.</p>}
+                    {prescriptions.length === 0 && <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '13px', padding: '40px', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>No medicines prescribed. Select a drug from the search above.</p>}
                  </div>
               </div>
            </div>

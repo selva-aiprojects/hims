@@ -209,6 +209,7 @@ CREATE TABLE wards (
   capacity INTEGER DEFAULT 10,
   type VARCHAR(50) DEFAULT 'General',
   floor VARCHAR(20),
+  base_charge NUMERIC DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -326,7 +327,7 @@ DROP TABLE IF EXISTS pharmacy_dispense_items CASCADE;
 CREATE TABLE pharmacy_dispense_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   dispense_id UUID REFERENCES pharmacy_dispenses(id),
-  brand_id UUID REFERENCES drug_brands(id),
+  medicine_id UUID REFERENCES medicines(id),
   quantity INTEGER
 );
 
@@ -499,9 +500,10 @@ INSERT INTO rbac_menus (label, path, icon, sort_order, required_plan) VALUES
 ('Stock Inventory', '/tenant/pharmacy/inventory', 'Pill', 6, 'standard'),
 ('Prescription Queue', '/tenant/pharmacy/queue', 'Receipt', 7, 'standard'),
 ('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'standard'),
-('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
+('Admission Desk', '/tenant/ipd/admission-desk', 'Bed', 7, 'professional'),
 ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
 ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),
+('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
 ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional');
 
 -- Role-Menu Mappings (ADMIN - ALL)

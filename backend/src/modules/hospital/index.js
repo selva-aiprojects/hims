@@ -479,20 +479,34 @@ router.post("/pharmacy/dispense", checkPermission('PHARMACY_MANAGE'), async (req
   try {
     const { encounterId, items } = req.body; // items: [{ drugId, quantity, unitPrice }]
 
-    // 1. Create Dispense Record
+    // 1. Get Patient ID from Encounter
+    const encounterData = await req.prisma.$queryRawUnsafe(`
+      SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${encounterId}'
+    `);
+    const patientId = encounterData[0]?.patient_id;
+
+    // 2. Create Dispense Record
     const dispense = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".pharmacy_dispenses (encounter_id)
-      VALUES ('${encounterId}')
+      INSERT INTO "${req.schemaName}".pharmacy_dispenses (encounter_id, patient_id)
+      VALUES ('${encounterId}', '${patientId}')
       RETURNING id
     `);
     const dispenseId = dispense[0].id;
 
-    // 2. Process Items
-    for (const item of items) {
-      await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".pharmacy_dispense_items (dispense_id, brand_id, quantity)
-        VALUES ('${dispenseId}', '${item.drugId}', ${item.quantity})
-      `);
+      // 3. Process Items with Schema-Agnostic Fallback
+      for (const item of items) {
+        try {
+          await req.prisma.$executeRawUnsafe(`
+            INSERT INTO "${req.schemaName}".pharmacy_dispense_items (dispense_id, medicine_id, quantity)
+            VALUES ('${dispenseId}', '${item.drugId}', ${item.quantity})
+          `);
+        } catch (e) {
+          // Fallback for legacy shards using brand_id column
+          await req.prisma.$executeRawUnsafe(`
+            INSERT INTO "${req.schemaName}".pharmacy_dispense_items (dispense_id, brand_id, quantity)
+            VALUES ('${dispenseId}', '${item.drugId}', ${item.quantity})
+          `);
+        }
 
       // Update Inventory
       await req.prisma.$executeRawUnsafe(`
@@ -520,12 +534,12 @@ router.get("/ipd/bedmap", async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT 
-        w.id, w.name, w.capacity, w.type, w.floor, w.base_charge,
+        w.id, w.name, w.capacity, w.type, w.floor,
         COUNT(a.id) FILTER (WHERE a.status = 'Active') AS occupied,
         w.capacity - COUNT(a.id) FILTER (WHERE a.status = 'Active') AS available
       FROM "${req.schemaName}".wards w
       LEFT JOIN "${req.schemaName}".ipd_admissions a ON a.ward_id = w.id
-      GROUP BY w.id, w.name, w.capacity, w.type, w.floor, w.base_charge
+      GROUP BY w.id, w.name, w.capacity, w.type, w.floor
       ORDER BY w.name ASC
     `);
     res.json(data);

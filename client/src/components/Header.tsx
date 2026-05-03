@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import BrandLogo from "./BrandLogo";
+import { applyTheme } from "../config/theme";
 
 interface HeaderProps {
   title: string;
@@ -12,6 +13,7 @@ export default function Header({ title }: HeaderProps) {
 
   const handleLogout = () => {
     localStorage.clear();
+    applyTheme(); // Reset to platform defaults
     navigate("/");
   };
 

@@ -89,6 +89,19 @@ router.put("/tenants/:id/branding", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.put("/tenants/:id/plan", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { plan } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE nexus.tenants 
+      SET plan = '${plan}'
+      WHERE id = '${id}'
+    `);
+    res.json({ message: `Tenant plan upgraded to ${plan}` });
+  } catch (error) { next(error); }
+});
+
 router.post("/tenants", async (req, res, next) => {
   const { name, dbName, plan, contactName, contactEmail, adminEmail, adminPassword, uiSettings } = req.body;
   const normalizedDbName = (dbName || "").toLowerCase().replace(/[^a-z0-9_]/g, '_');
