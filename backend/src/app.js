@@ -155,8 +155,8 @@ app.get("/api/nexus/fix-system-menus", async (req, res) => {
 
       const menusToAdd = [
         { label: 'Admission Desk', path: '/tenant/ipd/admission-desk', icon: 'Bed', sort: 7, plan: 'professional' },
-        { label: 'OPD Billing', path: '/billing?type=OPD', icon: 'Billing', sort: 10, plan: 'basic' },
-        { label: 'Laboratory Billing', path: '/billing?type=LAB', icon: 'Billing', sort: 11, plan: 'basic' },
+        { label: 'OPD Billing & Revenue Center', path: '/billing?type=OPD', icon: 'Billing', sort: 10, plan: 'basic' },
+        { label: 'Laboratory Billing', path: '/tenant/lab/billing', icon: 'Billing', sort: 11, plan: 'basic' },
         { label: 'Pharmacy Billing', path: '/billing?type=PHARMACY', icon: 'Billing', sort: 12, plan: 'basic' },
         { label: 'IPD & Discharge Billing', path: '/billing?type=IPD', icon: 'Billing', sort: 13, plan: 'professional' },
         { label: 'Insurance Management', path: '/tenant/billing/insurance', icon: 'Receipt', sort: 14, plan: 'professional' },
@@ -164,7 +164,9 @@ app.get("/api/nexus/fix-system-menus", async (req, res) => {
         { label: 'Message Board', path: '/tenant/communication', icon: 'Dashboard', sort: 17, plan: 'basic' },
         { label: 'Mail Management', path: '/tenant/mail', icon: 'Receipt', sort: 18, plan: 'basic' },
         { label: 'Ticketing Management System', path: '/tenant/support', icon: 'Receipt', sort: 16, plan: 'basic' },
-        { label: 'AI Lab Assistant', path: '/tenant/lab/ai', icon: 'Lab', sort: 9, plan: 'professional' }
+        { label: 'AI Lab Assistant', path: '/tenant/lab/ai', icon: 'Lab', sort: 9, plan: 'professional' },
+        { label: 'Consultation Desk', path: '/tenant/consultation', icon: 'Doctor', sort: 5, plan: 'basic' },
+        { label: 'Staff & RBAC', path: '/tenant/staff', icon: 'Settings', sort: 20, plan: 'basic' }
       ];
 
       for (const menu of menusToAdd) {

@@ -503,6 +503,21 @@ router.post("/lab/orders/:id/publish", checkPermission('LAB_MANAGE'), async (req
   } catch (error) { next(error); }
 });
 
+router.get("/lab/billing-queue", checkPermission('BILLING_VIEW'), async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT lo.*, p.name as patient_name, p.id as patient_id, e.id as encounter_id, p.mrn, d.name as test_name, d.price
+      FROM "${req.schemaName}".lab_orders lo
+      JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
+      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
+      JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
+      WHERE lo.status = 'Completed' AND (lo.is_billed = FALSE OR lo.is_billed IS NULL)
+      ORDER BY lo.id DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 // --- Pharmacy ---
 router.get("/pharmacy/stats", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
   try {
@@ -630,6 +645,27 @@ router.post("/pharmacy/dispense", checkPermission('PHARMACY_MANAGE'), async (req
 router.get("/masters/wards", async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".wards ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/masters/modes", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".consultation_modes ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) {
+    // Return standard defaults if table is missing or error occurs
+    res.json([
+      { id: 'm1', name: 'In-Person Consultation' },
+      { id: 'm2', name: 'Virtual / Video Visit' },
+      { id: 'm3', name: 'Emergency / Trauma' }
+    ]);
+  }
+});
+
+router.get("/masters/services", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".services ORDER BY name ASC`);
     res.json(data);
   } catch (error) { next(error); }
 });

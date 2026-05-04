@@ -78,7 +78,8 @@ export default function LabManagementPage() {
           billType: 'LAB', 
           totalAmount: Number(completedOrder.price || 0),
           patientName: completedOrder.patient_name,
-          encounterId: completedOrder.patient_id // BillingPage uses encounterId state key for patient_id lookup
+          encounterId: completedOrder.patient_id,
+          labOrderId: completedOrder.id
         } });
       }
     } catch (err) { alert("Failed to submit results"); }

@@ -18,7 +18,7 @@ router.get("/", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const { patientId, encounterId, billType, items, totalAmount, paymentMode, status } = req.body;
+    const { patientId, encounterId, billType, items, totalAmount, paymentMode, status, labOrderId } = req.body;
     
     // Validation
     if (!patientId || patientId === 'p1') {
@@ -45,6 +45,15 @@ router.post("/", async (req, res, next) => {
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".invoice_items (invoice_id, description, quantity, unit_price, tax_percent, amount)
         VALUES ('${invId}', '${item.description.replace(/'/g, "''")}', ${item.quantity}, ${item.price}, ${item.tax}, ${item.price * item.quantity})
+      `);
+    }
+
+    // 3. Link to Lab Order if applicable
+    if (labOrderId && billType === 'LAB') {
+      await req.prisma.$executeRawUnsafe(`
+        UPDATE "${req.schemaName}".lab_orders 
+        SET invoice_id = '${invId}', is_billed = TRUE 
+        WHERE id = '${labOrderId}'
       `);
     }
 

@@ -39,9 +39,10 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(false);
   const [billType] = useState<BillType>(state?.billType || queryType || 'OPD');
   
-  // Patient Context (Local state to allow search/override)
+  // Patient Context
   const [patientName, setPatientName] = useState(state?.patientName || "");
-  const [patientId, setPatientId] = useState(state?.encounterId || "");
+  const [patientId, setPatientId] = useState(state?.patientId || "");
+  const [encounterId, setEncounterId] = useState(state?.encounterId || "");
 
   // Master Data
   const [services, setServices] = useState<any[]>([]);
@@ -102,11 +103,13 @@ export default function BillingPage() {
     try {
       await axios.post(`${API_BASE}/api/billing`, {
         patientId,
+        encounterId,
         billType,
         items,
         totalAmount: calculateTotal(),
         paymentMode,
         status: 'PAID',
+        labOrderId: state?.labOrderId
       }, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
