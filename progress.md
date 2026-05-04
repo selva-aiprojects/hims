@@ -3,7 +3,7 @@
 ## 🚀 Overview
 **Platform**: Healthezee HIMS (Smart Healthcare System)
 **Architecture**: Multi-Tenant Isolated Schema (PostgreSQL)
-**Status**: Core Provisioning Stable | Shard Management Active | Branding Elite
+**Status**: Core Provisioning Stable | Shard Management Active | Diagnostic Command Center Live
 
 ---
 
@@ -19,31 +19,36 @@
 - [x] **RBAC Foundation**: Cross-schema authentication for Nexus and Shard-specific logins.
 - [x] **Welcome Automation**: Integration with Resend for admin credential delivery.
 
+### 3. Laboratory & Diagnostic Command Center (New)
+- [x] **Workflow Orchestration**: Status-driven queue (Order -> Process -> Authorize -> Publish).
+- [x] **AI Lab Assistant**: Isolated module for OCR report parsing and diagnostic analytics.
+- [x] **Revenue Linkage**: Hard linkage between clinical results and automated billing.
+- [x] **Secure AI Chatbot**: Tenant-isolated assistant with real-time hospital metric awareness.
+
 ---
 
-## 🛠️ In Progress: Tenant Clinical Layer
+## 🛠️ In Progress: Clinical & Operational Hardening
 ### 1. Hospital Dashboard (Metric Driven)
+- [x] Real-time revenue and patient flow metrics (Live API).
 - [ ] Implement Recharts-based visualization for OPD/IPD trends.
-- [ ] Real-time revenue and patient flow metrics.
 - [ ] Department-wise performance tracking.
 
 ### 2. Shard Master Tables
-- [ ] Doctors & Staff management.
+- [x] Consultation Modes & Services Master (Live with Fallbacks).
+- [ ] Doctors & Staff management UI.
 - [ ] Departments & Wards configuration.
-- [ ] Service Catalog & Pricing masters.
 
 ### 3. Tenant User Management (Internal RBAC)
-- [ ] Hospital-specific user creation.
-- [ ] Role assignments (Doctor, Nurse, Admin, FrontDesk).
-- [ ] Password management for hospital staff.
+- [x] Sidebar Dynamic Sync: Automated mapping of menus based on roles.
+- [x] Staff Management UI: Refactored with proper RBAC grouping.
 
 ---
 
 ## 📋 Future Roadmap
-- [ ] **OPD Module**: Registration, Consultation, and Digital Prescription.
+- [ ] **OPD Module**: Registration, Consultation, and Digital Prescription (In-testing).
 - [ ] **IPD Module**: Admission, Bed Management, and Discharge.
 - [ ] **Billing & Pharmacy**: Inventory sync and automated billing.
-- [ ] **Laboratory & Radiology**: LIS integration and report generation.
+- [ ] **Internationalization**: Multi-currency and multi-language support.
 
 ---
-*Last Updated: 2026-05-01*
+*Last Updated: 2026-05-04*

@@ -504,17 +504,31 @@ router.post("/lab/orders/:id/publish", checkPermission('LAB_MANAGE'), async (req
 });
 
 router.get("/lab/billing-queue", checkPermission('BILLING_VIEW'), async (req, res, next) => {
+  // ... existing implementation
+});
+
+router.post("/ai/chat", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT lo.*, p.name as patient_name, p.id as patient_id, e.id as encounter_id, p.mrn, d.name as test_name, d.price
-      FROM "${req.schemaName}".lab_orders lo
-      JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
-      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
-      JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
-      WHERE lo.status = 'Completed' AND (lo.is_billed = FALSE OR lo.is_billed IS NULL)
-      ORDER BY lo.id DESC
-    `);
-    res.json(data);
+    const { messages } = req.body;
+    
+    // 1. Fetch Context from current shard only (Isolated)
+    const [patientCount, admissionCount, pendingLabs] = await Promise.all([
+      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".patients`),
+      req.prisma.$queryRawUnsafe(`SELECT (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '${req.schemaName}' AND table_name = 'ipd_admissions') THEN (SELECT COUNT(*)::int FROM "${req.schemaName}".ipd_admissions WHERE status = 'Admitted') ELSE 0 END) as count`),
+      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".lab_orders WHERE status = 'Pending'`)
+    ]);
+
+    const hospitalContext = {
+      hospitalName: req.tenantName || "this facility",
+      stats: {
+        totalPatients: patientCount[0].count,
+        activeAdmissions: admissionCount[0].count,
+        pendingLabs: pendingLabs[0].count
+      }
+    };
+
+    const aiResponse = await aiService.hospitalChat(messages, hospitalContext);
+    res.json({ response: aiResponse });
   } catch (error) { next(error); }
 });
 

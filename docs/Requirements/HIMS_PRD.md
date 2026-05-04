@@ -1,7 +1,7 @@
 # HIMS by Healthezee – Product Requirements Document (PRD)
 
 ## 1. Product Vision
-Cloud-native multi-tenant Hospital Information Management System (HIMS) supporting clinics (OPD) and hospitals (OPD + IPD), with AI-ready architecture.
+Cloud-native multi-tenant Hospital Information Management System (HIMS) supporting clinics (OPD) and hospitals (OPD + IPD), with an AI-First architecture focused on operational efficiency and clinical intelligence.
 
 ---
 
@@ -14,27 +14,30 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 - OPD Consultation (Core EMR)
 - Prescription Generation
 - Invoicing & Billing
-- **Message Board (Internal Announcements)**
-- **Mail Management (Signal Tracking)**
-- **Support Ticketing System**
+- Message Board (Internal Announcements)
+- Mail Management (Signal Tracking)
+- Support Ticketing System
 
 ### Tier 2: Standard (Clinical Services)
 - All Basic Features
-- Laboratory Information System (LIS)
+- Laboratory Information System (LIS) with Command Center
 - Pharmacy Information Management (PIMS)
 - Stock & Inventory Management
+- **Request-to-Revenue Bridge**: Automated linkage between clinical orders and financial invoicing.
 
-### Tier 3: Professional (IPD & In-patient)
+### Tier 3: Professional (IPD & Analytics)
 - All Standard Features
 - IPD Admission / Discharge Workflow
 - Bed Management & Real-time Bed Map
 - Nursing Workflows & Vitals
 - Insurance Management
+- **Isolated AI Chatbot**: Tenant-locked assistant for real-time facility metrics and operational support.
 
 ### Tier 4: Enterprise (AI & Multi-Tenant)
 - All Professional Features
-- **AI-Powered Discharge Summaries**
-- **AI Clinical Insights & History Summaries**
+- AI-Powered Discharge Summaries
+- AI Clinical Insights & History Summaries
+- **AI Lab Assistant**: OCR-driven external report parsing and pathological interpretation.
 - Nexus Multi-Tenant Management
 - Global Communication Hub & Signal History
 
@@ -46,10 +49,13 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 - **Nexus (Control Plane)**: Centralized orchestration for provisioning, ticketing triage, and global signal monitoring.
 - **Tenant DB (Isolated Shards)**: Secure, isolated data storage for each hospital instance.
 
+### AI Router Pattern
+- **Orchestration Layer**: Decoupled AI service for compute-intensive tasks (OCR, Summarization).
+- **Tenant-Lock Security**: Strict data isolation via backend context injection (HIPAA Compliance).
+
 ---
 
 ## 4. User Roles
-
 ### Nexus Admin (Super Admin)
 - Shard Provisioning & Lifecycle
 - Support Ticket Resolution
@@ -61,136 +67,29 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 - Receptionist (OPD Front desk)
 - Pharmacist (Dispensing)
 - Lab Technician (Diagnostics)
-- Billing Staff (Finance)
+- Billing Staff (Finance / Revenue Center)
 
 ---
 
-## Core Modules (Enhanced)
-
-### Support Ticketing
-- Integrated system for tenants to raise technical bugs, feature requests, or plan upgrades.
-- Real-time notification and resolution tracking in Nexus.
-
-### Communication Hub (Global Signals)
-- Nexus-level oversight of all system communications.
-- Tracking password resets, onboarding status, and critical notifications across the platform.
-
-## 5. Authentication
-- Email + Password + Tenant Code
-- JWT-based authentication
+## 5. Core Operational Flow: Request-to-Revenue
+The system enforces a strict operational lifecycle:
+1.  **Clinical Initiation**: Doctor creates an order (Lab, Pharmacy, Procedure).
+2.  **Execution**: Technician/Nurse processes the order.
+3.  **Financial Catch**: Automated entry into the department-specific Billing Center.
+4.  **Verification**: Final report/dispensing is only "Published" once payment/insurance is reconciled.
 
 ---
 
-## 6. Core Modules
-
-### Patient Management
-- Create / update patient
-- Standardized Medical Record Number (MRN) Generation
-  - **Format:** `MRN-{YY}{MM}-{6-Digit-Sequence}` (e.g., `MRN-2605-000001`)
-  - **Logic:** Year and Month prefix for temporal context, followed by a zero-padded sequential integer based on total patient count.
-  - **Compliance:** Aligns with international healthcare standards, ensuring collision-proof uniqueness and chronologically sortable records.
-
-### Appointment
-- Schedule
-- Status tracking
-
-### Visits (Core EMR)
-- Visit lifecycle
-
-### Clinical EMR
-- Complaints
-- Vitals
-- Diagnosis
-
-### Prescription
-- Multi-drug
-- Dosage, frequency
-
-### Billing
-- Visit-based billing
+## 6. Security & Compliance
+- **JWT Authentication**: Secure token-based access.
+- **RBAC**: Role-Based Access Control mapped to dynamic sidebars.
+- **Data Isolation**: PostgreSQL Schema-per-tenant ensures zero data leakage between shards (HIPAA Alignment).
+- **Audit Logs**: Comprehensive tracking of all clinical and financial transactions.
 
 ---
 
-## 7. UI Requirements
-
-### EMR Screen
-- Patient info
-- Consultation
-- Prescription
-- Actions
-
----
-
-## 8. APIs
-
-- POST /login
-- GET /patients
-- POST /appointments
-- POST /visits
-- POST /billing
-
----
-
-## 9. Data Model
-
-- tenants
-- users
-- patients
-- visits
-- prescriptions
-- bills
-
----
-
-## 10. Security
-
-- JWT
-- RBAC
-- Audit logs
-
----
-
-## 11. Non-Functional
-
-- Performance < 2 sec
-- 99.9% uptime
-- Scalable
-
----
-
-## 12. AI Readiness
-
-- Voice EMR
-- Clinical insights
-- RAG
-
----
-
-## 13. MVP
-
-- Multi-tenant
-- OPD flow
-- Billing
-
----
-
-## 14. Risks
-
-- Complexity → modular design
-- UX → optimize consultation
-
----
-
-## 15. Differentiators
-
-- Multi-tenant architecture
-- AI-ready
-- Fast UX
-
----
-
-## 16. Success Metrics
-
-- Consultation < 2 min
-- <3 clicks prescription
-- Onboarding <5 min
+## 7. Success Metrics
+- **Consultation Speed**: < 2 minutes per patient.
+- **Prescription Efficiency**: < 3 clicks.
+- **Revenue Capture**: 100% linkage between clinical orders and invoices.
+- **Onboarding**: < 5 minutes for new hospital shards.

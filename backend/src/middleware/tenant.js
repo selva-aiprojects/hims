@@ -13,6 +13,7 @@ async function tenant(req, res, next) {
       
       req.tenantId = tenantId;
       req.schemaName = schemaName;
+      req.tenantName = tenants[0].name;
       
       // Force search path as a fallback
       await prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public`);

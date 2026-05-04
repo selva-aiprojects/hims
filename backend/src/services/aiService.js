@@ -109,84 +109,62 @@ async function generateDischargeSummary(patientData, admissionData, notes, labs)
  * Extracts structured lab results and identifies abnormal findings.
  */
 async function parseExternalLabReport(filePath) {
-  if (!ai) {
-    console.warn("[AI] GEMINI_API_KEY missing. Returning mock lab data for workflow testing.");
-    // Simulate API delay
-    await new Promise(r => setTimeout(r, 1500));
-    return {
-      test_date: new Date().toISOString().split('T')[0],
-      lab_name: "Mock Reference Laboratory",
-      results: [
-        { test_name: "Hemoglobin", value: "11.2", unit: "g/dL", reference_range: "12.0-15.5", is_abnormal: true },
-        { test_name: "WBC Count", value: "6.5", unit: "thou/uL", reference_range: "4.5-11.0", is_abnormal: false },
-        { test_name: "Platelets", value: "250", unit: "thou/uL", reference_range: "150-450", is_abnormal: false },
-        { test_name: "TSH", value: "5.8", unit: "mIU/L", reference_range: "0.4-4.0", is_abnormal: true }
-      ],
-      clinical_interpretation: "Mild anemia and subclinical hypothyroidism noted. Recommend clinical correlation and follow-up."
-    };
-  }
+  // ... (existing implementation)
+}
+
+/**
+ * Hospital-specific isolated AI Chat
+ */
+async function hospitalChat(messages, hospitalContext) {
+  if (!ai) return "AI Assistant unavailable: GEMINI_API_KEY not configured.";
 
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    let mimeType = 'application/pdf';
-    if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) mimeType = 'image/jpeg';
-    else if (filePath.endsWith('.png')) mimeType = 'image/png';
+    const systemPrompt = `
+    You are the "Healthezee AI Assistant", a professional clinical and administrative co-pilot for ${hospitalContext.hospitalName}.
     
-    const filePart = await uploadToGemini(filePath, mimeType);
-    if (!filePart) return { error: "Failed to read file." };
-
-    const prompt = `
-    You are an expert clinical pathologist and AI extraction tool. 
-    Review the attached external lab report and extract the structured data.
+    CRITICAL SECURITY RULE: You only have knowledge of the current hospital (${hospitalContext.hospitalName}). 
+    You DO NOT have access to any other hospital's data. 
+    Never hallucinate patient records from other facilities.
     
-    Return ONLY a valid JSON object with the following schema:
-    {
-      "test_date": "YYYY-MM-DD (if found, else null)",
-      "lab_name": "Name of the external lab (if found)",
-      "results": [
-        {
-          "test_name": "e.g., Hemoglobin",
-          "value": "e.g., 11.2",
-          "unit": "e.g., g/dL",
-          "reference_range": "e.g., 12.0-15.5",
-          "is_abnormal": true/false (based on the reference range and value)
-        }
-      ],
-      "clinical_interpretation": "A 1-2 sentence clinical summary of the findings, highlighting any critical abnormals."
-    }
+    CURRENT HOSPITAL CONTEXT:
+    - Hospital Name: ${hospitalContext.hospitalName}
+    - Total Patients: ${hospitalContext.stats.totalPatients || 0}
+    - Active Admissions: ${hospitalContext.stats.activeAdmissions || 0}
+    - Pending Lab Orders: ${hospitalContext.stats.pendingLabs || 0}
     
-    Ensure the output is raw JSON without any markdown formatting like \`\`\`json.
+    ROLE:
+    - Assist staff with clinical queries.
+    - Help with hospital operations.
+    - Provide insights into current facility metrics.
+    
+    Always maintain a professional, helpful, and HIPAA-compliant tone.
     `;
 
-    const result = await model.generateContent([prompt, filePart]);
-    const responseText = result.response.text();
-    
-    // Robust JSON extraction (finds the first { and last })
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    const rawText = jsonMatch ? jsonMatch[0] : responseText;
-    
-    try {
-      return JSON.parse(rawText);
-    } catch (e) {
-      console.error("[AI] Failed to parse JSON from Gemini. Raw response:", responseText);
-      return { 
-        error: "AI formatting error", 
-        message: "The AI returned a non-JSON response. Please try again.",
-        debug: responseText.substring(0, 100)
-      };
-    }
+    const chat = model.startChat({
+      history: [
+        { role: "user", parts: [{ text: systemPrompt }] },
+        { role: "model", parts: [{ text: "Acknowledged. I am the AI Assistant for " + hospitalContext.hospitalName + ". How can I help you today?" }] },
+        ...messages.slice(0, -1).map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }]
+        }))
+      ],
+    });
+
+    const lastMessage = messages[messages.length - 1].content;
+    const result = await chat.sendMessage(lastMessage);
+    return result.response.text();
   } catch (error) {
-    console.error("[AI] Error parsing lab report:", error);
-    return { 
-      error: "AI Service Error", 
-      message: error.message || "Failed to communicate with Gemini AI." 
-    };
+    console.error("[AI] Chat Error:", error);
+    return "I'm sorry, I encountered an error processing your request. Please try again.";
   }
 }
 
 module.exports = {
   generatePatientHistorySummary,
   generateDischargeSummary,
-  parseExternalLabReport
+  parseExternalLabReport,
+  hospitalChat
 };

@@ -37,9 +37,9 @@ import InsurancePage from './modules/tenant/billing/InsurancePage';
 import DischargeSummariesPage from './modules/tenant/ipd/DischargeSummariesPage';
 import MessageBoardPage from './modules/tenant/communication/MessageBoardPage';
 import MailManagementPage from './modules/tenant/communication/MailManagementPage';
-
 import { useEffect } from 'react';
 import SettingsPage from './modules/tenant/SettingsPage';
+import AIChatbot from './components/AIChatbot';
 
 function App() {
   // Apply saved theme on app load
@@ -69,8 +69,8 @@ function App() {
         <Route path="/tenant/lab/ai" element={<RoleGuard allowedRoles={['admin', 'lab_assistant', 'doctor', 'lab_tech']} moduleName="AI Lab Assistant"><AILabAssistant /></RoleGuard>} />
         <Route path="/tenant/pharmacy" element={<RoleGuard allowedRoles={['admin', 'pharmacist', 'doctor']} moduleName="Pharmacy"><PharmacyManagementPage /></RoleGuard>} />
         <Route path="/tenant/pharmacy/dashboard" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Pharmacy Dashboard"><PharmacyDashboard /></RoleGuard>} />
-        <Route path="/tenant/pharmacy/inventory" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Stock Inventory"><InventoryList /></RoleGuard>} />
-        <Route path="/tenant/pharmacy/queue" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Prescription Queue"><PrescriptionQueue /></RoleGuard>} />
+        <Route path="/tenant/pharmacy/inventory" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Stock Inventory"><InventoryList /></RouteGuard>} />
+        <Route path="/tenant/pharmacy/queue" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Prescription Queue"><PrescriptionQueue /></RouteGuard>} />
         <Route path="/tenant/staff" element={<StaffManagementPage />} />
         <Route path="/tenant/settings" element={<SettingsPage />} />
         <Route path="/tenant/support" element={<SupportTicketsPage />} />
@@ -94,6 +94,7 @@ function App() {
         
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <AIChatbot />
     </Router>
   );
 }
