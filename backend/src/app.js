@@ -155,11 +155,16 @@ app.get("/api/nexus/fix-system-menus", async (req, res) => {
 
       const menusToAdd = [
         { label: 'Admission Desk', path: '/tenant/ipd/admission-desk', icon: 'Bed', sort: 7, plan: 'professional' },
+        { label: 'OPD Billing', path: '/billing?type=OPD', icon: 'Billing', sort: 10, plan: 'basic' },
+        { label: 'Laboratory Billing', path: '/billing?type=LAB', icon: 'Billing', sort: 11, plan: 'basic' },
+        { label: 'Pharmacy Billing', path: '/billing?type=PHARMACY', icon: 'Billing', sort: 12, plan: 'basic' },
+        { label: 'IPD & Discharge Billing', path: '/billing?type=IPD', icon: 'Billing', sort: 13, plan: 'professional' },
         { label: 'Insurance Management', path: '/tenant/billing/insurance', icon: 'Receipt', sort: 14, plan: 'professional' },
         { label: 'Discharge Summaries', path: '/tenant/ipd/discharge', icon: 'Receipt', sort: 15, plan: 'professional' },
         { label: 'Message Board', path: '/tenant/communication', icon: 'Dashboard', sort: 17, plan: 'basic' },
         { label: 'Mail Management', path: '/tenant/mail', icon: 'Receipt', sort: 18, plan: 'basic' },
-        { label: 'Ticketing Management System', path: '/tenant/support', icon: 'Receipt', sort: 16, plan: 'basic' }
+        { label: 'Ticketing Management System', path: '/tenant/support', icon: 'Receipt', sort: 16, plan: 'basic' },
+        { label: 'AI Lab Assistant', path: '/tenant/lab/ai', icon: 'Lab', sort: 9, plan: 'professional' }
       ];
 
       for (const menu of menusToAdd) {
@@ -176,17 +181,52 @@ app.get("/api/nexus/fix-system-menus", async (req, res) => {
           menuId = existing[0].id;
         }
 
-        // Link to ADMIN and DOCTOR roles (using more inclusive matching)
+        // Link to ADMIN, DOCTOR and LAB roles
         await prisma.$executeRawUnsafe(`
           INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
           SELECT id, '${menuId}' FROM "${schema}".rbac_roles 
-          WHERE name IN ('ADMIN', 'DOCTOR', 'System Admin', 'Administrator', 'SUPERADMIN')
+          WHERE name IN ('ADMIN', 'DOCTOR', 'LAB_TECH', 'LAB_ASSISTANT', 'NURSE', 'System Admin', 'Administrator', 'SUPERADMIN')
           ON CONFLICT DO NOTHING
         `);
       }
       updated++;
     }
     res.json({ message: `Successfully synchronized system menus and tables for ${updated} shards. Please LOGOUT and LOGIN again to see changes.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Administrative Route to synchronize staff and patient schema across all shards
+app.get("/api/nexus/fix-staff-and-patients", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants`);
+    let updated = 0;
+    
+    // Also ensure Nexus registry is healed
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS ui_settings JSONB DEFAULT '{}'::jsonb`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255)`);
+
+    for (const t of tenants) {
+      const schema = t.db_name;
+      try {
+        // Fix Patients table
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS ai_summary TEXT`);
+        
+        // Fix Users table (Staff)
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS license_number VARCHAR(100)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS age INTEGER`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS qualifications TEXT`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS experience_years INTEGER`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS specialization VARCHAR(100)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
+        
+        updated++;
+      } catch (shardErr) {
+        console.error(`Failed to heal shard ${schema}:`, shardErr.message);
+      }
+    }
+    res.json({ message: `Successfully healed ${updated} shards. Staff fields and AI Summary columns are now present.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

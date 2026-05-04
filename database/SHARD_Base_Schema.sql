@@ -22,6 +22,12 @@ CREATE TABLE users (
   email VARCHAR(255) UNIQUE,
   password_hash TEXT,
   role VARCHAR(50) DEFAULT 'staff', -- Legacy role fallback
+  license_number VARCHAR(100),
+  age INTEGER,
+  qualifications TEXT,
+  experience_years INTEGER,
+  specialization VARCHAR(100), -- For doctors (Department)
+  department VARCHAR(100), -- For other staff
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );

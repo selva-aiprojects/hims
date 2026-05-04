@@ -9,22 +9,43 @@ const upload = require("../../config/upload");
 
 router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT id, name, role, email, created_at FROM "${req.schemaName}".users ORDER BY name ASC`);
+    const { search } = req.query;
+    let query = `SELECT id, name, role, email, created_at, license_number, age, qualifications, experience_years, specialization, department 
+                 FROM "${req.schemaName}".users`;
+    
+    if (search) {
+      query += ` WHERE name ILIKE '%${search}%' OR role ILIKE '%${search}%' OR email ILIKE '%${search}%' OR department ILIKE '%${search}%'`;
+    }
+    
+    query += ` ORDER BY name ASC`;
+    
+    const data = await req.prisma.$queryRawUnsafe(query);
     res.json(data);
   } catch (error) { next(error); }
 });
 
 router.post("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, license_number, age, qualifications, experience_years, specialization, department } = req.body;
     const bcrypt = require("bcryptjs");
     const hashedPassword = await bcrypt.hash(password || "HIMS@123", 10);
     const schema = req.schemaName;
     
     // 1. Insert user
     const newUser = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${schema}".users (name, email, password_hash, role)
-      VALUES ('${name.replace(/'/g, "''")}', '${email}', '${hashedPassword}', '${role || 'staff'}')
+      INSERT INTO "${schema}".users (name, email, password_hash, role, license_number, age, qualifications, experience_years, specialization, department)
+      VALUES (
+        '${name.replace(/'/g, "''")}', 
+        '${email}', 
+        '${hashedPassword}', 
+        '${role || 'staff'}',
+        ${license_number ? `'${license_number}'` : 'NULL'},
+        ${age ? parseInt(age) : 'NULL'},
+        ${qualifications ? `'${qualifications.replace(/'/g, "''")}'` : 'NULL'},
+        ${experience_years ? parseInt(experience_years) : 'NULL'},
+        ${specialization ? `'${specialization.replace(/'/g, "''")}'` : 'NULL'},
+        ${department ? `'${department.replace(/'/g, "''")}'` : 'NULL'}
+      )
       RETURNING id
     `);
     const userId = newUser[0].id;
@@ -62,6 +83,45 @@ router.post("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) =>
     }
     next(error); 
   }
+});
+
+router.put("/staff/:id", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role, license_number, age, qualifications, experience_years, specialization, department } = req.body;
+    const schema = req.schemaName;
+
+    let updateSet = [];
+    if (name) updateSet.push(`name = '${name.replace(/'/g, "''")}'`);
+    if (email) updateSet.push(`email = '${email}'`);
+    if (role) updateSet.push(`role = '${role}'`);
+    
+    // Staff details
+    updateSet.push(`license_number = ${license_number ? `'${license_number}'` : 'NULL'}`);
+    updateSet.push(`age = ${age ? parseInt(age) : 'NULL'}`);
+    updateSet.push(`qualifications = ${qualifications ? `'${qualifications.replace(/'/g, "''")}'` : 'NULL'}`);
+    updateSet.push(`experience_years = ${experience_years ? parseInt(experience_years) : 'NULL'}`);
+    updateSet.push(`specialization = ${specialization ? `'${specialization.replace(/'/g, "''")}'` : 'NULL'}`);
+    updateSet.push(`department = ${department ? `'${department.replace(/'/g, "''")}'` : 'NULL'}`);
+
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${schema}".users 
+      SET ${updateSet.join(', ')}
+      WHERE id = '${id}'
+    `);
+
+    res.json({ message: "Staff member updated" });
+  } catch (error) { next(error); }
+});
+
+router.delete("/staff/:id", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const schema = req.schemaName;
+
+    await req.prisma.$executeRawUnsafe(`DELETE FROM "${schema}".users WHERE id = '${id}'`);
+    res.json({ message: "Staff member deleted" });
+  } catch (error) { next(error); }
 });
 
 // --- Master Data Management ---
@@ -378,34 +438,68 @@ router.post("/lab/upload-external", upload.single('lab_report'), checkPermission
 router.get("/lab/orders", checkPermission('LAB_MANAGE'), async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT lo.*, p.name as patient_name, p.mrn, d.name as test_name, d.price
+      SELECT lo.*, p.name as patient_name, p.id as patient_id, p.mrn, d.name as test_name, d.price, u.name as doctor_name
       FROM "${req.schemaName}".lab_orders lo
       JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
       JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
       JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
-      WHERE lo.status = 'Pending'
+      LEFT JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      ORDER BY 
+        CASE WHEN lo.priority = 'Urgent' THEN 1 ELSE 2 END,
+        lo.id DESC
     `);
     res.json(data);
   } catch (error) { next(error); }
 });
 
-router.put("/lab/orders/:id", checkPermission('LAB_MANAGE'), async (req, res, next) => {
+router.put("/lab/orders/:id/status", checkPermission('LAB_MANAGE'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { result_data } = req.body;
+    const { status } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".lab_orders SET status = '${status}' WHERE id = '${id}'
+    `);
+    res.json({ message: "Order status updated" });
+  } catch (error) { next(error); }
+});
+
+router.post("/lab/orders/:id/results", checkPermission('LAB_MANAGE'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { results, technicianNote } = req.body;
     
-    // 1. Save Result
+    // Escape strings for SQL
+    const safeResults = JSON.stringify({ 
+      values: results, 
+      note: (technicianNote || "").replace(/'/g, "''") 
+    }).replace(/'/g, "''");
+
+    // 1. Save Result (JSON format)
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".lab_results (lab_order_id, result)
-      VALUES ('${id}', '${JSON.stringify({ observation: result_data })}')
+      VALUES ('${id}', '${safeResults}')
     `);
     
-    // 2. Update Status
+    // 2. Update Status to Completed
     await req.prisma.$executeRawUnsafe(`
       UPDATE "${req.schemaName}".lab_orders SET status = 'Completed' WHERE id = '${id}'
     `);
     
-    res.json({ message: "Lab result recorded" });
+    res.json({ message: "Lab results recorded successfully" });
+  } catch (error) { next(error); }
+});
+
+router.post("/lab/orders/:id/publish", checkPermission('LAB_MANAGE'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Update Status to Published
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".lab_orders SET status = 'Published' WHERE id = '${id}'
+    `);
+    
+    // In a real system, you'd trigger notifications here
+    res.json({ message: "Report published to patient and doctor portal" });
   } catch (error) { next(error); }
 });
 

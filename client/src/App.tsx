@@ -12,6 +12,7 @@ import IPDAdmissionsList from './modules/tenant/ipd/IPDAdmissionsList';
 import IPDPatientView from './modules/tenant/ipd/IPDPatientView';
 import AdmissionDeskPage from './modules/tenant/ipd/AdmissionDeskPage';
 import LabManagementPage from './modules/tenant/lab/LabManagementPage';
+import AILabAssistant from './modules/tenant/lab/AILabAssistant';
 import PharmacyManagementPage from './modules/tenant/pharmacy/PharmacyManagementPage';
 import PharmacyDashboard from './modules/tenant/pharmacy/PharmacyDashboard';
 import InventoryList from './modules/tenant/pharmacy/InventoryList';
@@ -63,6 +64,7 @@ function App() {
         <Route path="/tenant/ipd/admission-desk" element={<AdmissionDeskPage />} />
         <Route path="/tenant/ipd/discharge" element={<DischargeSummariesPage />} />
         <Route path="/tenant/lab" element={<RoleGuard allowedRoles={['admin', 'lab_assistant', 'doctor', 'lab_tech']} moduleName="Laboratory"><LabManagementPage /></RoleGuard>} />
+        <Route path="/tenant/lab/ai" element={<RoleGuard allowedRoles={['admin', 'lab_assistant', 'doctor', 'lab_tech']} moduleName="AI Lab Assistant"><AILabAssistant /></RoleGuard>} />
         <Route path="/tenant/pharmacy" element={<RoleGuard allowedRoles={['admin', 'pharmacist', 'doctor']} moduleName="Pharmacy"><PharmacyManagementPage /></RoleGuard>} />
         <Route path="/tenant/pharmacy/dashboard" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Pharmacy Dashboard"><PharmacyDashboard /></RoleGuard>} />
         <Route path="/tenant/pharmacy/inventory" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Stock Inventory"><InventoryList /></RoleGuard>} />

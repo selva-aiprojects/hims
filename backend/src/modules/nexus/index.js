@@ -125,9 +125,11 @@ router.put("/tenants/:id/branding", async (req, res, next) => {
     // Fallback safe strings
     const safeName = (settings.hospitalName || "Healthezee Hospital").replace(/'/g, "''");
     
+    const jsonSettings = JSON.stringify(settings).replace(/'/g, "''");
+    
     await req.prisma.$executeRawUnsafe(`
       UPDATE nexus.tenants 
-      SET ui_settings = '${JSON.stringify(settings)}'::jsonb, name = '${safeName}'
+      SET ui_settings = '${jsonSettings}'::jsonb, name = '${safeName}'
       WHERE id = '${id}'
     `);
     res.json({ message: "Branding updated successfully in global registry" });

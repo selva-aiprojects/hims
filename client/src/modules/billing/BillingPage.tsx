@@ -33,9 +33,11 @@ export default function BillingPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state as { billType?: BillType; totalAmount?: number; patientName?: string; encounterId?: string } | null;
+  const queryParams = new URLSearchParams(location.search);
+  const queryType = queryParams.get('type') as BillType;
 
   const [loading, setLoading] = useState(false);
-  const [billType] = useState<BillType>(state?.billType || 'OPD');
+  const [billType] = useState<BillType>(state?.billType || queryType || 'OPD');
   
   // Patient Context (Local state to allow search/override)
   const [patientName, setPatientName] = useState(state?.patientName || "");
@@ -64,8 +66,12 @@ export default function BillingPage() {
         
         // Dynamic initial item
         const consultationPrice = srvRes.data.find((s: any) => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation'))?.price || 500;
+        let defaultDesc = 'Consultation Fee';
+        if (state?.billType === 'PHARMACY') defaultDesc = 'Pharmacy Medicines';
+        if (state?.billType === 'LAB') defaultDesc = 'Laboratory Investigation';
+
         setItems([{ 
-          description: state?.billType === 'PHARMACY' ? 'Pharmacy Medicines' : 'Consultation Fee', 
+          description: defaultDesc, 
           price: state?.totalAmount || Number(consultationPrice), 
           quantity: 1, 
           tax: 0 
@@ -121,7 +127,7 @@ export default function BillingPage() {
     <div className="dashboard-layout">
       <Sidebar />
       <main className="main-content">
-        <Header title="Billing & Revenue Center" />
+        <Header title={`${billType} Billing & Revenue Center`} />
 
         <div style={{ maxWidth: '1000px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: '32px' }}>
           <div>
@@ -199,7 +205,15 @@ export default function BillingPage() {
                     }}
                   >
                     <option value="">+ Add Service from Master</option>
-                    {services.map(s => <option key={s.id} value={s.id}>{s.name} (₹{s.price})</option>)}
+                    {services
+                      .filter(s => {
+                        if (billType === 'OPD') return s.type === 'consultation' || s.category === 'Consultation';
+                        if (billType === 'LAB') return s.type === 'lab' || s.category === 'Laboratory' || s.price > 0; // Fallback
+                        if (billType === 'PHARMACY') return s.type === 'pharmacy';
+                        if (billType === 'IPD' || billType === 'DISCHARGE') return true; // Show all for IPD
+                        return true;
+                      })
+                      .map(s => <option key={s.id} value={s.id}>{s.name} (₹{s.price})</option>)}
                   </select>
                </div>
                

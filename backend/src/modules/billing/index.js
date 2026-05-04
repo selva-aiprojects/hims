@@ -3,10 +3,13 @@ const router = express.Router();
 
 router.get("/", async (req, res, next) => {
   try {
+    const { type } = req.query;
+    const filter = type ? `WHERE i.bill_type = '${type}'` : '';
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT i.*, p.name as patient_name 
       FROM "${req.schemaName}".invoices i
       JOIN "${req.schemaName}".patients p ON i.patient_id = p.id
+      ${filter}
       ORDER BY i.created_at DESC
     `);
     res.json(data);

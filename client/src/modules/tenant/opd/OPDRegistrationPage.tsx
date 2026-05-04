@@ -9,6 +9,7 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 export default function OPDRegistrationPage() {
   const navigate = useNavigate();
   const [patients, setPatients] = useState<any[]>([]);
+  const [recentPatients, setRecentPatients] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -19,6 +20,18 @@ export default function OPDRegistrationPage() {
   const [isRegistering, setIsRegistering] = useState(false);
   const [opdEntry, setOpdEntry] = useState({ patientId: '', doctorId: '', departmentId: '', weight: '', height: '', bp: '', temp: '' });
   
+  const fetchRecentPatients = async () => {
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+    try {
+      // Fetch latest 10 patients
+      const res = await axios.get(`${API_BASE}/api/patients?limit=10`, { headers });
+      setRecentPatients(res.data);
+    } catch (err) { console.error(err); }
+  };
+
   useEffect(() => {
     const fetchMasters = async () => {
       const headers = { 
@@ -32,6 +45,7 @@ export default function OPDRegistrationPage() {
         ]);
         setDoctors(docRes.data.filter((s: any) => s.role === 'doctor'));
         setServices(srvRes.data);
+        fetchRecentPatients();
       } catch (err) { console.error(err); }
     };
     fetchMasters();
@@ -40,7 +54,10 @@ export default function OPDRegistrationPage() {
   const consultationService = services.find(s => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation')) || { price: 0 };
   
   const handleSearch = async () => {
-    if (!searchTerm) return;
+    if (!searchTerm) {
+      setPatients([]);
+      return;
+    }
     const headers = { 
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       "x-tenant-id": localStorage.getItem("tenant") || ""
@@ -77,6 +94,7 @@ export default function OPDRegistrationPage() {
       setShowRegForm(false);
       setHistoryFiles(null);
       alert(`Patient Record Created Successfully! MRN: ${res.data.mrn}`);
+      fetchRecentPatients();
     } catch (err: any) { 
       console.error("Registration Failed:", err);
       alert(`Registration Error: ${err.message}`); 
@@ -125,7 +143,7 @@ export default function OPDRegistrationPage() {
       <main className="main-content">
         <Header title="OPD Patient Intake" />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '40px' }}>
           {/* IDENTIFY PATIENT */}
           <section className="form-card">
             <div className="section-header">
@@ -137,10 +155,12 @@ export default function OPDRegistrationPage() {
             
             <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
               <input 
-                placeholder="Name or Phone..." 
+                placeholder="Search by MRN, Name or Phone..." 
                 className="input-field"
                 style={{ flex: 1 }}
-                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
               />
               <button onClick={handleSearch} className="button-primary">Search</button>
             </div>
@@ -150,13 +170,18 @@ export default function OPDRegistrationPage() {
                 <div key={p.id} onClick={() => setOpdEntry({ ...opdEntry, patientId: p.id })} style={{ padding: '16px', borderRadius: '16px', border: `2px solid ${opdEntry.patientId === p.id ? '#3b82f6' : '#e2e8f0'}`, marginBottom: '10px', cursor: 'pointer', background: opdEntry.patientId === p.id ? '#f0f9ff' : 'white' }}>
                   <div style={{ fontWeight: 800 }}>{p.name}</div>
                   <div style={{ fontSize: '12px', color: '#64748b' }}>
-                    <PrivacyValue value={p.phone} type="phone" /> • {p.age} Yrs
+                    <span style={{ color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</span> • <PrivacyValue value={p.phone} type="phone" /> • {p.age} Yrs
                   </div>
                 </div>
               ))}
+              {searchTerm && patients.length === 0 && (
+                <p style={{ textAlign: 'center', fontSize: '13px', color: '#64748b' }}>No matches found.</p>
+              )}
             </div>
 
-            <button onClick={() => setShowRegForm(!showRegForm)} className="button-secondary" style={{ width: '100%', border: '2px dashed #3b82f6', background: 'rgba(59, 130, 246, 0.05)', color: '#3b82f6' }}>+ Register New Patient</button>
+            <button onClick={() => setShowRegForm(!showRegForm)} className="button-secondary" style={{ width: '100%', border: '2px dashed #3b82f6', background: 'rgba(59, 130, 246, 0.05)', color: '#3b82f6' }}>
+              {showRegForm ? '✕ Cancel Registration' : '+ Register New Patient'}
+            </button>
 
             {showRegForm && (
               <form onSubmit={registerPatient} className="form-card" style={{ marginTop: '24px', background: '#f8fafc' }}>
@@ -208,6 +233,62 @@ export default function OPDRegistrationPage() {
 
             <button disabled={!opdEntry.patientId || !opdEntry.doctorId} onClick={startVisit} style={{ width: '100%', padding: '20px', borderRadius: '20px', border: 'none', background: opdEntry.patientId && opdEntry.doctorId ? '#3b82f6' : '#f1f5f9', color: opdEntry.patientId && opdEntry.doctorId ? 'white' : '#94a3b8', fontWeight: 900, fontSize: '16px', cursor: 'pointer' }}>Generate Token & Start Visit</button>
           </section>
+        </div>
+
+        {/* RECENT PATIENTS LIST */}
+        <div className="manage-card" style={{ background: 'white', borderRadius: '28px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Recent Registrations</h3>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>Latest patients added to the system</p>
+            </div>
+            <button onClick={fetchRecentPatients} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Refresh List</button>
+          </div>
+          
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
+                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>MRN / PATIENT</th>
+                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>CONTACT</th>
+                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>AGE/GENDER</th>
+                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DATE</th>
+                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPatients.map((p, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '16px 24px' }}>
+                    <div style={{ fontWeight: 800 }}>{p.name}</div>
+                    <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</div>
+                  </td>
+                  <td style={{ padding: '16px 24px', fontSize: '14px', color: '#475569' }}>
+                    <PrivacyValue value={p.phone} type="phone" />
+                  </td>
+                  <td style={{ padding: '16px 24px', fontSize: '14px', color: '#475569' }}>
+                    {p.age} Y • {p.gender}
+                  </td>
+                  <td style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8' }}>
+                    {new Date(p.created_at).toLocaleDateString()}
+                  </td>
+                  <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                    <button 
+                      onClick={() => {
+                        setOpdEntry({ ...opdEntry, patientId: p.id });
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{ padding: '8px 16px', borderRadius: '10px', background: opdEntry.patientId === p.id ? '#10b981' : '#f1f5f9', color: opdEntry.patientId === p.id ? 'white' : '#475569', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                    >
+                      {opdEntry.patientId === p.id ? 'Selected' : 'Select for Visit'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {recentPatients.length === 0 && (
+                <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No recent registrations found.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </main>
     </div>

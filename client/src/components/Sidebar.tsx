@@ -25,8 +25,8 @@ export default function Sidebar() {
 
   const groups = [
     { title: "Clinical Workflow", items: dynamicMenus.filter(m => ["Doctor's Queue", "IPD Census & Daycare", "OPD Registration", "OPD Queue", "Consultation Desk", "Appointment List", "IPD Bed Map", "Admission Desk", "Discharge Summaries"].includes(m.label)) },
-    { title: "Services & Pharmacy", items: dynamicMenus.filter(m => ["Laboratory", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"].includes(m.label)) },
-    { title: "Billing & Finance", items: dynamicMenus.filter(m => ["Invoicing & Billing", "Hospital Billing", "Insurance Management"].includes(m.label)) },
+    { title: "Services & Pharmacy", items: dynamicMenus.filter(m => ["Laboratory", "AI Diagnostic Import", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"].includes(m.label)) },
+    { title: "Billing & Finance", items: dynamicMenus.filter(m => ["Invoicing & Billing", "OPD Billing", "Laboratory Billing", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"].includes(m.label)) },
     { title: "Management", items: dynamicMenus.filter(m => ["Branding & UI Settings", "Staff & RBAC", "Hospital Settings (Masters)", "Staff Management", "Hospital Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"].includes(m.label)) }
   ];
 

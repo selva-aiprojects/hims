@@ -11,10 +11,24 @@ export default function StaffManagementPage() {
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'rbac'>('list');
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'doctor' });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'doctor',
+    license_number: '',
+    age: '',
+    qualifications: '',
+    experience_years: '',
+    specialization: '',
+    department: ''
+  });
 
-  // All valid system roles — maps to requireRole() guards in the backend
+  // All valid system roles
   const ROLES = [
     { value: 'admin',         label: 'Admin',           desc: 'Full system access' },
     { value: 'doctor',        label: 'Doctor',          desc: 'OPD, prescriptions, lab orders' },
@@ -25,12 +39,9 @@ export default function StaffManagementPage() {
     { value: 'staff',         label: 'General Staff',   desc: 'Read-only access' },
   ];
 
-  const fetchStaff = async () => {
+  const fetchStaff = async (search: string = "") => {
     const currentRole = (localStorage.getItem("role") || "").toLowerCase();
-    const currentPlan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
 
-    // RBAC Guard: Only Admin/Nexus can manage staff
-    // Tier Guard: Staff management is available for Standard and above
     if (currentRole !== 'admin' && currentRole !== 'nexus') {
       navigate("/tenant/dashboard");
       return;
@@ -41,7 +52,11 @@ export default function StaffManagementPage() {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
-      const res = await axios.get(`${API_BASE}/api/hospital/staff`, { headers });
+      const url = search 
+        ? `${API_BASE}/api/hospital/staff?search=${encodeURIComponent(search)}`
+        : `${API_BASE}/api/hospital/staff`;
+        
+      const res = await axios.get(url, { headers });
       setStaff(res.data);
     } catch (err) {
       console.error("Failed to fetch staff", err);
@@ -54,20 +69,89 @@ export default function StaffManagementPage() {
     fetchStaff(); 
   }, []);
 
-  const handleAddStaff = async (e: React.FormEvent) => {
+  // Handle Search on Enter or debounced
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      if (activeTab === 'list') {
+        fetchStaff(searchTerm);
+      }
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm]);
+
+  const handleOpenAddModal = () => {
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: 'doctor',
+      license_number: '',
+      age: '',
+      qualifications: '',
+      experience_years: '',
+      specialization: '',
+      department: ''
+    });
+    setIsEditing(false);
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (member: any) => {
+    setFormData({
+      name: member.name || '',
+      email: member.email || '',
+      password: '', // Don't show password during edit
+      role: member.role || 'doctor',
+      license_number: member.license_number || '',
+      age: member.age || '',
+      qualifications: member.qualifications || '',
+      experience_years: member.experience_years || '',
+      specialization: member.specialization || '',
+      department: member.department || ''
+    });
+    setEditId(member.id);
+    setIsEditing(true);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const headers = { 
         Authorization: `Bearer ${localStorage.getItem("token")}`,
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
-      await axios.post(`${API_BASE}/api/hospital/staff`, formData, { headers });
-      alert("Staff member added successfully!");
+      
+      if (isEditing && editId) {
+        await axios.put(`${API_BASE}/api/hospital/staff/${editId}`, formData, { headers });
+        alert("Staff member updated successfully!");
+      } else {
+        await axios.post(`${API_BASE}/api/hospital/staff`, formData, { headers });
+        alert("Staff member added successfully!");
+      }
+      
       setShowModal(false);
-      fetchStaff();
+      fetchStaff(searchTerm);
     } catch (err: any) { 
-        const msg = err.response?.data?.error || "Failed to add staff";
+        const msg = err.response?.data?.error || "Operation failed";
         alert(msg); 
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this staff member? This action cannot be undone.")) return;
+    
+    try {
+      const headers = { 
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "x-tenant-id": localStorage.getItem("tenant") || ""
+      };
+      await axios.delete(`${API_BASE}/api/hospital/staff/${id}`, { headers });
+      alert("Staff member deleted successfully!");
+      fetchStaff(searchTerm);
+    } catch (err: any) {
+      alert("Failed to delete staff member");
     }
   };
 
@@ -77,9 +161,30 @@ export default function StaffManagementPage() {
       <main className="main-content">
         <Header title="Staff & RBAC" />
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div style={{ position: 'relative', width: '350px' }}>
+             <input 
+               type="text"
+               placeholder="Search by name, role or department..."
+               style={{ 
+                 width: '100%', 
+                 padding: '12px 16px 12px 40px', 
+                 borderRadius: '12px', 
+                 border: '1px solid #e2e8f0',
+                 fontSize: '14px',
+                 fontWeight: 600,
+                 background: 'white'
+               }}
+               value={searchTerm}
+               onChange={(e) => setSearchTerm(e.target.value)}
+             />
+             <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+             </div>
+          </div>
+          
           <button 
-            onClick={() => setShowModal(true)}
+            onClick={handleOpenAddModal}
             style={{ padding: '12px 24px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
           >
             + Add Staff Member
@@ -132,43 +237,78 @@ export default function StaffManagementPage() {
 
         {activeTab === 'list' ? (
           <div className="manage-card" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            {loading ? (
+            {loading && staff.length === 0 ? (
               <div style={{ padding: '40px', textAlign: 'center' }}>Loading staff records...</div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
                     <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>STAFF NAME</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>EMAIL</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ROLE</th>
+                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>EMAIL / ROLE</th>
+                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>DETAILS</th>
                     <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>JOINED</th>
+                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {staff.map((member: any, i: number) => (
                     <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '16px 24px', fontWeight: 600 }}>{member.name}</td>
-                      <td style={{ padding: '16px 24px', color: '#64748b' }}>{member.email}</td>
                       <td style={{ padding: '16px 24px' }}>
+                        <div style={{ fontWeight: 600 }}>{member.name}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>ID: {member.id.substring(0,8)}</div>
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ color: '#64748b', fontSize: '13px' }}>{member.email}</div>
                         <span style={{ 
-                          padding: '4px 12px', 
-                          borderRadius: '20px', 
-                          fontSize: '11px', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px', 
+                          fontSize: '10px', 
                           fontWeight: 700,
                           textTransform: 'uppercase',
                           background: member.role === 'admin' ? '#fee2e2' : '#f0f9ff',
-                          color: member.role === 'admin' ? '#ef4444' : '#3b82f6'
+                          color: member.role === 'admin' ? '#ef4444' : '#3b82f6',
+                          display: 'inline-block',
+                          marginTop: '4px'
                         }}>
                           {member.role}
                         </span>
                       </td>
+                      <td style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b' }}>
+                        {member.role === 'doctor' ? (
+                          <>
+                            <div>Lic: {member.license_number || 'N/A'}</div>
+                            <div>Spec: {member.specialization || 'N/A'}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div>Dept: {member.department || 'N/A'}</div>
+                            <div>Exp: {member.experience_years || '0'} yrs</div>
+                          </>
+                        )}
+                      </td>
                       <td style={{ padding: '16px 24px', color: '#94a3b8', fontSize: '13px' }}>
                         {member.created_at ? new Date(member.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            onClick={() => handleOpenEditModal(member)}
+                            style={{ padding: '6px 12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(member.id)}
+                            style={{ padding: '6px 12px', borderRadius: '8px', background: '#fee2e2', color: '#ef4444', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {staff.length === 0 && !loading && (
-                      <tr><td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No staff found.</td></tr>
+                      <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No staff found matching "{searchTerm}"</td></tr>
                   )}
                 </tbody>
               </table>
@@ -215,44 +355,110 @@ export default function StaffManagementPage() {
 
         {showModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '400px' }}>
-              <h2 style={{ marginBottom: '24px', fontSize: '20px', fontWeight: 800 }}>Add Staff Member</h2>
-              <form onSubmit={handleAddStaff}>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Full Name</label>
-                  <input 
-                    required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
-                    value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
-                  />
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h2 style={{ marginBottom: '24px', fontSize: '20px', fontWeight: 800 }}>{isEditing ? 'Edit Staff Member' : 'Add Staff Member'}</h2>
+              <form onSubmit={handleSubmit}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Full Name</label>
+                    <input 
+                      required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Email Address</label>
+                    <input 
+                      type="email" required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
+                    />
+                  </div>
                 </div>
+
+                {!isEditing && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Temporary Password</label>
+                    <input 
+                      type="password" required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
+                    />
+                  </div>
+                )}
+
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Email Address</label>
-                  <input 
-                    type="email" required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
-                    value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
-                  />
-                </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Temporary Password</label>
-                  <input 
-                    type="password" required style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
-                    value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
-                  />
-                </div>
-                <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Role</label>
                   <select 
                     style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
                     value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})}
                   >
                     {ROLES.map(r => (
-                      <option key={r.value} value={r.value}>{r.label} — {r.desc}</option>
+                      <option key={r.value} value={r.value}>{r.label}</option>
                     ))}
                   </select>
                 </div>
+
+                <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '24px 0' }} />
+                
+                <h3 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '16px', color: '#1e293b' }}>Professional Details</h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Age</label>
+                    <input 
+                      type="number" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Years of Experience</label>
+                    <input 
+                      type="number" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.experience_years} onChange={e => setFormData({...formData, experience_years: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Qualifications</label>
+                  <input 
+                    placeholder="e.g. MBBS, MD, PhD"
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                    value={formData.qualifications} onChange={e => setFormData({...formData, qualifications: e.target.value})}
+                  />
+                </div>
+
+                {formData.role === 'doctor' ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>License Number</label>
+                      <input 
+                        style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                        value={formData.license_number} onChange={e => setFormData({...formData, license_number: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Specialization (Dept)</label>
+                      <input 
+                        style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                        value={formData.specialization} onChange={e => setFormData({...formData, specialization: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Department</label>
+                    <input 
+                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})}
+                    />
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'none', cursor: 'pointer' }}>Cancel</button>
-                  <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Create User</button>
+                  <button type="submit" style={{ flex: 1, padding: '12px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+                    {isEditing ? 'Save Changes' : 'Create User'}
+                  </button>
                 </div>
               </form>
             </div>
