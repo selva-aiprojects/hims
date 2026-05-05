@@ -317,9 +317,24 @@ CREATE TABLE visits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id UUID REFERENCES patients(id),
   doctor_id UUID REFERENCES users(id),
-  appointment_id UUID REFERENCES appointments(id),
-  status VARCHAR(50),
+  visit_type VARCHAR(50),
+  visit_date TIMESTAMP,
+  notes TEXT,
   created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ================= DOCTOR AVAILABILITY =================
+DROP TABLE IF EXISTS doctor_availability CASCADE;
+CREATE TABLE doctor_availability (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  doctor_id UUID REFERENCES users(id),
+  date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  is_available BOOLEAN DEFAULT true,
+  recurring_pattern VARCHAR(100), -- daily, weekly, monthly
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- ================= PHARMACY =================
