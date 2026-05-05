@@ -14,6 +14,7 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 - OPD Consultation (Core EMR)
 - Prescription Generation
 - Invoicing & Billing
+- **Smart Scheduling**: Doctor availability management with persistent blocking and recurring pattern support.
 - Message Board (Internal Announcements)
 - Mail Management (Signal Tracking)
 - Support Ticketing System
@@ -88,7 +89,16 @@ The system enforces a strict operational lifecycle:
 
 ---
 
-## 7. Success Metrics
+## 7. UI/UX & Design Experience
+The HIMS platform utilizes a **Premium Clinical Design System** optimized for high-velocity environments:
+- **Dynamic Branding Engine**: Real-time theme injection allowing hospitals to customize primary colors, accent highlights, and corporate logos via a centralized Settings module.
+- **Accordion Workflow Navigation**: A structured navigation hierarchy that groups modules into Clinical, Services, Billing, and Management clusters, reducing cognitive load for hospital staff.
+- **Zero-Jump Architecture**: CSS-optimized layout persistence that eliminates UI shifting during navigation, ensuring a stable and predictable experience for medical practitioners.
+- **Accessibility & Contrast**: High-contrast, theme-aware interfaces designed for varied lighting conditions in hospital wards and labs.
+
+---
+
+## 8. Success Metrics
 - **Consultation Speed**: < 2 minutes per patient.
 - **Prescription Efficiency**: < 3 clicks.
 - **Revenue Capture**: 100% linkage between clinical orders and invoices.

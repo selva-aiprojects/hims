@@ -6,6 +6,11 @@ CREATE TABLE tenants (
   db_name VARCHAR,
   plan VARCHAR,
   default_pwd VARCHAR,
+  -- Branding Overrides (Nexus Controlled)
+  primary_dark VARCHAR(50),
+  primary_accent VARCHAR(50),
+  app_bg VARCHAR(50),
+  logo_url TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 

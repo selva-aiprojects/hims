@@ -12,6 +12,15 @@ CREATE TABLE tenant_settings (
   tenant_code VARCHAR(100),
   timezone VARCHAR(50) DEFAULT 'Asia/Kolkata',
   currency VARCHAR(10) DEFAULT 'INR',
+  -- Branding Settings
+  primary_dark VARCHAR(50) DEFAULT '#0f172a',
+  primary_accent VARCHAR(50) DEFAULT '#3b82f6',
+  app_bg VARCHAR(50) DEFAULT '#f8fafc',
+  text_main VARCHAR(50) DEFAULT '#1e293b',
+  hero_bg VARCHAR(50) DEFAULT '#ffffff',
+  hero_text VARCHAR(50) DEFAULT '#0f172a',
+  logo_url TEXT,
+  font_size INTEGER DEFAULT 14,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -334,7 +343,8 @@ CREATE TABLE doctor_availability (
   is_available BOOLEAN DEFAULT true,
   recurring_pattern VARCHAR(100), -- daily, weekly, monthly
   created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  updated_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(doctor_id, date, start_time)
 );
 
 -- ================= PHARMACY =================

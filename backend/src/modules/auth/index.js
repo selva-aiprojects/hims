@@ -149,7 +149,7 @@ router.post("/login", async (req, res) => {
                 ('Doctor''s Queue', '/tenant/opd/doctor-queue', 'Activity', 'basic', 3),
                 ('Consultation Desk', '/tenant/opd/consultation', 'Stethoscope', 'basic', 4),
                 ('Appointment List', '/tenant/appointments', 'Calendar', 'basic', 5),
-                ('Doctor Calendar', '/tenant/appointments/doctor-calendar', 'Calendar', 'basic', 6),
+                ('Doctor Availability and Book Appointments', '/tenant/appointments/doctor-calendar', 'Calendar', 'basic', 6),
                 ('Admission Desk', '/tenant/ipd/admission-desk', 'Building', 'basic', 7),
                 ('IPD Bed Map', '/tenant/ipd/beds', 'Map', 'basic', 8),
                 ('Laboratory', '/tenant/lab', 'FlaskConical', 'standard', 9),
@@ -170,7 +170,7 @@ router.post("/login", async (req, res) => {
                 WHERE r.name IN ('ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST')
                 AND m.label IN (
                   'OPD Registration', 'OPD Queue', 'Doctor''s Queue', 'Consultation Desk', 
-                  'Appointment List', 'Doctor Calendar', 'Admission Desk', 'IPD Bed Map',
+                  'Appointment List', 'Doctor Availability and Book Appointments', 'Admission Desk', 'IPD Bed Map',
                   'Laboratory', 'Pharmacy Dashboard', 'Stock Inventory', 'Prescription Queue',
                   'Staff & RBAC', 'Hospital Settings', 'Help & Support', 'Ticketing Management System'
                 )
@@ -248,6 +248,7 @@ router.post("/login", async (req, res) => {
                     ('Dashboard', '/tenant/dashboard', 'Dashboard', 1, 'basic'),
                     ('OPD Registration', '/tenant/opd/registration', 'OPD', 2, 'basic'),
                     ('Doctor''s Queue', '/tenant/opd/queue', 'Doctor', 3, 'basic'),
+                    ('Doctor Availability and Book Appointments', '/tenant/appointments/doctor-calendar', 'Calendar', 4, 'basic'),
                     ('Invoicing & Billing', '/billing', 'Billing', 10, 'basic'),
                     ('Branding & UI Settings', '/tenant/settings', 'Dashboard', 12, 'basic'),
                     ('Staff & RBAC', '/tenant/staff', 'Doctor', 13, 'basic'),

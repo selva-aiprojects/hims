@@ -3,10 +3,24 @@ import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Plus, Settings, ChevronRight, ChevronLeft, X } from 'lucide-react';
+import { 
+  Plus, 
+  Settings, 
+  ChevronRight, 
+  ChevronLeft, 
+  X, 
+  Calendar, 
+  Clock, 
+  User, 
+  Layout, 
+  CalendarDays,
+  Stethoscope,
+  ChevronDown,
+  Info
+} from 'lucide-react';
 
-export default function DoctorCalendarPage() {
-  const [selectedDoctor, setSelectedDoctor] = useState<string>("");
+export default function AdvancedDoctorAvailabilityPage() {
+  const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -19,8 +33,23 @@ export default function DoctorCalendarPage() {
   };
 
   useEffect(() => {
-    fetchDoctors();
+    fetchInitialData();
   }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/hospital/staff`, { headers });
+      const doctorList = response.data.filter((staff: any) => staff.role === 'doctor' || staff.role === 'DOCTOR');
+      setDoctors(doctorList);
+      if (doctorList.length > 0) {
+        setSelectedDoctor(doctorList[0]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (selectedDoctor) {
@@ -28,352 +57,240 @@ export default function DoctorCalendarPage() {
     }
   }, [selectedDoctor, currentDate]);
 
-  const fetchDoctors = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/hospital/staff`, { headers });
-      const doctorList = response.data.filter((staff: any) => staff.role === 'doctor');
-      setDoctors(doctorList);
-      if (doctorList.length > 0 && !selectedDoctor) {
-        setSelectedDoctor(doctorList[0].id);
-      }
-    } catch (error) {
-      console.error("Failed to fetch doctors:", error);
-    }
-  };
-
   const fetchAppointments = async () => {
-    if (!selectedDoctor) return;
-    
     try {
       const response = await axios.get(`${API_BASE}/api/appointments`, { headers });
-      const doctorAppointments = response.data.filter((apt: any) => 
-        apt.doctor_id === selectedDoctor && 
-        new Date(apt.appointment_time).toDateString() === currentDate.toDateString()
-      );
-      setAppointments(doctorAppointments);
-      setLoading(false);
-    } catch (error) {
-      console.error("Failed to fetch appointments:", error);
-      setLoading(false);
+      setAppointments(response.data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const generateTimeSlots = () => {
-    const slots = [];
-    const startHour = 8; // 8 AM
-    const endHour = 18; // 6 PM
-    const slotDuration = 30; // 30 minutes
-    
-    for (let hour = startHour; hour < endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += slotDuration) {
-        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(time);
-      }
-    }
-    
-    return slots;
-  };
+  const timeSlots = Array.from({ length: 20 }, (_, i) => {
+    const hour = Math.floor(i / 2) + 8;
+    const minute = (i % 2) * 30;
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  });
 
   const getWeekDates = () => {
     const dates = [];
-    const startOfWeek = new Date(currentDate);
-    const day = startOfWeek.getDay();
-    startOfWeek.setDate(startOfWeek.getDate() - day);
-
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - start.getDay());
     for (let i = 0; i < 7; i++) {
-      const date = new Date(startOfWeek);
-      date.setDate(startOfWeek.getDate() + i);
-      dates.push(date);
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      dates.push(d);
     }
-    
     return dates;
   };
 
-  const isTimeSlotAvailable = (date: Date, time: string) => {
-    const dayAvailability = availability.find((avail: any) => 
-      new Date(avail.date).toDateString() === date.toDateString()
-    );
-    
-    if (!dayAvailability) return false;
-    
-    const [hour, minute] = time.split(':').map(Number);
-    const slotTime = new Date(date);
-    slotTime.setHours(hour, minute);
-    
-    const dayStart = new Date(dayAvailability.start_time);
-    const dayEnd = new Date(dayAvailability.end_time);
-    
-    return slotTime >= dayStart && slotTime <= dayEnd && dayAvailability.is_available;
-  };
+  const weekDates = getWeekDates();
 
-  const hasAppointmentConflict = (date: Date, time: string) => {
-    return appointments.some((apt: any) => {
-      const aptTime = new Date(apt.appointment_time);
-      const aptDate = new Date(aptTime);
-      aptDate.setHours(0, 0, 0, 0);
-      
-      const [hour, minute] = time.split(':').map(Number);
-      const slotTime = new Date(date);
-      slotTime.setHours(hour, minute);
-      
-      // Check if appointment is within 30 minutes of the slot
-      const timeDiff = Math.abs(slotTime.getTime() - aptTime.getTime());
-      return timeDiff < 30 * 60 * 1000; // 30 minutes in milliseconds
-    });
-  };
-
-  const handleBookAppointment = async (patientId: string, time: string, date: Date) => {
-    try {
-      const appointmentData = {
-        patient_id: patientId,
-        doctor_id: selectedDoctor,
-        time: new Date(date).toISOString(),
-        status: 'Scheduled'
-      };
-
-      await axios.post(`${API_BASE}/api/appointments`, appointmentData, { headers });
-      fetchAppointments();
-      alert("Appointment booked successfully!");
-    } catch (error) {
-      alert("Failed to book appointment");
-    }
-  };
-
-  const renderWeekView = () => {
-    const weekDates = getWeekDates();
-    const timeSlots = generateTimeSlots();
-    
+  if (loading) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: '80px repeat(7, 1fr)', gap: '1px', background: '#e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-        {/* Time column */}
-        <div style={{ background: '#f8fafc', padding: '8px 4px', fontSize: '12px', fontWeight: 600 }}>
-          <div style={{ height: '40px' }}></div>
-          {timeSlots.map((time, i) => (
-            <div key={i} style={{ height: '40px', display: 'flex', alignItems: 'center', fontSize: '10px', color: '#64748b' }}>
-              {time}
-            </div>
-          ))}
-        </div>
-        
-        {/* Days of week */}
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, dayIndex) => (
-          <div key={dayIndex} style={{ background: '#f8fafc' }}>
-            <div style={{ padding: '8px', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid #e2e8f0', fontSize: '12px' }}>
-              {day}
-            </div>
-            {weekDates.map((date, dateIndex) => {
-              if (date.getDay() === dayIndex) {
-                return (
-                  <div key={dateIndex} style={{ height: '40px', padding: '2px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '10px', textAlign: 'center', marginBottom: '2px' }}>
-                      {date.getDate()}
-                    </div>
-                    {timeSlots.map((time, slotIndex) => {
-                      const isAvailable = isTimeSlotAvailable(date, time);
-                      const hasConflict = hasAppointmentConflict(date, time);
-                      const appointment = appointments.find((apt: any) => {
-                        const aptTime = new Date(apt.appointment_time);
-                        const [hour, minute] = time.split(':').map(Number);
-                        return aptTime.getHours() === hour && aptTime.getMinutes() === minute;
-                      });
-
-                      return (
-                        <div 
-                          key={slotIndex}
-                          style={{
-                            height: '36px',
-                            background: appointment ? '#3b82f6' : isAvailable ? '#10b981' : '#f1f5f9',
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '4px',
-                            margin: '1px',
-                            cursor: isAvailable && !hasConflict ? 'pointer' : 'not-allowed',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '10px'
-                          }}
-                          onClick={() => {
-                            if (isAvailable && !hasConflict && !appointment) {
-                              // Open patient selection modal
-                            }
-                          }}
-                        >
-                          {appointment ? (
-                            <span style={{ color: 'white', fontSize: '8px' }}>Booked</span>
-                          ) : hasConflict ? (
-                            <AlertCircle size={12} style={{ color: '#ef4444' }} />
-                          ) : isAvailable ? (
-                            <Plus size={12} style={{ color: 'white' }} />
-                          ) : (
-                            <X size={12} style={{ color: '#94a3b8' }} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              }
-              return null;
-            })}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const renderDayView = () => {
-    const timeSlots = generateTimeSlots();
-    
-    return (
-      <div style={{ background: 'white', borderRadius: '12px', padding: '24px' }}>
-        <h3 style={{ marginBottom: '24px', fontSize: '18px', fontWeight: 800 }}>
-          {currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </h3>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '16px' }}>
-          {timeSlots.map((time, i) => {
-            const isAvailable = isTimeSlotAvailable(currentDate, time);
-            const hasConflict = hasAppointmentConflict(currentDate, time);
-            const appointment = appointments.find((apt: any) => {
-              const aptTime = new Date(apt.appointment_time);
-              const [hour, minute] = time.split(':').map(Number);
-              return aptTime.getHours() === hour && aptTime.getMinutes() === minute;
-            });
-
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '8px 0' }}>
-                <div style={{ width: '60px', fontSize: '14px', color: '#64748b', fontWeight: 500 }}>
-                  {time}
-                </div>
-                <div
-                  style={{
-                    flex: 1,
-                    height: '40px',
-                    background: appointment ? '#3b82f6' : isAvailable ? '#10b981' : '#f1f5f9',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    margin: '0 8px',
-                    cursor: isAvailable && !hasConflict && !appointment ? 'pointer' : 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                  onClick={() => {
-                    if (isAvailable && !hasConflict && !appointment) {
-                      // Open patient selection modal
-                    }
-                  }}
-                >
-                  {appointment ? (
-                    <div style={{ color: 'white', fontSize: '12px', fontWeight: 600 }}>
-                      {appointment.patient_name}
-                    </div>
-                  ) : hasConflict ? (
-                    <AlertCircle size={16} style={{ color: '#ef4444' }} />
-                  ) : isAvailable ? (
-                    <Plus size={16} style={{ color: 'white' }} />
-                  ) : (
-                    <X size={16} style={{ color: '#94a3b8' }} />
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      <div style={{ display: 'flex', height: '100vh', background: '#f8fafc' }}>
+        <Sidebar />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="loader"></div>
         </div>
       </div>
     );
-  };
+  }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ background: '#f4f7fa', minHeight: '100vh', display: 'flex' }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: '32px' }}>
-        <Header title="Doctor Calendar & Availability" />
+      <main className="main-content" style={{ flex: 1, padding: '24px 40px' }}>
+        <Header title="Advanced Scheduling Console" />
 
-        <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ marginTop: '32px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
-          {/* Header Controls */}
-          <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <select
-                value={selectedDoctor}
-                onChange={(e) => setSelectedDoctor(e.target.value)}
-                style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }}
-              >
-                <option value="">Select Doctor</option>
-                {doctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
-                    Dr. {doctor.name}
-                  </option>
-                ))}
-              </select>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  onClick={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setDate(newDate.getDate() - 7);
-                    setCurrentDate(newDate);
-                  }}
-                  style={{ padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}
+          {/* Advanced Control Bar */}
+          <section style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            background: 'white',
+            padding: '24px 32px',
+            borderRadius: '24px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.03)',
+            border: '1px solid #eef2f6'
+          }}>
+            <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8fafc', padding: '10px 16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+                <Stethoscope size={18} color="#0ea5e9" />
+                <select 
+                  value={selectedDoctor?.id || ""} 
+                  onChange={(e) => setSelectedDoctor(doctors.find(d => d.id === e.target.value))}
+                  style={{ border: 'none', background: 'none', fontWeight: 700, outline: 'none', color: '#1e293b' }}
                 >
-                  <ChevronLeft size={16} />
-                </button>
-                
-                <div style={{ fontSize: '16px', fontWeight: 600, minWidth: '150px', textAlign: 'center' }}>
-                  {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </div>
-                
-                <button
-                  onClick={() => {
-                    const newDate = new Date(currentDate);
-                    newDate.setDate(newDate.getDate() + 7);
-                    setCurrentDate(newDate);
-                  }}
-                  style={{ padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer' }}
-                >
-                  <ChevronRight size={16} />
-                </button>
+                  {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
+                </select>
               </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setViewMode(viewMode === 'week' ? 'day' : 'week')}
-                style={{ 
-                  padding: '8px 16px', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0', 
-                  background: viewMode === 'week' ? '#3b82f6' : 'white',
-                  color: viewMode === 'week' ? 'white' : '#1e293b',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 500
-                }}
-              >
-                {viewMode === 'week' ? 'Day View' : 'Week View'}
-              </button>
-              
-              <button
-                onClick={() => setShowAvailabilityModal(true)}
-                style={{ padding: '8px 16px', borderRadius: '8px', background: '#10b981', color: 'white', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}
-              >
-                <Settings size={16} style={{ marginRight: '8px' }} />
-                Set Availability
-              </button>
-            </div>
-          </div>
 
-          {/* Calendar View */}
-          <div style={{ padding: '24px' }}>
-            {loading ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-                Loading calendar...
+              <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px' }}>
+                <button 
+                  onClick={() => setViewMode('week')}
+                  style={{ 
+                    padding: '8px 16px', 
+                    borderRadius: '10px', 
+                    border: 'none', 
+                    background: viewMode === 'week' ? 'white' : 'transparent',
+                    color: viewMode === 'week' ? '#0ea5e9' : '#64748b',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'week' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                  }}
+                >
+                  Week View
+                </button>
+                <button 
+                  onClick={() => setViewMode('day')}
+                  style={{ 
+                    padding: '8px 16px', 
+                    borderRadius: '10px', 
+                    border: 'none', 
+                    background: viewMode === 'day' ? 'white' : 'transparent',
+                    color: viewMode === 'day' ? '#0ea5e9' : '#64748b',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: viewMode === 'day' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                  }}
+                >
+                  Day View
+                </button>
               </div>
-            ) : viewMode === 'week' ? renderWeekView() : renderDayView()}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button onClick={() => {
+                  const d = new Date(currentDate); d.setDate(d.getDate() - (viewMode === 'week' ? 7 : 1)); setCurrentDate(d);
+                }} style={navBtnStyle}><ChevronLeft size={18} /></button>
+                <span style={{ fontWeight: 800, color: '#1e293b', fontSize: '15px' }}>
+                  {viewMode === 'week' ? currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+                <button onClick={() => {
+                  const d = new Date(currentDate); d.setDate(d.getDate() + (viewMode === 'week' ? 7 : 1)); setCurrentDate(d);
+                }} style={navBtnStyle}><ChevronRight size={18} /></button>
+              </div>
+              <button style={{ ...actionBtnStyle, background: '#1e293b', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Settings size={18} />
+                Global Settings
+              </button>
+            </div>
+          </section>
+
+          {/* Grid View */}
+          <div style={{ 
+            background: 'white', 
+            borderRadius: '32px', 
+            overflow: 'hidden', 
+            boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+            border: '1px solid #eef2f6'
+          }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: `100px repeat(${viewMode === 'week' ? 7 : 1}, 1fr)`, 
+              background: '#fcfdfe',
+              borderBottom: '1px solid #f1f5f9'
+            }}>
+              <div style={{ padding: '20px', borderRight: '1px solid #f1f5f9' }}></div>
+              {(viewMode === 'week' ? weekDates : [currentDate]).map((date, i) => (
+                <div key={i} style={{ padding: '16px', textAlign: 'center', borderRight: i < 6 ? '1px solid #f1f5f9' : 'none' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b', marginTop: '2px' }}>{date.getDate()}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
+              {timeSlots.map((time, slotIdx) => (
+                <div key={slotIdx} style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: `100px repeat(${viewMode === 'week' ? 7 : 1}, 1fr)`,
+                  borderBottom: '1px solid #f8fafc'
+                }}>
+                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#cbd5e1', borderRight: '1px solid #f1f5f9' }}>{time}</div>
+                  {(viewMode === 'week' ? weekDates : [currentDate]).map((date, dayIdx) => {
+                    const appt = appointments.find(a => 
+                      a.doctor_id === selectedDoctor?.id && 
+                      new Date(a.appointment_time).getHours() === parseInt(time.split(':')[0]) &&
+                      new Date(a.appointment_time).getMinutes() === parseInt(time.split(':')[1]) &&
+                      new Date(a.appointment_time).toDateString() === date.toDateString()
+                    );
+                    return (
+                      <div key={dayIdx} style={{ padding: '4px', borderRight: dayIdx < 6 ? '1px solid #f8fafc' : 'none' }}>
+                        {appt ? (
+                          <div style={{ 
+                            background: '#0ea5e9', 
+                            color: 'white', 
+                            padding: '8px 12px', 
+                            borderRadius: '10px', 
+                            fontSize: '11px', 
+                            fontWeight: 700,
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}>
+                            {appt.patient_name}
+                          </div>
+                        ) : (
+                          <div style={{ height: '36px', borderRadius: '8px', border: '1px dashed #e2e8f0' }}></div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
+
+        <style>{`
+          .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #e2e8f0;
+            border-bottom-color: #0ea5e9;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+          }
+          @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </main>
     </div>
   );
 }
+
+const navBtnStyle = {
+  width: '36px',
+  height: '36px',
+  borderRadius: '10px',
+  border: '1px solid #e2e8f0',
+  background: 'white',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  color: '#64748b',
+  transition: 'all 0.2s'
+};
+
+const actionBtnStyle = {
+  padding: '10px 20px',
+  borderRadius: '12px',
+  fontSize: '14px',
+  fontWeight: 800,
+  cursor: 'pointer',
+  border: '1px solid #e2e8f0',
+  transition: 'all 0.2s'
+};
+

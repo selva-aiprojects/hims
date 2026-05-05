@@ -1,132 +1,127 @@
-import { NavLink } from "react-router-dom";
-import BrandLogo from "./BrandLogo";
+import { useState, useEffect, useMemo } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { 
+  LayoutDashboard, 
+  Users, 
+  FlaskConical, 
+  Pill, 
+  Receipt, 
+  Settings, 
+  Bed, 
+  ClipboardList, 
+  RefreshCw,
+  Calendar,
+  Stethoscope,
+  ChevronRight,
+  ChevronDown,
+  ShieldCheck,
+  LifeBuoy,
+  Box
+} from 'lucide-react';
 
-const Icons = {
-  Dashboard: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>,
-  OPD: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>,
-  Doctor: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 14 4-4 4 4-4 4-4-4Z"/><path d="M12 14c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-4c0-1.1-.9-2-2-2"/><path d="M16 10V6a4 4 0 0 0-8 0v4"/></svg>,
-  Lab: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h12l-2 6H8l-2-6zM8 9v10a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V9"/></svg>,
-  Pharmacy: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>,
-  Billing: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-  Settings: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  Bed: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>,
-  Clipboard: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>,
-  Pill: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>,
-  Receipt: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5V6.5"/></svg>
+const Icons: Record<string, any> = {
+  Dashboard: LayoutDashboard,
+  OPD: Users,
+  Doctor: Stethoscope,
+  Lab: FlaskConical,
+  Pharmacy: Pill,
+  Billing: Receipt,
+  Settings: Settings,
+  Bed: Bed,
+  Clipboard: ClipboardList,
+  Calendar: Calendar,
+  Help: LifeBuoy
+};
+
+const normalizePath = (label: string, originalPath: string) => {
+  const l = label.toLowerCase();
+  const overrides: Record<string, string> = {
+    "consultation desk": "/tenant/opd/consultation",
+    "opd queue": "/tenant/opd/queue",
+    "doctor's queue": "/tenant/opd/queue",
+    "ipd admission desk": "/tenant/ipd/admission-desk",
+    "admission desk": "/tenant/ipd/admission-desk",
+    "user management": "/tenant/staff/user-management",
+    "appointment list": "/tenant/appointments",
+    "doctor availability and book appointments": "/tenant/appointments/doctor-calendar",
+    "laboratory": "/tenant/lab",
+    "laboratory billing": "/tenant/lab/billing",
+    "ai lab assistant": "/tenant/lab/ai",
+    "help & support": "/tenant/support",
+    "ticketing management system": "/tenant/support/tickets",
+    "pharmacy": "/tenant/pharmacy",
+    "staff & rbac": "/tenant/staff",
+    "staff management": "/tenant/staff",
+    "pharmacy dashboard": "/tenant/pharmacy/dashboard",
+    "stock inventory": "/tenant/pharmacy/inventory",
+    "prescription queue": "/tenant/pharmacy/queue",
+    "pharmacy billing": "/tenant/pharmacy/billing"
+  };
+  return overrides[l] || originalPath;
 };
 
 export default function Sidebar() {
+  const location = useLocation();
   const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
   const plan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
   
-  // Dynamic menus loaded from database via login response
-  const rawMenus = localStorage.getItem("userMenus");
-  let dynamicMenus: any[] = rawMenus ? JSON.parse(rawMenus) : [];
-  
-  // Fallback: Add Doctor Calendar if not in database
-  const hasDoctorCalendar = dynamicMenus.some((menu: any) => menu.label === "Doctor Calendar");
-  if (!hasDoctorCalendar) {
-    dynamicMenus.push({
-      label: "Doctor Calendar",
-      path: "/tenant/appointments/doctor-calendar",
-      icon: "Calendar",
-      required_plan: "basic",
-      sort_order: 6
+  const { groups, ungroupped } = useMemo(() => {
+    const raw = localStorage.getItem("userMenus");
+    let dm: any[] = raw ? JSON.parse(raw) : [];
+    
+    if (!dm.some((m: any) => m.label.toLowerCase().includes("doctor availability"))) {
+      dm.push({ label: "Doctor Availability and Book Appointments", path: "/tenant/appointments/doctor-calendar", icon: "Calendar", sort_order: 6 });
+    }
+
+    const uniqueMap = new Map();
+    dm.forEach(m => {
+      const nPath = normalizePath(m.label, m.path);
+      if (!uniqueMap.has(nPath)) uniqueMap.set(nPath, { ...m, path: nPath });
     });
-  }
+    const pm = Array.from(uniqueMap.values());
+
+    const clinicalFlow = ["OPD Registration", "OPD Queue", "Doctor's Queue", "Consultation Desk", "Appointment List", "Doctor Availability and Book Appointments", "Admission Desk", "IPD Bed Map", "IPD Census & Daycare", "Discharge Summaries"];
+    const serviceFlow = ["Laboratory", "Laboratory Billing", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
+    const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"];
+    const managementFlow = ["Staff & RBAC", "Staff Management", "User Management", "Hospital Settings (Masters)", "Hospital Settings", "Branding & UI Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"];
+
+    const getItems = (labels: string[]) => pm
+      .filter(m => labels.some(l => l.toLowerCase() === m.label.toLowerCase()))
+      .sort((a, b) => labels.findIndex(l => l.toLowerCase() === a.label.toLowerCase()) - labels.findIndex(l => l.toLowerCase() === b.label.toLowerCase()));
+
+    const gs = [
+      { id: 'clinical', title: "Clinical Workflow", items: getItems(clinicalFlow), icon: Stethoscope },
+      { id: 'services', title: "Services & Pharmacy", items: getItems(serviceFlow), icon: FlaskConical },
+      { id: 'billing', title: "Billing & Finance", items: getItems(billingFlow), icon: Receipt },
+      { id: 'mgmt', title: "Management", items: getItems(managementFlow), icon: Settings }
+    ];
+
+    const gLabels = new Set();
+    gs.forEach(g => g.items.forEach(i => gLabels.add(i.label.toLowerCase())));
+    const ug = pm.filter(m => !gLabels.has(m.label.toLowerCase()));
+
+    return { groups: gs, ungroupped: ug };
+  }, []);
+
+  // Accordion State: Only one group open at a time
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+
+  // Auto-expand group containing active link
+  useEffect(() => {
+    const activeGroup = groups.find(g => g.items.some(i => i.path === location.pathname));
+    if (activeGroup) {
+      setOpenGroup(activeGroup.id);
+    }
+  }, [location.pathname]);
+
+  const toggleGroup = (id: string) => {
+    setOpenGroup(prev => (prev === id ? null : id));
+  };
 
   const refreshMenus = () => {
     localStorage.removeItem("userMenus");
     window.location.reload();
   };
-
-  const orderedItems = (labels: string[]) =>
-    dynamicMenus
-      .filter(m => labels.includes(m.label))
-      .map(normalizeMenu)
-      .sort((a, b) => labels.indexOf(a.label) - labels.indexOf(b.label));
-
-  const normalizeMenu = (menu: any) => {
-    const pathOverrides: Record<string, string> = {
-      "Consultation Desk": "/tenant/opd/consultation",
-      "IPD Admission Desk": "/tenant/ipd/admission-desk",
-      "Admission Desk": "/tenant/ipd/admission-desk",
-      "User Management": "/tenant/staff/user-management",
-      "Appointment List": "/tenant/appointments",
-      "Doctor Calendar": "/tenant/appointments/doctor-calendar",
-      "Laboratory": "/tenant/lab",
-      "Laboratory Billing": "/tenant/lab/billing",
-      "AI Lab Assistant": "/tenant/lab/ai",
-      "Help & Support": "/tenant/support",
-      "Ticketing Management System": "/tenant/support/tickets",
-      "Pharmacy": "/tenant/pharmacy",
-      "Pharmacy Dashboard": "/tenant/pharmacy/dashboard",
-      "Stock Inventory": "/tenant/pharmacy/inventory",
-      "Prescription Queue": "/tenant/pharmacy/queue",
-      "Pharmacy Billing": "/tenant/pharmacy/billing"
-    };
-
-    return {
-      ...menu,
-      path: pathOverrides[menu.label] || menu.path
-    };
-  };
-
-  const clinicalFlow = [
-    "OPD Registration",
-    "OPD Queue",
-    "Doctor's Queue",
-    "Consultation Desk",
-    "Appointment List",
-    "Doctor Calendar",
-    "Admission Desk",
-    "IPD Bed Map",
-    "IPD Census & Daycare",
-    "Discharge Summaries"
-  ];
-
-  const serviceFlow = [
-    "Laboratory",
-    "Laboratory Billing",
-    "AI Lab Assistant",
-    "Pharmacy",
-    "Pharmacy Dashboard",
-    "Stock Inventory",
-    "Prescription Queue"
-  ];
-
-  const billingFlow = [
-    "Invoicing & Billing",
-    "OPD Billing & Revenue Center",
-    "Pharmacy Billing",
-    "IPD & Discharge Billing",
-    "Hospital Billing",
-    "Insurance Management"
-  ];
-
-  const managementFlow = [
-    "Staff & RBAC",
-    "Staff Management",
-    "User Management",
-    "Hospital Settings (Masters)",
-    "Hospital Settings",
-    "Branding & UI Settings",
-    "Message Board",
-    "Mail Management",
-    "Help & Support",
-    "Ticketing Management System"
-  ];
-
-  const groups = [
-    { title: "Clinical Workflow", items: orderedItems(clinicalFlow) },
-    { title: "Services & Pharmacy", items: orderedItems(serviceFlow) },
-    { title: "Billing & Finance", items: orderedItems(billingFlow) },
-    { title: "Management", items: orderedItems(managementFlow) }
-  ];
-
-  const ungroupped = dynamicMenus
-    .filter(m => !groups.some(g => g.items.some(gi => gi.label === m.label)))
-    .map(normalizeMenu);
 
   return (
     <>
@@ -134,118 +129,160 @@ export default function Sidebar() {
         document.querySelector('.sidebar')?.classList.remove('mobile-open');
         document.querySelector('.mobile-overlay')?.classList.remove('active');
       }}></div>
-      <div className="sidebar">
-        <button className="sidebar-close" onClick={() => {
-          document.querySelector('.sidebar')?.classList.remove('mobile-open');
-          document.querySelector('.mobile-overlay')?.classList.remove('active');
-        }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-        <div style={{ padding: '0 8px 24px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ 
-              width: '40px', 
-              height: '40px', 
-              background: 'linear-gradient(135deg, #0d9488, #0f766e)', 
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              fontWeight: 800,
-              color: 'white',
-              boxShadow: '0 4px 12px rgba(13, 148, 136, 0.3)'
-            }}>
-              {tenantName.charAt(0)}
-            </div>
-            <div style={{ overflow: 'hidden' }}>
-              <h2 style={{ 
-                fontSize: '15px', 
-                fontWeight: 800, 
-                color: 'white', 
-                margin: 0,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {tenantName}
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                <span style={{ fontSize: '9px', fontWeight: 900, color: plan === 'enterprise' ? '#f59e0b' : '#64748b', textTransform: 'uppercase' }}>
-                  {plan} TIER
-                </span>
-                <button 
-                  onClick={refreshMenus}
-                  style={{
-                    background: 'none',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: '8px',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    width: '100%'
-                  }}
-                  title="Refresh Menus"
-                >
-                  🔄 Refresh Menus
-                </button>
-              </div>
+      
+      <div className="sidebar" style={{ width: '280px', background: 'var(--primary-dark, #0f172a)', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '0 8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+          <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
+            <img 
+              src="/logo.png" 
+              alt={tenantName} 
+              style={{ width: '100%', height: 'auto', maxHeight: '80px', objectFit: 'contain', cursor: 'pointer', transition: 'transform 0.2s' }} 
+              onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+              onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = 'none';
+                const parent = (e.target as any).parentElement;
+                parent.innerHTML = `<div style="width:48px;height:48px;background:var(--primary-accent, #0ea5e9);border-radius:12px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:white;">${tenantName.charAt(0)}</div><h2 style="font-size:15px;font-weight:800;color:white;margin-top:12px;">${tenantName}</h2>`;
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px' }}>
+              <span style={{ fontSize: '9px', fontWeight: 900, color: plan === 'enterprise' ? '#f59e0b' : 'var(--primary-accent, #38bdf8)', textTransform: 'uppercase', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px', letterSpacing: '0.05em' }}>{plan}</span>
+              <button onClick={refreshMenus} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: '4px', display: 'flex' }} title="Refresh Dashboard"><RefreshCw size={12} /></button>
             </div>
           </div>
         </div>
 
-        <nav className="nav-section" style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto', paddingRight: '4px' }}>
-          {/* Main Dashboard / Uncategorized */}
-          {ungroupped.map((menu, idx) => {
-            const IconComponent = Icons[menu.icon as keyof typeof Icons] || Icons.Dashboard;
-            return <SidebarLink key={idx} to={menu.path} icon={<IconComponent />} label={menu.label} />;
-          })}
-
-          {/* Categorized Groups */}
-          {groups.map((group, gIdx) => (
-            group.items.length > 0 && (
-              <div key={gIdx} style={{ marginTop: '24px' }}>
-                <div style={{ 
-                  padding: '0 16px 8px', 
-                  fontSize: '10px', 
-                  fontWeight: 900, 
-                  color: '#4b5563', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.08em' 
-                }}>
-                  {group.title}
-                </div>
-                {group.items.map((menu, mIdx) => {
-                  const IconComponent = Icons[menu.icon as keyof typeof Icons] || Icons.Dashboard;
-                  return <SidebarLink key={mIdx} to={menu.path} icon={<IconComponent />} label={menu.label} />;
-                })}
-              </div>
-            )
+        <nav className="nav-container">
+          {ungroupped.map((menu, idx) => (
+            <SidebarLink key={idx} to={menu.path} icon={Icons[menu.icon] || LayoutDashboard} label={menu.label} />
           ))}
 
-          {dynamicMenus.length === 0 && (
-            <p style={{ padding: '20px', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
-              No authorized menus found. Please contact administrator.
-            </p>
-          )}
+          {groups.map((group) => group.items.length > 0 && (
+            <div key={group.id} style={{ marginBottom: '8px' }}>
+              <button 
+                onClick={() => toggleGroup(group.id)}
+                style={{ 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '12px', 
+                  padding: '12px 16px', 
+                  background: 'none', 
+                  border: 'none', 
+                  color: openGroup === group.id ? 'white' : '#64748b', 
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  transition: 'all 0.2s',
+                  borderRadius: '10px'
+                }}
+                className={`group-header ${openGroup === group.id ? 'active' : ''}`}
+              >
+                <group.icon size={18} style={{ opacity: openGroup === group.id ? 1 : 0.5 }} />
+                <span style={{ flex: 1, textAlign: 'left' }}>{group.title}</span>
+                <ChevronDown size={14} style={{ transform: openGroup === group.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s' }} />
+              </button>
+              
+              <div className={`sub-item-container ${openGroup === group.id ? 'open' : ''}`}>
+                {group.items.map((menu, mIdx) => (
+                  <SidebarLink key={mIdx} to={menu.path} icon={Icons[menu.icon] || Box} label={menu.label} isSubItem />
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
+
+        <div style={{ padding: '24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <ShieldCheck size={20} color="var(--primary-accent, #0ea5e9)" />
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>Nexus Secured</div>
+              <div style={{ fontSize: '10px', color: '#475569' }}>v2.4.0 Build 102</div>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <style>{`
+        .nav-container {
+          flex: 1;
+          overflow-y: auto;
+          padding: 10px 12px;
+          scrollbar-gutter: stable;
+        }
+        .nav-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          color: #94a3b8;
+          text-decoration: none;
+          font-size: 13px;
+          font-weight: 600;
+          transition: all 0.2s;
+          margin-bottom: 2px;
+          position: relative;
+        }
+        .nav-item:hover { background: rgba(255,255,255,0.03); color: white; }
+        .nav-item.active { 
+          background: rgba(255, 255, 255, 0.05); 
+          color: var(--primary-accent, #38bdf8); 
+          border-radius: 8px; 
+        }
+        .nav-item.active::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 6px;
+          bottom: 6px;
+          width: 3px;
+          background: var(--primary-accent, #38bdf8);
+          border-radius: 0 4px 4px 0;
+        }
+        .nav-item.active svg {
+          color: var(--primary-accent, #38bdf8) !important;
+          stroke: var(--primary-accent, #38bdf8) !important;
+        }
+        .group-header {
+          color: #94a3b8;
+          transition: all 0.2s;
+        }
+        .group-header:hover { background: rgba(255,255,255,0.03); color: white; }
+        .group-header.active {
+          color: white;
+        }
+        .group-header.active svg {
+          color: var(--primary-accent, #38bdf8);
+        }
+        .sub-item-container {
+          max-height: 0;
+          overflow: hidden;
+          transition: max-height 0.25s ease-out;
+          padding-left: 8px;
+          border-left: 1px solid rgba(255,255,255,0.05);
+          margin-left: 18px;
+        }
+        .sub-item-container.open {
+          max-height: 1000px;
+          margin-top: 4px;
+        }
+        .nav-container::-webkit-scrollbar { width: 4px; }
+        .nav-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+      `}</style>
     </>
   );
 }
 
-function SidebarLink({ to, icon, label }: { to: string, icon: any, label: string }) {
+function SidebarLink({ to, icon: Icon, label, isSubItem }: { to: string, icon: any, label: string, isSubItem?: boolean }) {
   return (
     <NavLink 
       to={to} 
-      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-      onClick={() => {
-        document.querySelector('.sidebar')?.classList.remove('mobile-open');
-        document.querySelector('.mobile-overlay')?.classList.remove('active');
-      }}
+      end
+      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}${isSubItem ? ' sub-item' : ''}`}
     >
-      {icon}
-      <span>{label}</span>
+      <Icon size={isSubItem ? 15 : 18} style={{ minWidth: isSubItem ? '15px' : '18px' }} />
+      <span style={{ flex: 1, lineHeight: '1.4' }}>{label}</span>
     </NavLink>
   );
 }

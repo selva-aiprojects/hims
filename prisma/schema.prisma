@@ -19,6 +19,9 @@ model Tenant {
   textColor           String?              @default("#1e293b") @map("text_color")
   heroBackgroundColor String?              @default("#f8fafc") @map("hero_background_color")
   overallTextColor    String?              @default("#475569") @map("overall_text_color")
+  primaryDark         String?              @default("#0f172a") @map("primary_dark")
+  primaryAccent       String?              @default("#3b82f6") @map("primary_accent")
+  logoUrl             String?              @map("logo_url")
   createdAt           DateTime             @default(now()) @map("created_at")
   adminContacts       TenantAdminContact[]
 

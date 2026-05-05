@@ -27,28 +27,33 @@
 
 ---
 
+### 4. UI Modernization & Doctor Scheduling (Latest)
+- [x] **Premium Sidebar**: Rebuilt with Accordion logic, zero-jump stability, and global path deduplication.
+- [x] **Doctor Availability**: Implemented "Manage Unavailability" mode in shard with persistent blocking and upsert logic.
+- [x] **Dynamic Branding**: Real-time theme customization (colors, logos) using CSS variables and shard persistence.
+- [x] **Navigation Intelligence**: Auto-expanding categories and active-aware scroll-into-view logic.
+
+---
+
 ## 🛠️ In Progress: Clinical & Operational Hardening
 ### 1. Hospital Dashboard (Metric Driven)
 - [x] Real-time revenue and patient flow metrics (Live API).
+- [x] Dynamic Sidebar Integration with role-based visibility.
 - [ ] Implement Recharts-based visualization for OPD/IPD trends.
-- [ ] Department-wise performance tracking.
 
 ### 2. Shard Master Tables
 - [x] Consultation Modes & Services Master (Live with Fallbacks).
-- [ ] Doctors & Staff management UI.
+- [x] Doctors & Staff management UI.
+- [x] Branding & UI Settings module.
 - [ ] Departments & Wards configuration.
-
-### 3. Tenant User Management (Internal RBAC)
-- [x] Sidebar Dynamic Sync: Automated mapping of menus based on roles.
-- [x] Staff Management UI: Refactored with proper RBAC grouping.
 
 ---
 
 ## 📋 Future Roadmap
-- [ ] **OPD Module**: Registration, Consultation, and Digital Prescription (In-testing).
+- [x] **OPD Module**: Registration, Consultation, and Digital Prescription (Live).
 - [ ] **IPD Module**: Admission, Bed Management, and Discharge.
 - [ ] **Billing & Pharmacy**: Inventory sync and automated billing.
 - [ ] **Internationalization**: Multi-currency and multi-language support.
 
 ---
-*Last Updated: 2026-05-04*
+*Last Updated: 2026-05-05*
