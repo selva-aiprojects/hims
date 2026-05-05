@@ -3,16 +3,13 @@ import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Calendar, Clock, Users, Plus, Settings, ChevronRight, ChevronLeft, Check, X, AlertCircle } from 'lucide-react';
+import { Plus, Settings, ChevronRight, ChevronLeft, X } from 'lucide-react';
 
 export default function DoctorCalendarPage() {
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'day'>('week');
   const [appointments, setAppointments] = useState<any[]>([]);
-  const [availability, setAvailability] = useState<any[]>([]);
-  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [doctors, setDoctors] = useState<any[]>([]);
 
@@ -23,9 +20,11 @@ export default function DoctorCalendarPage() {
 
   useEffect(() => {
     fetchDoctors();
+  }, []);
+
+  useEffect(() => {
     if (selectedDoctor) {
       fetchAppointments();
-      fetchAvailability();
     }
   }, [selectedDoctor, currentDate]);
 
@@ -52,19 +51,10 @@ export default function DoctorCalendarPage() {
         new Date(apt.appointment_time).toDateString() === currentDate.toDateString()
       );
       setAppointments(doctorAppointments);
+      setLoading(false);
     } catch (error) {
       console.error("Failed to fetch appointments:", error);
-    }
-  };
-
-  const fetchAvailability = async () => {
-    if (!selectedDoctor) return;
-    
-    try {
-      const response = await axios.get(`${API_BASE}/api/doctor/${selectedDoctor}/availability`, { headers });
-      setAvailability(response.data || []);
-    } catch (error) {
-      console.error("Failed to fetch availability:", error);
+      setLoading(false);
     }
   };
 

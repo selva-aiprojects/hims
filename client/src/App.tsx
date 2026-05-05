@@ -7,7 +7,7 @@ import OPDRegistrationPage from './modules/tenant/opd/OPDRegistrationPage';
 import OPDQueuePage from './modules/tenant/opd/OPDQueuePage';
 import OPDConsultationPage from './modules/tenant/opd/OPDConsultationPage';
 import TenantAppointmentsPage from './modules/tenant/appointments/AppointmentsPage';
-import DoctorCalendarPage from './modules/tenant/appointments/DoctorCalendarPage';
+import SimpleDoctorCalendarPage from './modules/tenant/appointments/SimpleDoctorCalendarPage';
 import IPDBedMap from './modules/tenant/ipd/IPDBedMap';
 import IPDAdmissionsList from './modules/tenant/ipd/IPDAdmissionsList';
 import IPDPatientView from './modules/tenant/ipd/IPDPatientView';
@@ -60,7 +60,7 @@ function App() {
         <Route path="/tenant/opd/queue" element={<OPDQueuePage />} />
         <Route path="/tenant/opd/consultation" element={<OPDConsultationPage />} />
         <Route path="/tenant/appointments" element={<TenantAppointmentsPage />} />
-        <Route path="/tenant/appointments/doctor-calendar" element={<DoctorCalendarPage />} />
+        <Route path="/tenant/appointments/doctor-calendar" element={<SimpleDoctorCalendarPage />} />
         <Route path="/tenant/ipd/beds" element={<IPDBedMap />} />
         <Route path="/tenant/ipd/admissions" element={<IPDAdmissionsList />} />
         <Route path="/tenant/ipd/admissions/:id" element={<IPDPatientView />} />
