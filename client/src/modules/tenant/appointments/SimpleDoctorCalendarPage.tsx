@@ -14,6 +14,7 @@ export default function SimpleDoctorCalendarPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -49,10 +50,18 @@ export default function SimpleDoctorCalendarPage() {
     }
 
     try {
+      // Use the exact date from the modal
+      if (!selectedDate) {
+        alert("No date selected for booking");
+        return;
+      }
+      
+      const appointmentDateTime = new Date(`${selectedDate.toDateString()} ${selectedTime}`);
+      
       const appointmentData = {
         patient_id: selectedPatient,
         doctor_id: selectedDoctor,
-        appointment_time: new Date(`${currentDate.toDateString()} ${selectedTime}`).toISOString(),
+        appointment_time: appointmentDateTime.toISOString(),
         status: 'Scheduled'
       };
 
@@ -65,8 +74,9 @@ export default function SimpleDoctorCalendarPage() {
       setShowBookingModal(false);
       setSelectedPatient("");
       setSelectedTime("");
+      setSelectedDate(null); // Reset selected date
       
-      alert("Appointment booked successfully!");
+      alert(`Appointment booked successfully for ${appointmentDateTime.toLocaleString()}!`);
     } catch (error) {
       console.error("Failed to book appointment:", error);
       alert("Failed to book appointment. Please try again.");
