@@ -462,6 +462,43 @@ router.get("/debug/rbac-sync", async (req, res) => {
   }
 });
 
+router.get("/debug/sync-all-shards", async (req, res) => {
+  try {
+    console.log("[NEXUS] Starting Global Schema Sync via API...");
+    const schemaPath = path.join(__dirname, "../../../../database/SHARD_Base_Schema.sql");
+    if (!fs.existsSync(schemaPath)) {
+      throw new Error(`Schema file not found at ${schemaPath}`);
+    }
+    const sqlContent = fs.readFileSync(schemaPath, "utf8");
+    const statements = sqlContent.split(';').map(s => s.trim()).filter(s => s.length > 0);
+
+    const tenants = await req.prisma.$queryRawUnsafe(`SELECT name, db_name FROM nexus.tenants`);
+    const results = [];
+
+    for (const tenant of tenants) {
+      const schemaName = tenant.db_name;
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const statement of statements) {
+        try {
+          await req.prisma.$executeRawUnsafe(`SET search_path TO "${schemaName}", public; ${statement}`);
+          successCount++;
+        } catch (e) {
+          if (!e.message.includes("already exists") && !e.message.includes("multiple primary keys")) {
+            errorCount++;
+          }
+        }
+      }
+      results.push({ tenant: tenant.name, schema: schemaName, successCount, errorCount });
+    }
+
+    res.json({ message: "Global sync complete", results });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- TICKETING SYSTEM ---
 
 // 1. Create Ticket (Tenant Side)

@@ -1,11 +1,86 @@
 const express = require("express");
 const router = express.Router();
+const crypto = require("crypto");
 const { checkPermission } = require("../../middleware/rbac");
+const metricsRoutes = require("./metrics");
 const aiService = require("../../services/aiService");
 const pdfService = require("../../services/pdfService");
-const upload = require("../../config/upload");
 
-// --- Staff & Management ---
+const s = (val) => (val === undefined || val === null ? "" : String(val).replace(/'/g, "''"));
+const sqlValue = (val) => (val === undefined || val === null || val === "" ? "NULL" : `'${s(val)}'`);
+const jsonValue = (val) => `'${s(JSON.stringify(val || {}))}'::jsonb`;
+
+async function getCurrentUserId(req) {
+  if (!req.user) return null;
+  try {
+    const users = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${req.schemaName}".users WHERE LOWER(email) = LOWER('${s(req.user)}') LIMIT 1`);
+    return users[0]?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureDischargeTable(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".discharge_summaries (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      admission_id UUID,
+      patient_id UUID,
+      doctor_id UUID,
+      summary_text TEXT,
+      pdf_path TEXT,
+      discharge_type VARCHAR(50) DEFAULT 'STANDARD',
+      discharge_date TIMESTAMP DEFAULT NOW(),
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+async function ensureOrderColumns(req) {
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS instructions TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS medicine_id UUID`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS doctor_id UUID`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS priority VARCHAR(50) DEFAULT 'Normal'`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS results JSONB`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS technician_notes TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS is_billed BOOLEAN DEFAULT false`);
+}
+
+async function ensureBillingQueue(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".billing_queue (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID NOT NULL,
+      encounter_id UUID,
+      source_module VARCHAR(50),
+      source_id UUID,
+      description TEXT,
+      quantity NUMERIC DEFAULT 1,
+      unit_price NUMERIC NOT NULL,
+      tax_percent NUMERIC DEFAULT 0,
+      is_discountable BOOLEAN DEFAULT TRUE,
+      status VARCHAR(20) DEFAULT 'PENDING',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+// --- Staff & Doctor Lists ---
+router.get("/doctors", async (req, res, next) => {
+  console.log(`[HOSPITAL] Fetching doctors for schema: ${req.schemaName}`);
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT id, name, specialization, department 
+      FROM "${req.schemaName}".users 
+      WHERE role ILIKE 'doctor' AND is_active = true
+      ORDER BY name ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
 
 router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
@@ -14,11 +89,10 @@ router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => 
                  FROM "${req.schemaName}".users`;
     
     if (search) {
-      query += ` WHERE name ILIKE '%${search}%' OR role ILIKE '%${search}%' OR email ILIKE '%${search}%' OR department ILIKE '%${search}%'`;
+      query += ` WHERE name ILIKE '%${search}%' OR role ILIKE '%${search}%' OR department ILIKE '%${search}%' OR email ILIKE '%${search}%'`;
     }
     
-    query += ` ORDER BY name ASC`;
-    
+    query += ` ORDER BY created_at DESC`;
     const data = await req.prisma.$queryRawUnsafe(query);
     res.json(data);
   } catch (error) { next(error); }
@@ -27,55 +101,14 @@ router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => 
 router.post("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
     const { name, email, password, role, license_number, age, qualifications, experience_years, specialization, department } = req.body;
-    const bcrypt = require("bcryptjs");
-    const hashedPassword = await bcrypt.hash(password || "HIMS@123", 10);
-    const schema = req.schemaName;
     
-    // 1. Insert user
-    const newUser = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${schema}".users (name, email, password_hash, role, license_number, age, qualifications, experience_years, specialization, department)
-      VALUES (
-        '${name.replace(/'/g, "''")}', 
-        '${email}', 
-        '${hashedPassword}', 
-        '${role || 'staff'}',
-        ${license_number ? `'${license_number}'` : 'NULL'},
-        ${age ? parseInt(age) : 'NULL'},
-        ${qualifications ? `'${qualifications.replace(/'/g, "''")}'` : 'NULL'},
-        ${experience_years ? parseInt(experience_years) : 'NULL'},
-        ${specialization ? `'${specialization.replace(/'/g, "''")}'` : 'NULL'},
-        ${department ? `'${department.replace(/'/g, "''")}'` : 'NULL'}
-      )
-      RETURNING id
+    // Simple creation via raw SQL to match multi-tenant logic
+    const userId = crypto.randomUUID();
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".users (id, name, email, password, role, license_number, age, qualifications, experience_years, specialization, department)
+      VALUES ('${userId}', '${name}', '${email}', '${password}', '${role}', '${license_number || ''}', ${age || 0}, '${qualifications || ''}', ${experience_years || 0}, '${specialization || ''}', '${department || ''}')
     `);
-    const userId = newUser[0].id;
-
-    // 2. Map users.role → rbac_roles.name (normalize to uppercase RBAC role)
-    const roleMap = {
-      'admin':         'ADMIN',
-      'doctor':        'DOCTOR',
-      'nurse':         'NURSE',
-      'pharmacist':    'PHARMACIST',
-      'lab_assistant': 'LAB_TECH',
-      'lab_tech':      'LAB_TECH',
-      'receptionist':  'RECEPTIONIST',
-      'staff':         'SUPPORT',
-      'support':       'SUPPORT',
-    };
-    const rbacRoleName = roleMap[(role || 'staff').toLowerCase()] || 'SUPPORT';
-
-    // 3. Link user to RBAC role
-    try {
-      await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${schema}".rbac_user_roles (user_id, role_id)
-        SELECT '${userId}', id FROM "${schema}".rbac_roles WHERE name = '${rbacRoleName}'
-        ON CONFLICT DO NOTHING
-      `);
-      console.log(`[STAFF] Linked ${email} (${role}) → RBAC:${rbacRoleName}`);
-    } catch (rbacErr) {
-      console.warn(`[STAFF] RBAC link failed for ${email}: ${rbacErr.message}`);
-    }
-
+    
     res.status(201).json({ message: "Staff member created", userId });
   } catch (error) { 
     if (error.message.includes("unique constraint") || error.message.includes("already exists")) {
@@ -89,403 +122,105 @@ router.put("/staff/:id", checkPermission('STAFF_MANAGE'), async (req, res, next)
   try {
     const { id } = req.params;
     const { name, email, role, license_number, age, qualifications, experience_years, specialization, department } = req.body;
-    const schema = req.schemaName;
-
-    let updateSet = [];
-    if (name) updateSet.push(`name = '${name.replace(/'/g, "''")}'`);
-    if (email) updateSet.push(`email = '${email}'`);
-    if (role) updateSet.push(`role = '${role}'`);
     
-    // Staff details
-    updateSet.push(`license_number = ${license_number ? `'${license_number}'` : 'NULL'}`);
-    updateSet.push(`age = ${age ? parseInt(age) : 'NULL'}`);
-    updateSet.push(`qualifications = ${qualifications ? `'${qualifications.replace(/'/g, "''")}'` : 'NULL'}`);
-    updateSet.push(`experience_years = ${experience_years ? parseInt(experience_years) : 'NULL'}`);
-    updateSet.push(`specialization = ${specialization ? `'${specialization.replace(/'/g, "''")}'` : 'NULL'}`);
-    updateSet.push(`department = ${department ? `'${department.replace(/'/g, "''")}'` : 'NULL'}`);
-
     await req.prisma.$executeRawUnsafe(`
-      UPDATE "${schema}".users 
-      SET ${updateSet.join(', ')}
+      UPDATE "${req.schemaName}".users 
+      SET name = '${name}', email = '${email}', role = '${role}', 
+          license_number = '${license_number || ''}', age = ${age || 0}, 
+          qualifications = '${qualifications || ''}', experience_years = ${experience_years || 0}, 
+          specialization = '${specialization || ''}', department = '${department || ''}'
       WHERE id = '${id}'
     `);
-
-    res.json({ message: "Staff member updated" });
+    
+    res.json({ message: "Staff updated successfully" });
   } catch (error) { next(error); }
 });
 
 router.delete("/staff/:id", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
     const { id } = req.params;
-    const schema = req.schemaName;
-
-    await req.prisma.$executeRawUnsafe(`DELETE FROM "${schema}".users WHERE id = '${id}'`);
-    res.json({ message: "Staff member deleted" });
+    await req.prisma.$executeRawUnsafe(`DELETE FROM "${req.schemaName}".users WHERE id = '${id}'`);
+    res.json({ message: "Staff deleted successfully" });
   } catch (error) { next(error); }
 });
 
-// --- Master Data Management ---
-
-// 1. Departments
-router.get("/masters/departments", checkPermission('MASTERS_MANAGE'), async (req, res, next) => {
-  try {
-    console.log(`[MASTERS] Fetching departments for schema: "${req.schemaName}"`);
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".departments ORDER BY name ASC`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/departments", async (req, res, next) => {
-  try {
-    const { name, description, hod, specialty, status } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".departments (name, description, hod, specialty, status) 
-      VALUES ('${name}', '${description}', '${hod || ''}', '${specialty || ''}', '${status || 'Active'}')
-    `);
-    res.status(201).json({ message: "Department added" });
-  } catch (error) { next(error); }
-});
-
-// 2. Medicines
-router.get("/masters/medicines", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".medicines ORDER BY name ASC`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/medicines", async (req, res, next) => {
-  try {
-    const { name, category, composition, dosage_adult, dosage_pediatric, instructions } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".medicines (name, category, composition, dosage_adult, dosage_pediatric, instructions) 
-      VALUES ('${name}', '${category || 'General'}', '${composition || ''}', '${dosage_adult || ''}', '${dosage_pediatric || ''}', '${instructions || ''}')
-      ON CONFLICT (name) DO UPDATE SET 
-        category = EXCLUDED.category,
-        composition = EXCLUDED.composition,
-        dosage_adult = EXCLUDED.dosage_adult,
-        dosage_pediatric = EXCLUDED.dosage_pediatric,
-        instructions = EXCLUDED.instructions
-    `);
-    res.status(201).json({ message: "Medicine added/updated" });
-  } catch (error) { next(error); }
-});
-
-// 3. Diseases
-router.get("/masters/diseases", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".diseases ORDER BY name ASC`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/diseases", async (req, res, next) => {
-  try {
-    const { name, category, icd_code, severity_level } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".diseases (name, category, icd_code, severity_level) 
-      VALUES ('${name}', '${category}', '${icd_code || ''}', '${severity_level || 'Moderate'}')
-    `);
-    res.status(201).json({ message: "Disease added" });
-  } catch (error) { next(error); }
-});
-
-// 4. Treatments
-router.get("/masters/treatments", async (req, res, next) => {
-  try {
-    console.log(`[MASTERS] Fetching treatments for schema: "${req.schemaName}"`);
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".treatments ORDER BY name ASC`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/treatments", async (req, res, next) => {
-  try {
-    const { name, price, description, cpt_code, estimated_duration } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".treatments (name, price, description, cpt_code, estimated_duration) 
-      VALUES ('${name}', ${price || 0}, '${description || ''}', '${cpt_code || ''}', ${estimated_duration || 30})
-    `);
-    res.status(201).json({ message: "Treatment added" });
-  } catch (error) { next(error); }
-});
-
-// 5. Services
-router.get("/masters/services", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".services ORDER BY category, name ASC`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/services", async (req, res, next) => {
-  try {
-    const { name, price, category, service_code, tax_percent } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".services (name, price, category, service_code, tax_percent) 
-      VALUES ('${name}', ${price || 0}, '${category || 'General'}', '${service_code || ''}', ${tax_percent || 0})
-    `);
-    res.status(201).json({ message: "Service added" });
-  } catch (error) { next(error); }
-});
-
-// 6. Specialities
-router.get("/masters/specialities", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".specialities ORDER BY name ASC`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/specialities", async (req, res, next) => {
-  try {
-    const { name, fee, description } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".specialities (name, base_consultation_fee, description) 
-      VALUES ('${name}', ${fee || 0}, '${description || ''}')
-    `);
-    res.status(201).json({ message: "Speciality added" });
-  } catch (error) { next(error); }
-});
-
-// 7. Consultation Modes
-router.get("/communications", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".communications ORDER BY created_at DESC LIMIT 50`);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/communications", async (req, res, next) => {
-  try {
-    const { content } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".communications (content, created_at)
-      VALUES ('${content.replace(/'/g, "''")}', NOW())
-    `);
-    res.status(201).json({ message: "Message posted" });
-  } catch (error) { next(error); }
-});
-
-router.post("/masters/modes", async (req, res, next) => {
-  try {
-    const { name, surcharge, is_virtual } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".consultation_modes (name, surcharge_percent, is_virtual) 
-      VALUES ('${name}', ${surcharge || 0}, ${is_virtual ? 'TRUE' : 'FALSE'})
-    `);
-    res.status(201).json({ message: "Mode added" });
-  } catch (error) { next(error); }
-});
-
-// --- Clinical & Queue ---
-
-// 1. Get Queue
-router.get("/encounters", async (req, res, next) => {
-  try {
-    const status = req.query.status || 'Draft';
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT e.*, p.name as patient_name, p.mrn, p.age, p.gender, u.name as doctor_name
-      FROM "${req.schemaName}".encounters e
-      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
-      JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
-      WHERE e.status = '${status}'
-      ORDER BY e.created_at ASC
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-// 2. Create Encounter (Intake)
-router.post("/encounters", async (req, res, next) => {
-  try {
-    const { patientId, doctorId, type, vitals, complaints } = req.body;
-    
-    // Generate a simple daily token (count of today's encounters + 1)
-    const today = new Date().toISOString().split('T')[0];
-    const countRes = await req.prisma.$queryRawUnsafe(`
-      SELECT COUNT(*) as count FROM "${req.schemaName}".encounters 
-      WHERE created_at >= '${today}'
-    `);
-    const token = Number(countRes[0].count) + 1;
-
-    const result = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, type, vitals, complaints, status)
-      VALUES ('${patientId}', '${doctorId}', '${type || 'OPD'}', '${JSON.stringify(vitals || {})}', '${complaints || ''}', 'Draft')
-      RETURNING *
-    `);
-    
-    const encounter = result[0];
-    encounter.token = token; // Attach for the response
-    
-    res.status(201).json(encounter);
-  } catch (error) { next(error); }
-});
-
-// 3. Update Encounter (Consultation Finalization)
-router.put("/encounters/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { diagnosis, notes, status, vitals } = req.body;
-    
-    let updateSet = [];
-    if (diagnosis) updateSet.push(`diagnosis = '${diagnosis.replace(/'/g, "''")}'`);
-    if (notes) updateSet.push(`notes = '${notes.replace(/'/g, "''")}'`);
-    if (status) updateSet.push(`status = '${status}'`);
-    if (vitals) updateSet.push(`vitals = '${JSON.stringify(vitals)}'`);
-
-    if (updateSet.length === 0) return res.json({ message: "Nothing to update" });
-
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".encounters 
-      SET ${updateSet.join(', ')}
-      WHERE id = '${id}'
-    `);
-    res.json({ message: "Consultation finalized" });
-  } catch (error) { next(error); }
-});
-
-// 4. Save Prescription
-router.post("/encounters/:id/prescriptions", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { items } = req.body; // Array of { drug_name, dosage, frequency, duration }
-
-    // 1. Create Prescription Header
-    const presHeader = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".prescriptions (encounter_id)
-      VALUES ('${id}')
-      RETURNING id
-    `);
-    const presId = presHeader[0].id;
-
-    // 2. Insert Items
-    for (const item of items) {
-      await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".prescription_items (prescription_id, drug_name, dosage, frequency, duration)
-        VALUES ('${presId}', '${item.name}', '${item.dosage}', '${item.frequency || '1-0-1'}', '${item.duration || '5 days'}')
-      `);
-    }
-
-    res.status(201).json({ message: "Prescription saved", id: presId });
-  } catch (error) { next(error); }
-});
-
-// 2. Save Lab Orders
-router.post("/encounters/:id/lab-orders", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { diagnosticIds } = req.body; // Array of diagnostic IDs
-
-    for (const diagId of diagnosticIds) {
-      await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".lab_orders (encounter_id, diagnostic_id, status)
-        VALUES ('${id}', '${diagId}', 'Pending')
-      `);
-    }
-
-    res.status(201).json({ message: "Lab orders submitted successfully" });
-  } catch (error) { next(error); }
-});
-
-// --- Laboratory ---
-// Lab routes: lab_assistant can view queue & enter results; doctor can order
-
-// Upload and Parse External Lab Report via AI
-router.post("/lab/upload-external", upload.single('lab_report'), checkPermission('LAB_MANAGE'), async (req, res, next) => {
-  try {
-    const { patientId } = req.body;
-    if (!req.file || !patientId) return res.status(400).json({ error: "Missing file or patientId" });
-
-    // Parse the file via AI
-    const parsedData = await aiService.parseExternalLabReport(req.file.path);
-    if (parsedData.error) return res.status(500).json({ error: parsedData.error });
-
-    // Format the note text
-    const noteText = `External Lab Report Analyzed:\nLab: ${parsedData.lab_name || 'Unknown'}\nDate: ${parsedData.test_date || 'Unknown'}\n\nFindings:\n${parsedData.results?.map((r) => `- ${r.test_name}: ${r.value} ${r.unit} (Ref: ${r.reference_range}) ${r.is_abnormal ? '[ABNORMAL]' : ''}`).join('\n')}\n\nClinical Interpretation: ${parsedData.clinical_interpretation}`;
-    const safeNoteText = noteText.replace(/'/g, "''");
-
-    // Fetch patient to update their summary
-    const patients = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".patients WHERE id = '${patientId}'`);
-    if (patients[0]) {
-      const p = patients[0];
-      const newSummary = (p.ai_summary ? p.ai_summary + '\n\n' : '') + `[NEW EXTERNAL LAB]: ${parsedData.clinical_interpretation}`;
-      const safeSummary = newSummary.replace(/'/g, "''");
-      
-      await req.prisma.$executeRawUnsafe(`
-        UPDATE "${req.schemaName}".patients 
-        SET ai_summary = '${safeSummary}'
-        WHERE id = '${patientId}'
-      `);
-    }
-
-    // Attempt to find active encounter to attach note, otherwise just return the data
-    const activeEncounter = await req.prisma.$queryRawUnsafe(`
-      SELECT id FROM "${req.schemaName}".encounters 
-      WHERE patient_id = '${patientId}' AND status IN ('Draft', 'Consulting') 
-      ORDER BY created_at DESC LIMIT 1
-    `);
-
-    if (activeEncounter[0]) {
-      // Create a dummy IPD note or attach to encounter notes depending on how we handle outpatient notes.
-      // Since we don't have an encounter_notes table, we can just return it to the frontend to handle.
-    }
-
-    res.json({ message: "External report processed successfully", data: parsedData, noteText });
-  } catch (error) { next(error); }
-});
-
+// --- Laboratory & Diagnostics ---
 router.get("/lab/orders", checkPermission('LAB_MANAGE'), async (req, res, next) => {
   try {
+    await ensureOrderColumns(req);
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT lo.*, p.name as patient_name, p.id as patient_id, p.mrn, d.name as test_name, d.price, u.name as doctor_name
       FROM "${req.schemaName}".lab_orders lo
-      JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
-      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
-      JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
-      LEFT JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
-      ORDER BY 
-        CASE WHEN lo.priority = 'Urgent' THEN 1 ELSE 2 END,
-        lo.id DESC
+      JOIN "${req.schemaName}".patients p ON lo.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".users u ON lo.doctor_id = u.id
+      LEFT JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
+      WHERE lo.status != 'Published'
+      ORDER BY lo.priority DESC, lo.created_at DESC
     `);
     res.json(data);
   } catch (error) { next(error); }
 });
 
-router.put("/lab/orders/:id/status", checkPermission('LAB_MANAGE'), async (req, res, next) => {
+router.get("/lab/billing-queue", checkPermission('BILLING_MANAGE'), async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".lab_orders SET status = '${status}' WHERE id = '${id}'
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT lo.*, p.name as patient_name, p.id as patient_id, e.id as encounter_id, p.mrn, d.name as test_name, d.price
+      FROM "${req.schemaName}".lab_orders lo
+      JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
+      JOIN "${req.schemaName}".patients p ON lo.patient_id = p.id
+      JOIN "${req.schemaName}".medicines d ON lo.test_id = d.id
+      WHERE lo.status = 'Authorized' AND (lo.is_billed = false OR lo.is_billed IS NULL)
     `);
-    res.json({ message: "Order status updated" });
+    res.json(data);
   } catch (error) { next(error); }
 });
 
-router.post("/lab/orders/:id/results", checkPermission('LAB_MANAGE'), async (req, res, next) => {
+const updateLabStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { results, technicianNote } = req.body;
-    
-    // Escape strings for SQL
-    const safeResults = JSON.stringify({ 
-      values: results, 
-      note: (technicianNote || "").replace(/'/g, "''") 
-    }).replace(/'/g, "''");
+    const { status } = req.body;
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".lab_orders SET status = '${status}' WHERE id = '${id}'`);
+    res.json({ message: `Status updated to ${status}` });
+  } catch (error) { next(error); }
+};
 
-    // 1. Save Result (JSON format)
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".lab_results (lab_order_id, result)
-      VALUES ('${id}', '${safeResults}')
-    `);
+router.post("/lab/orders/:id/status", checkPermission('LAB_MANAGE'), updateLabStatus);
+router.put("/lab/orders/:id/status", checkPermission('LAB_MANAGE'), updateLabStatus);
+
+router.post("/lab/orders/:id/results", checkPermission('LAB_MANAGE'), async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    await ensureBillingQueue(req);
+    const { id } = req.params;
+    const { results, notes, technicianNote } = req.body;
+    const escapedResults = JSON.stringify(results).replace(/'/g, "''");
+    const escapedNotes = (notes || technicianNote) ? (notes || technicianNote).replace(/'/g, "''") : "";
     
-    // 2. Update Status to Completed
     await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".lab_orders SET status = 'Completed' WHERE id = '${id}'
+      UPDATE "${req.schemaName}".lab_orders 
+      SET results = '${escapedResults}'::jsonb, 
+          technician_notes = '${escapedNotes}', 
+          status = 'Authorized' 
+      WHERE id = '${id}'
     `);
-    
-    res.json({ message: "Lab results recorded successfully" });
+
+    // --- NEW: Push to Billing Queue (FIXED PRICE) ---
+    const orderData = await req.prisma.$queryRawUnsafe(`
+      SELECT lo.patient_id, lo.encounter_id, d.name as test_name, d.price 
+      FROM "${req.schemaName}".lab_orders lo
+      JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
+      WHERE lo.id = '${id}'
+    `);
+
+    if (orderData && orderData.length > 0) {
+      const { patient_id, encounter_id, test_name, price } = orderData[0];
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, unit_price, is_discountable)
+        VALUES ('${patient_id}', '${encounter_id}', 'LAB', '${id}', 'Laboratory: ${test_name}', ${price}, FALSE)
+      `);
+    }
+
+    res.json({ message: "Results saved and authorized. Pushed to Billing Queue." });
   } catch (error) { next(error); }
 });
 
@@ -493,169 +228,18 @@ router.post("/lab/orders/:id/publish", checkPermission('LAB_MANAGE'), async (req
   try {
     const { id } = req.params;
     
-    // Update Status to Published
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".lab_orders SET status = 'Published' WHERE id = '${id}'
-    `);
-    
-    // In a real system, you'd trigger notifications here
-    res.json({ message: "Report published to patient and doctor portal" });
-  } catch (error) { next(error); }
-});
-
-router.get("/lab/billing-queue", checkPermission('BILLING_VIEW'), async (req, res, next) => {
-  // ... existing implementation
-});
-
-router.post("/ai/chat", async (req, res, next) => {
-  try {
-    const { messages } = req.body;
-    
-    // 1. Fetch Context from current shard only (Isolated)
-    const [patientCount, admissionCount, pendingLabs] = await Promise.all([
-      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".patients`),
-      req.prisma.$queryRawUnsafe(`SELECT (CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '${req.schemaName}' AND table_name = 'ipd_admissions') THEN (SELECT COUNT(*)::int FROM "${req.schemaName}".ipd_admissions WHERE status = 'Admitted') ELSE 0 END) as count`),
-      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".lab_orders WHERE status = 'Pending'`)
-    ]);
-
-    const hospitalContext = {
-      hospitalName: req.tenantName || "this facility",
-      stats: {
-        totalPatients: patientCount[0].count,
-        activeAdmissions: admissionCount[0].count,
-        pendingLabs: pendingLabs[0].count
-      }
-    };
-
-    const aiResponse = await aiService.hospitalChat(messages, hospitalContext);
-    res.json({ response: aiResponse });
-  } catch (error) { next(error); }
-});
-
-// --- Pharmacy ---
-router.get("/pharmacy/stats", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
-  try {
-    const dailyRevenue = await req.prisma.$queryRawUnsafe(`
-      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices 
-      WHERE bill_type = 'PHARMACY' AND status = 'PAID' AND created_at > NOW() - INTERVAL '24 hours'
-    `);
-
-    const recentDispenses = await req.prisma.$queryRawUnsafe(`
-      SELECT i.total, p.name as patient_name, i.created_at
-      FROM "${req.schemaName}".invoices i
-      JOIN "${req.schemaName}".patients p ON i.patient_id = p.id
-      WHERE i.bill_type = 'PHARMACY'
-      ORDER BY i.created_at DESC
-      LIMIT 5
-    `);
-
-    res.json({
-      todaysSales: Number(dailyRevenue[0]?.sum || 0),
-      recentDispenses: recentDispenses
-    });
-  } catch (error) { next(error); }
-});
-
-// Pharmacy routes: pharmacist manages stock & dispensing; doctor can view inventory for reference
-
-router.get("/pharmacy/inventory", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT id, name as drug_name, category, stock_quantity, unit_price, expiry_date 
-      FROM "${req.schemaName}".medicines 
-      ORDER BY name ASC
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/pharmacy/inventory", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
-  try {
-    const { name, category, quantity, price, expiryDate } = req.body;
-    
-    // Fallback safe string
-    const safeName = (name || "").replace(/'/g, "''");
-    
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".medicines (name, category, stock_quantity, unit_price, expiry_date)
-      VALUES ('${safeName}', '${category}', ${parseInt(quantity) || 0}, ${parseFloat(price) || 0}, '${expiryDate}')
-    `);
-    
-    res.status(201).json({ message: "Stock item added successfully" });
-  } catch (error) { next(error); }
-});
-
-router.get("/pharmacy/prescriptions", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT pr.*, p.name as patient_name, p.mrn, e.id as encounter_id
-      FROM "${req.schemaName}".prescriptions pr
-      JOIN "${req.schemaName}".encounters e ON pr.encounter_id = e.id
-      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
-      WHERE pr.id IN (SELECT prescription_id FROM "${req.schemaName}".prescription_items)
-      ORDER BY pr.id DESC
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.get("/pharmacy/prescriptions/:id/items", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT * FROM "${req.schemaName}".prescription_items WHERE prescription_id = '${id}'
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
-});
-
-router.post("/pharmacy/dispense", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
-  try {
-    const { encounterId, items } = req.body; // items: [{ drugId, quantity, unitPrice }]
-
-    // 1. Get Patient ID from Encounter
-    const encounterData = await req.prisma.$queryRawUnsafe(`
-      SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${encounterId}'
-    `);
-    const patientId = encounterData[0]?.patient_id;
-
-    // 2. Create Dispense Record
-    const dispense = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".pharmacy_dispenses (encounter_id, patient_id)
-      VALUES ('${encounterId}', '${patientId}')
-      RETURNING id
-    `);
-    const dispenseId = dispense[0].id;
-
-      // 3. Process Items with Schema-Agnostic Fallback
-      for (const item of items) {
-        try {
-          await req.prisma.$executeRawUnsafe(`
-            INSERT INTO "${req.schemaName}".pharmacy_dispense_items (dispense_id, medicine_id, quantity)
-            VALUES ('${dispenseId}', '${item.drugId}', ${item.quantity})
-          `);
-        } catch (e) {
-          // Fallback for legacy shards using brand_id column
-          await req.prisma.$executeRawUnsafe(`
-            INSERT INTO "${req.schemaName}".pharmacy_dispense_items (dispense_id, brand_id, quantity)
-            VALUES ('${dispenseId}', '${item.drugId}', ${item.quantity})
-          `);
-        }
-
-      // Update Inventory
-      await req.prisma.$executeRawUnsafe(`
-        UPDATE "${req.schemaName}".medicines 
-        SET stock_quantity = stock_quantity - ${item.quantity}
-        WHERE id = '${item.drugId}'
-      `);
+    // Check if paid
+    const order = await req.prisma.$queryRawUnsafe(`SELECT is_billed FROM "${req.schemaName}".lab_orders WHERE id = '${id}'`);
+    if (!order[0]?.is_billed) {
+      return res.status(402).json({ error: "Payment required before publication." });
     }
 
-    res.status(201).json({ message: "Medication dispensed successfully" });
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".lab_orders SET status = 'Published' WHERE id = '${id}'`);
+    res.json({ message: "Report published successfully" });
   } catch (error) { next(error); }
 });
 
-// --- IPD / Wards & Beds ---
-
+// --- Master Data ---
 router.get("/masters/wards", async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".wards ORDER BY name ASC`);
@@ -663,564 +247,468 @@ router.get("/masters/wards", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/masters/medicines", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT id, name, composition, category, unit_price as price
+      FROM "${req.schemaName}".medicines
+      WHERE COALESCE(is_active, true) = true
+      ORDER BY name ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/masters/diseases", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT id, name, icd_code, category FROM "${req.schemaName}".diseases ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/masters/diagnostics", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT id, name, price FROM "${req.schemaName}".diagnostics ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 router.get("/masters/modes", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".consultation_modes ORDER BY name ASC`);
-    res.json(data);
-  } catch (error) {
-    // Return standard defaults if table is missing or error occurs
-    res.json([
-      { id: 'm1', name: 'In-Person Consultation' },
-      { id: 'm2', name: 'Virtual / Video Visit' },
-      { id: 'm3', name: 'Emergency / Trauma' }
-    ]);
-  }
+    // Self-healing fallback for consultation modes
+    try {
+      const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".consultation_modes ORDER BY name ASC`);
+      res.json(data);
+    } catch (e) {
+      res.json([
+        { id: 'm1', name: 'In-Person', price: 0 },
+        { id: 'm2', name: 'Virtual/Teleconsult', price: 200 },
+        { id: 'm3', name: 'Emergency/Home Visit', price: 500 }
+      ]);
+    }
+  } catch (error) { next(error); }
 });
 
 router.get("/masters/services", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".services ORDER BY name ASC`);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".medicines WHERE type = 'service' OR category = 'Laboratory' ORDER BY name ASC`);
     res.json(data);
   } catch (error) { next(error); }
 });
 
-router.post("/masters/wards", async (req, res, next) => {
-  try {
-    const { name, capacity, type, floor, base_charge } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".wards (name, capacity, type, floor, base_charge)
-      VALUES ('${name.replace(/'/g, "''")}', ${parseInt(capacity) || 10}, '${type || 'Regular Care'}', '${floor || 'Ground Floor'}', ${parseFloat(base_charge) || 0})
-    `);
-    res.status(201).json({ message: "Ward created successfully" });
-  } catch (error) { next(error); }
-});
-
-// Live Bed Map: all wards with real-time bed occupancy counts
-router.get("/ipd/bedmap", async (req, res, next) => {
+// --- In-Patient Department (IPD) ---
+router.get("/ipd/bedmap", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT 
-        w.id, w.name, w.capacity, w.type, w.floor,
-        COUNT(a.id) FILTER (WHERE a.status = 'Active') AS occupied,
-        w.capacity - COUNT(a.id) FILTER (WHERE a.status = 'Active') AS available
+      SELECT w.*, COALESCE(COUNT(b.id), 0)::int as bed_count,
+        COALESCE(SUM(CASE WHEN b.status = 'Occupied' THEN 1 ELSE 0 END), 0)::int as occupied
       FROM "${req.schemaName}".wards w
-      LEFT JOIN "${req.schemaName}".ipd_admissions a ON a.ward_id = w.id
-      GROUP BY w.id, w.name, w.capacity, w.type, w.floor
-      ORDER BY w.name ASC
+      LEFT JOIN "${req.schemaName}".beds b ON b.ward_id = w.id
+      GROUP BY w.id
+      ORDER BY w.type, w.name
     `);
     res.json(data);
   } catch (error) { next(error); }
 });
 
-// Beds in a specific ward with patient details if occupied
-router.get("/ipd/wards/:wardId/beds", async (req, res, next) => {
+router.get("/ipd/wards/:id/beds", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
-    const { wardId } = req.params;
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT 
-        b.id as bed_id, b.bed_number, b.status,
-        a.id as admission_id, a.admitted_at, a.admission_reason, a.daily_charge,
-        p.name as patient_name, p.mrn, p.age, p.gender
+      SELECT b.id as bed_id, b.bed_number, b.status,
+        ia.id as admission_id, p.name as patient_name, p.mrn
       FROM "${req.schemaName}".beds b
-      LEFT JOIN "${req.schemaName}".ipd_admissions a ON a.bed_id = b.id AND a.status = 'Active'
-      LEFT JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-      WHERE b.ward_id = '${wardId}'
+      LEFT JOIN "${req.schemaName}".ipd_admissions ia ON ia.bed_id = b.id AND ia.status = 'Admitted'
+      LEFT JOIN "${req.schemaName}".patients p ON p.id = ia.patient_id
+      WHERE b.ward_id = '${s(req.params.id)}'
       ORDER BY b.bed_number ASC
     `);
     res.json(data);
   } catch (error) { next(error); }
 });
 
-// All active admissions (census view)
-router.get("/ipd/admissions", async (req, res, next) => {
+router.post("/ipd/wards/:id/provision-beds", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT 
-        a.*, p.name as patient_name, p.mrn, p.age, p.gender,
-        w.name as ward_name, b.bed_number,
-        u.name as doctor_name
-      FROM "${req.schemaName}".ipd_admissions a
-      JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-      JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
-      JOIN "${req.schemaName}".beds b ON a.bed_id = b.id
-      LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
-      WHERE a.status = 'Active'
-      ORDER BY a.admitted_at DESC
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
-});
+    const wards = await req.prisma.$queryRawUnsafe(`SELECT id, name, capacity FROM "${req.schemaName}".wards WHERE id = '${s(req.params.id)}'`);
+    if (!wards.length) return res.status(404).json({ error: "Ward not found" });
 
-// Discharge summaries (completed admissions)
-router.get("/ipd/discharges", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT 
-        a.id, a.admitted_at, a.discharged_at as discharge_date,
-        p.name as patient_name, p.mrn,
-        u.name as doctor_name
-      FROM "${req.schemaName}".ipd_admissions a
-      JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-      LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
-      WHERE a.status = 'Discharged'
-      ORDER BY a.discharged_at DESC
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
-});
+    const existing = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".beds WHERE ward_id = '${s(req.params.id)}'`);
+    const start = Number(existing[0]?.count || 0);
+    const capacity = Math.max(Number(wards[0].capacity || 0), 1);
+    const prefix = String(wards[0].name || "WARD").replace(/[^A-Za-z0-9]/g, "").slice(0, 3).toUpperCase() || "BED";
 
-// Admit a patient (creates encounter + bed assignment)
-router.post("/ipd/admissions", async (req, res, next) => {
-  try {
-    const { patientId, wardId, bedId, admittingDoctorId, admissionReason, dailyCharge } = req.body;
-
-    // 1. Create IPD Encounter
-    const enc = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, type, status, complaints)
-      VALUES ('${patientId}', '${admittingDoctorId}', 'IPD', 'Active', '${admissionReason}')
-      RETURNING id
-    `);
-    const encounterId = enc[0].id;
-
-    // 2. Create Admission Record
-    const adm = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".ipd_admissions (patient_id, bed_id, ward_id, encounter_id, admitting_doctor_id, admission_reason, daily_charge)
-      VALUES ('${patientId}', '${bedId}', '${wardId}', '${encounterId}', '${admittingDoctorId}', '${admissionReason}', ${dailyCharge || 0})
-      RETURNING id
-    `);
-
-    // 3. Mark bed as Occupied
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".beds SET status = 'Occupied' WHERE id = '${bedId}'
-    `);
-
-    res.status(201).json({ message: "Patient admitted successfully", admissionId: adm[0].id, encounterId });
-  } catch (error) { next(error); }
-});
-
-// Get single admission detail with notes
-router.get("/ipd/admissions/:id", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const [admissionRes, notesRes] = await Promise.all([
-      req.prisma.$queryRawUnsafe(`
-        SELECT a.*, p.name as patient_name, p.mrn, p.age, p.gender, p.phone,
-          w.name as ward_name, b.bed_number, u.name as doctor_name
-        FROM "${req.schemaName}".ipd_admissions a
-        JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-        JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
-        JOIN "${req.schemaName}".beds b ON a.bed_id = b.id
-        LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
-        WHERE a.id = '${id}'
-      `),
-      req.prisma.$queryRawUnsafe(`
-        SELECT n.*, u.name as doctor_name FROM "${req.schemaName}".ipd_notes n
-        LEFT JOIN "${req.schemaName}".users u ON n.doctor_id = u.id
-        WHERE n.admission_id = '${id}' ORDER BY n.created_at DESC
-      `)
-    ]);
-    res.json({ admission: admissionRes[0], notes: notesRes });
-  } catch (error) { next(error); }
-});
-
-// Add clinical note to admission
-router.post("/ipd/admissions/:id/notes", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { noteText, noteType, doctorId } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".ipd_notes (admission_id, doctor_id, note_text, note_type)
-      VALUES ('${id}', '${doctorId || req.user?.id}', '${noteText}', '${noteType || 'Progress'}')
-    `);
-    res.status(201).json({ message: "Note added" });
-  } catch (error) { next(error); }
-});
-
-// Generate AI Discharge Summary and PDF
-router.post("/ipd/admissions/:id/generate-summary", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    
-    // Get admission details
-    const adm = await req.prisma.$queryRawUnsafe(`
-      SELECT a.*, p.name, p.age, p.gender, p.mrn, p.phone, w.name as ward_name
-      FROM "${req.schemaName}".ipd_admissions a
-      JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-      JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
-      WHERE a.id = '${id}'
-    `);
-    if (!adm[0]) return res.status(404).json({ error: "Admission not found" });
-
-    // Get clinical notes
-    const notes = await req.prisma.$queryRawUnsafe(`
-      SELECT note_type, note_text, created_at
-      FROM "${req.schemaName}".ipd_notes
-      WHERE admission_id = '${id}'
-      ORDER BY created_at ASC
-    `);
-
-    // Get lab results (if any exist for the encounter)
-    let labs = [];
-    if (adm[0].encounter_id) {
-       labs = await req.prisma.$queryRawUnsafe(`
-        SELECT d.name, lo.status, lo.created_at
-        FROM "${req.schemaName}".lab_orders lo
-        JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
-        WHERE lo.encounter_id = '${adm[0].encounter_id}'
-      `);
-    }
-
-    // Generate Summary via AI
-    const summaryText = await aiService.generateDischargeSummary(adm[0], adm[0], notes, labs);
-
-    // Save as IPD Note
-    const safeSummaryText = summaryText.replace(/'/g, "''");
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".ipd_notes (admission_id, doctor_id, note_text, note_type) 
-      VALUES ('${id}', '${req.user.id}', '${safeSummaryText}', 'Discharge Summary')
-    `);
-
-    // Generate PDF
-    const pdfResult = await pdfService.createDischargeSummaryPDF(adm[0], adm[0], summaryText);
-
-    res.json({
-      message: "Discharge Summary Generated",
-      summary: summaryText,
-      pdfPath: pdfResult.filePath
-    });
-  } catch (error) { next(error); }
-});
-
-// Discharge patient
-router.put("/ipd/admissions/:id/discharge", async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    
-    // 1. Get admission details for billing calculation
-    const adm = await req.prisma.$queryRawUnsafe(`
-      SELECT a.*, p.name as patient_name, p.id as patient_id
-      FROM "${req.schemaName}".ipd_admissions a
-      JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-      WHERE a.id = '${id}'
-    `);
-    if (!adm[0]) return res.status(404).json({ error: "Admission not found" });
-
-    const admission = adm[0];
-    const daysAdmitted = Math.ceil((Date.now() - new Date(admission.admitted_at).getTime()) / (1000 * 60 * 60 * 24)) || 1;
-    const bedCharges = daysAdmitted * Number(admission.daily_charge);
-
-    // 2. Update admission status
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".ipd_admissions 
-      SET status = 'Discharged', discharged_at = NOW() 
-      WHERE id = '${id}'
-    `);
-
-    // 3. Free the bed
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".beds SET status = 'Vacant' WHERE id = '${admission.bed_id}'
-    `);
-
-    // 4. Update encounter status
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".encounters SET status = 'Discharged' WHERE id = '${admission.encounter_id}'
-    `);
-
-    res.json({ 
-      message: "Patient discharged successfully",
-      billingSummary: {
-        patientName: admission.patient_name,
-        patientId: admission.patient_id,
-        encounterId: admission.encounter_id,
-        daysAdmitted,
-        bedCharges,
-        dailyCharge: Number(admission.daily_charge)
-      }
-    });
-  } catch (error) { next(error); }
-});
-
-// Provision beds for a ward (auto-create beds up to capacity)
-router.post("/ipd/wards/:wardId/provision-beds", async (req, res, next) => {
-  try {
-    const { wardId } = req.params;
-    const ward = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".wards WHERE id = '${wardId}'`);
-    if (!ward[0]) return res.status(404).json({ error: "Ward not found" });
-    
-    const capacity = ward[0].capacity;
-    for (let i = 1; i <= capacity; i++) {
+    for (let i = start + 1; i <= capacity; i++) {
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".beds (ward_id, bed_number, status)
-        VALUES ('${wardId}', 'BED-${String(i).padStart(2, '0')}', 'Vacant')
-        ON CONFLICT DO NOTHING
+        VALUES ('${s(req.params.id)}', '${prefix}-${String(i).padStart(2, "0")}', 'Vacant')
       `);
     }
-    res.json({ message: `${capacity} beds provisioned for ward` });
+
+    res.status(201).json({ message: "Beds provisioned", created: Math.max(capacity - start, 0) });
   } catch (error) { next(error); }
 });
 
-router.get("/rbac/sync", async (req, res, next) => {
+router.get("/ipd/admissions", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
-    const schema = req.schemaName;
-    console.log(`[RBAC_SYNC] Full RBAC sync triggered for ${schema}`);
-
-    // 1. Ensure RBAC tables exist
-    await req.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${schema}".rbac_roles (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          name VARCHAR(50) UNIQUE NOT NULL,
-          description TEXT,
-          created_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          label VARCHAR(100) NOT NULL,
-          path VARCHAR(100) NOT NULL,
-          icon VARCHAR(50),
-          required_plan VARCHAR(50) DEFAULT 'basic',
-          parent_id UUID REFERENCES "${schema}".rbac_menus(id),
-          sort_order INT DEFAULT 0
-      );
-      CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_menus (
-          role_id UUID REFERENCES "${schema}".rbac_roles(id) ON DELETE CASCADE,
-          menu_id UUID REFERENCES "${schema}".rbac_menus(id) ON DELETE CASCADE,
-          PRIMARY KEY (role_id, menu_id)
-      );
-      CREATE TABLE IF NOT EXISTS "${schema}".rbac_permissions (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          key VARCHAR(100) UNIQUE NOT NULL,
-          description TEXT
-      );
-      CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_permissions (
-          role_id UUID REFERENCES "${schema}".rbac_roles(id) ON DELETE CASCADE,
-          permission_id UUID REFERENCES "${schema}".rbac_permissions(id) ON DELETE CASCADE,
-          PRIMARY KEY (role_id, permission_id)
-      );
-      CREATE TABLE IF NOT EXISTS "${schema}".rbac_user_roles (
-          user_id UUID REFERENCES "${schema}".users(id) ON DELETE CASCADE,
-          role_id UUID REFERENCES "${schema}".rbac_roles(id) ON DELETE CASCADE,
-          PRIMARY KEY (user_id, role_id)
-      );
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT ia.*, p.name as patient_name, p.mrn, p.age, p.gender,
+        b.bed_number, w.name as ward_name
+      FROM "${req.schemaName}".ipd_admissions ia
+      JOIN "${req.schemaName}".patients p ON ia.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".beds b ON ia.bed_id = b.id
+      LEFT JOIN "${req.schemaName}".wards w ON b.ward_id = w.id
+      WHERE ia.status = 'Admitted'
+      ORDER BY ia.admitted_at DESC
     `);
-
-    // 2. Seed all roles (incl. RECEPTIONIST)
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_roles (name, description) VALUES
-      ('ADMIN',        'Full system access'),
-      ('DOCTOR',       'Clinical access - OPD, consultation, lab orders'),
-      ('NURSE',        'Nursing access - vitals, in-patient care'),
-      ('PHARMACIST',   'Pharmacy access - inventory, dispensing'),
-      ('LAB_TECH',     'Lab access - test queue and result entry'),
-      ('RECEPTIONIST', 'Front desk - patient registration and appointments'),
-      ('SUPPORT',      'General staff - read-only access')
-      ON CONFLICT (name) DO NOTHING
-    `);
-
-    // 3. Seed all menus (complete set across all tiers)
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_menus (label, path, icon, sort_order, required_plan) VALUES
-      ('Dashboard',                   '/tenant/dashboard',            'Dashboard', 1,  'basic'),
-      ('OPD Registration',            '/tenant/opd/registration',     'OPD',       2,  'basic'),
-      ('Doctor''s Queue',             '/tenant/opd/queue',            'Doctor',    3,  'basic'),
-      ('Invoicing & Billing',         '/billing',                     'Billing',   10, 'basic'),
-      ('Branding & UI Settings',      '/tenant/settings',             'Settings',  12, 'basic'),
-      ('Staff & RBAC',                '/tenant/staff',                'Doctor',    13, 'basic'),
-      ('Laboratory',                  '/tenant/lab',                  'Lab',       4,  'standard'),
-      ('Pharmacy Dashboard',          '/tenant/pharmacy/dashboard',   'Pharmacy',  5,  'standard'),
-      ('Stock Inventory',             '/tenant/pharmacy/inventory',   'Pill',      6,  'standard'),
-      ('Prescription Queue',          '/tenant/pharmacy/queue',       'Receipt',   7,  'standard'),
-      ('Hospital Settings (Masters)', '/tenant/masters',              'Settings',  11, 'standard'),
-      ('IPD Bed Map',                 '/tenant/ipd/beds',             'Bed',       8,  'professional'),
-      ('IPD Census & Daycare',        '/tenant/ipd/admissions',       'Clipboard', 9,  'professional'),
-      ('Discharge Summaries',         '/tenant/ipd/discharge',        'Receipt',   15, 'professional'),
-      ('Insurance Management',        '/tenant/billing/insurance',    'Receipt',   14, 'professional')
-      ON CONFLICT (label) DO NOTHING
-    `);
-
-    // 4. Seed role-menu mappings per standard RBAC matrix
-    // ADMIN → ALL menus
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'ADMIN'
-      ON CONFLICT DO NOTHING
-    `);
-    // DOCTOR → Dashboard, Doctor's Queue, Laboratory
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'DOCTOR' AND m.label IN ('Dashboard', 'Doctor''s Queue', 'Laboratory')
-      ON CONFLICT DO NOTHING
-    `);
-    // NURSE → Dashboard only
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'NURSE' AND m.label IN ('Dashboard')
-      ON CONFLICT DO NOTHING
-    `);
-    // PHARMACIST → Dashboard + pharmacy menus
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'PHARMACIST' AND m.label IN ('Dashboard', 'Pharmacy Dashboard', 'Stock Inventory', 'Prescription Queue')
-      ON CONFLICT DO NOTHING
-    `);
-    // LAB_TECH → Dashboard + Laboratory
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'LAB_TECH' AND m.label IN ('Dashboard', 'Laboratory')
-      ON CONFLICT DO NOTHING
-    `);
-    // RECEPTIONIST → Dashboard + OPD Registration
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'RECEPTIONIST' AND m.label IN ('Dashboard', 'OPD Registration')
-      ON CONFLICT DO NOTHING
-    `);
-    // SUPPORT → Dashboard only
-    await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
-      SELECT r.id, m.id FROM "${schema}".rbac_roles r, "${schema}".rbac_menus m
-      WHERE r.name = 'SUPPORT' AND m.label IN ('Dashboard')
-      ON CONFLICT DO NOTHING
-    `);
-
-    // 5. Link all existing users to their RBAC roles via role name mapping
-    const roleNameMap = {
-      'admin': 'ADMIN', 'doctor': 'DOCTOR', 'nurse': 'NURSE',
-      'pharmacist': 'PHARMACIST', 'lab_assistant': 'LAB_TECH', 'lab_tech': 'LAB_TECH',
-      'receptionist': 'RECEPTIONIST', 'staff': 'SUPPORT', 'support': 'SUPPORT'
-    };
-    const users = await req.prisma.$queryRawUnsafe(`SELECT id, role FROM "${schema}".users`);
-    for (const u of users) {
-      if (u.role) {
-        const mappedRole = roleNameMap[u.role.toLowerCase()] || 'SUPPORT';
-        await req.prisma.$executeRawUnsafe(`
-          INSERT INTO "${schema}".rbac_user_roles (user_id, role_id)
-          SELECT '${u.id}', id FROM "${schema}".rbac_roles WHERE name = '${mappedRole}'
-          ON CONFLICT DO NOTHING
-        `);
-      }
-    }
-
-    console.log(`[RBAC_SYNC] Completed for ${schema}`);
-    res.json({ message: "RBAC fully synchronized — roles, menus, mappings and user links all up to date." });
-  } catch (error) { 
-    console.error(`[RBAC_SYNC] Error: ${error.message}`);
-    next(error); 
-  }
+    res.json(data);
+  } catch (error) { next(error); }
 });
 
-router.get("/stats", async (req, res, next) => {
+router.post("/ipd/admissions", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
-    // Use 24-hour rolling window for "Today" to handle timezone offsets gracefully
-    const patientInflow = await req.prisma.$queryRawUnsafe(`
-      SELECT COUNT(*) as count FROM "${req.schemaName}".patients WHERE created_at > NOW() - INTERVAL '24 hours'
+    const { patientId, bedId, wardId, admittingDoctorId, admissionReason, dailyCharge } = req.body;
+    if (!patientId || !bedId || !wardId || !admittingDoctorId) {
+      return res.status(400).json({ error: "Patient, ward, bed, and doctor are required." });
+    }
+
+    const occupied = await req.prisma.$queryRawUnsafe(`SELECT status FROM "${req.schemaName}".beds WHERE id = '${s(bedId)}'`);
+    if (!occupied.length) return res.status(404).json({ error: "Selected bed was not found." });
+    if (occupied[0].status === "Occupied") return res.status(409).json({ error: "Selected bed is already occupied." });
+
+    const encounter = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, type, status, complaints)
+      VALUES ('${s(patientId)}', '${s(admittingDoctorId)}', 'IPD', 'Admitted', '${s(admissionReason)}')
+      RETURNING id
     `);
 
-    const activeAdmissions = await req.prisma.$queryRawUnsafe(`
-      SELECT COUNT(*) as count FROM "${req.schemaName}".encounters WHERE type = 'IPD' AND status = 'Active'
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".ipd_admissions (
+        patient_id, bed_id, ward_id, encounter_id, admitting_doctor_id, admission_reason, daily_charge, status
+      )
+      VALUES (
+        '${s(patientId)}', '${s(bedId)}', '${s(wardId)}', '${encounter[0].id}', '${s(admittingDoctorId)}',
+        '${s(admissionReason)}', ${Number(dailyCharge || 0)}, 'Admitted'
+      )
+      RETURNING id
     `);
 
-    const pendingBills = await req.prisma.$queryRawUnsafe(`
-      SELECT COUNT(*) as count FROM "${req.schemaName}".invoices WHERE status = 'Unpaid'
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Occupied' WHERE id = '${s(bedId)}'`);
+    res.status(201).json({ id: result[0].id, message: "Patient admitted successfully" });
+  } catch (error) { next(error); }
+});
+
+router.get("/ipd/admissions/:id", checkPermission('IPD_MANAGE'), async (req, res, next) => {
+  try {
+    const admission = await req.prisma.$queryRawUnsafe(`
+      SELECT ia.*, p.name as patient_name, p.mrn, p.age, p.gender, p.phone,
+        b.bed_number, w.name as ward_name, u.name as doctor_name
+      FROM "${req.schemaName}".ipd_admissions ia
+      JOIN "${req.schemaName}".patients p ON ia.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".beds b ON ia.bed_id = b.id
+      LEFT JOIN "${req.schemaName}".wards w ON ia.ward_id = w.id
+      LEFT JOIN "${req.schemaName}".users u ON ia.admitting_doctor_id = u.id
+      WHERE ia.id = '${s(req.params.id)}'
+    `);
+    if (!admission.length) return res.status(404).json({ error: "Admission not found" });
+
+    const notes = await req.prisma.$queryRawUnsafe(`
+      SELECT n.*, u.name as doctor_name
+      FROM "${req.schemaName}".ipd_notes n
+      LEFT JOIN "${req.schemaName}".users u ON n.doctor_id = u.id
+      WHERE n.admission_id = '${s(req.params.id)}'
+      ORDER BY n.created_at DESC
     `);
 
-    const dailyRevenue = await req.prisma.$queryRawUnsafe(`
-      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices WHERE status = 'PAID' AND created_at > NOW() - INTERVAL '24 hours'
-    `);
+    res.json({ admission: admission[0], notes });
+  } catch (error) { next(error); }
+});
 
-    const dailyCollection = await req.prisma.$queryRawUnsafe(`
-      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices WHERE status = 'PAID' AND payment_mode != 'Insurance' AND created_at > NOW() - INTERVAL '24 hours'
-    `);
+router.post("/ipd/admissions/:id/notes", checkPermission('IPD_MANAGE'), async (req, res, next) => {
+  try {
+    const doctorId = await getCurrentUserId(req);
+    const { noteText, noteType } = req.body;
+    if (!noteText) return res.status(400).json({ error: "Note text is required." });
 
-    const pendingInsurance = await req.prisma.$queryRawUnsafe(`
-      SELECT SUM(total) as sum FROM "${req.schemaName}".invoices WHERE payment_mode = 'Insurance' AND status = 'Unpaid'
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".ipd_notes (admission_id, doctor_id, note_text, note_type)
+      VALUES ('${s(req.params.id)}', ${sqlValue(doctorId)}, '${s(noteText)}', '${s(noteType || "Progress")}')
     `);
+    res.status(201).json({ message: "Note saved" });
+  } catch (error) { next(error); }
+});
 
-    // Weekly flow data - ensure we have data for last 7 days
-    const weeklyFlow = await req.prisma.$queryRawUnsafe(`
-      SELECT d.date, COALESCE(p.count, 0) as count
-      FROM (
-        SELECT (CURRENT_DATE - (n || ' days')::interval)::date as date
-        FROM generate_series(0, 6) n
-      ) d
-      LEFT JOIN (
-        SELECT created_at::date as date, COUNT(*) as count 
-        FROM "${req.schemaName}".patients 
-        WHERE created_at > CURRENT_DATE - INTERVAL '14 days'
-        GROUP BY created_at::date
-      ) p ON d.date = p.date
-      ORDER BY d.date ASC
+router.put("/ipd/admissions/:id/discharge", checkPermission('IPD_MANAGE'), async (req, res, next) => {
+  try {
+    await ensureDischargeTable(req);
+
+    const rows = await req.prisma.$queryRawUnsafe(`
+      SELECT ia.*, p.name as patient_name
+      FROM "${req.schemaName}".ipd_admissions ia
+      JOIN "${req.schemaName}".patients p ON p.id = ia.patient_id
+      WHERE ia.id = '${s(req.params.id)}'
     `);
+    if (!rows.length) return res.status(404).json({ error: "Admission not found" });
 
-    const departmentLoad = await req.prisma.$queryRawUnsafe(`
-      SELECT type as name, COUNT(*) as count 
-      FROM "${req.schemaName}".encounters 
-      WHERE status = 'Active' 
-      GROUP BY type
+    const adm = rows[0];
+    const daysAdmitted = Math.max(Math.ceil((Date.now() - new Date(adm.admitted_at).getTime()) / 86400000), 1);
+    const dailyCharge = Number(adm.daily_charge || 0);
+    const bedCharges = daysAdmitted * dailyCharge;
+    const doctorId = await getCurrentUserId(req);
+
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".ipd_admissions
+      SET status = 'Discharged', discharged_at = NOW()
+      WHERE id = '${s(req.params.id)}'
+    `);
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Vacant' WHERE id = '${adm.bed_id}'`);
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".discharge_summaries (admission_id, patient_id, doctor_id, summary_text, discharge_type)
+      VALUES ('${s(req.params.id)}', '${adm.patient_id}', ${sqlValue(doctorId)}, 'Discharge initiated. Final summary pending.', 'STANDARD')
     `);
 
     res.json({
-      metrics: {
-        patientInflow: Number(patientInflow[0]?.count || 0),
-        activeAdmissions: Number(activeAdmissions[0]?.count || 0),
-        pendingBills: Number(pendingBills[0]?.count || 0),
-        dailyRevenue: Number(dailyRevenue[0]?.sum || 0),
-        dailyCollection: Number(dailyCollection[0]?.sum || 0),
-        pendingInsurance: Number(pendingInsurance[0]?.sum || 0)
-      },
-      weeklyFlow: weeklyFlow.map(w => ({
-        date: w.date,
-        count: Number(w.count)
-      })),
-      departmentLoad: departmentLoad.map(d => ({
-        name: d.name,
-        count: Number(d.count)
-      }))
+      message: "Patient discharged",
+      billingSummary: {
+        daysAdmitted,
+        dailyCharge,
+        bedCharges,
+        patientName: adm.patient_name,
+        encounterId: adm.encounter_id
+      }
     });
-  } catch (error) { 
-    console.error("[STATS ERROR]", error);
-    next(error); 
-  }
-});
-
-// 7. Diagnostics
-router.get("/masters/diagnostics", async (req, res, next) => {
-  try {
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT d.*, dt.name as type_name 
-      FROM "${req.schemaName}".diagnostics d
-      LEFT JOIN "${req.schemaName}".diagnostic_types dt ON d.type_id = dt.id
-      ORDER BY d.name ASC
-    `);
-    res.json(data);
   } catch (error) { next(error); }
 });
 
-router.post("/masters/diagnostics", async (req, res, next) => {
+router.post("/ipd/admissions/:id/generate-summary", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
-    const { name, price, type_id } = req.body;
+    await ensureDischargeTable(req);
+
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT ia.*, p.*, w.name as ward_name, b.bed_number
+      FROM "${req.schemaName}".ipd_admissions ia
+      JOIN "${req.schemaName}".patients p ON p.id = ia.patient_id
+      LEFT JOIN "${req.schemaName}".wards w ON w.id = ia.ward_id
+      LEFT JOIN "${req.schemaName}".beds b ON b.id = ia.bed_id
+      WHERE ia.id = '${s(req.params.id)}'
+    `);
+    if (!data.length) return res.status(404).json({ error: "Admission not found" });
+
+    const notes = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".ipd_notes WHERE admission_id = '${s(req.params.id)}' ORDER BY created_at ASC`);
+    const summaryText = await aiService.generateDischargeSummary(data[0], data[0], notes, []);
+    const pdf = await pdfService.createDischargeSummaryPDF(data[0], data[0], summaryText);
+    const doctorId = await getCurrentUserId(req);
+
     await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".diagnostics (name, price, type_id) 
-      VALUES ('${name.replace(/'/g, "''")}', ${price || 0}, ${type_id ? `'${type_id}'` : 'NULL'})
+      INSERT INTO "${req.schemaName}".discharge_summaries (admission_id, patient_id, doctor_id, summary_text, pdf_path, discharge_type)
+      VALUES ('${s(req.params.id)}', '${data[0].patient_id}', ${sqlValue(doctorId)}, '${s(summaryText)}', '${s(pdf.filePath)}', 'AI_GENERATED')
     `);
-    res.status(201).json({ message: "Diagnostic test added" });
+
+    res.json({ message: "AI discharge summary generated", summaryText, pdfPath: pdf.filePath });
   } catch (error) { next(error); }
 });
 
-// 8. Communication Logs (Mail Management)
-router.get("/mail-logs", async (req, res, next) => {
+router.get("/ipd/discharges", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
+    await ensureDischargeTable(req);
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT * FROM "${req.schemaName}".communication_logs 
-      ORDER BY created_at DESC
+      SELECT ds.*, p.name as patient_name, p.mrn, u.name as doctor_name
+      FROM "${req.schemaName}".discharge_summaries ds
+      JOIN "${req.schemaName}".patients p ON p.id = ds.patient_id
+      LEFT JOIN "${req.schemaName}".users u ON u.id = ds.doctor_id
+      ORDER BY ds.created_at DESC
     `);
     res.json(data);
   } catch (error) { next(error); }
+});
+
+router.get("/ipd/discharge-summary", checkPermission('IPD_MANAGE'), async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT ds.*, p.name as patient_name, p.mrn, ia.admission_date
+      FROM "${req.schemaName}".discharge_summaries ds
+      JOIN "${req.schemaName}".patients p ON ds.patient_id = p.id
+      JOIN "${req.schemaName}".ipd_admissions ia ON ds.admission_id = ia.id
+      ORDER BY ds.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// --- Pharmacy Management ---
+router.get("/pharmacy/inventory", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT id, name, name as drug_name, category, composition, stock_quantity, unit_price, expiry_date
+      FROM "${req.schemaName}".medicines
+      WHERE COALESCE(is_active, true) = true
+      ORDER BY name ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/prescriptions", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT pr.*, p.id as patient_id, p.name as patient_name, p.mrn, u.name as doctor_name
+      FROM "${req.schemaName}".prescriptions pr
+      JOIN "${req.schemaName}".encounters e ON pr.encounter_id = e.id
+      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      WHERE COALESCE(pr.status, 'Pending') != 'Dispensed'
+      ORDER BY pr.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/prescriptions/:id/items", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT pi.*, m.name as medicine_name, m.unit_price, m.stock_quantity
+      FROM "${req.schemaName}".prescription_items pi
+      LEFT JOIN "${req.schemaName}".medicines m ON pi.medicine_id = m.id
+      WHERE pi.prescription_id = '${s(req.params.id)}'
+      ORDER BY pi.created_at NULLS LAST
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/pharmacy/dispense", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    await ensureBillingQueue(req);
+    const { encounterId, prescriptionId, items } = req.body;
+    if (!encounterId) return res.status(400).json({ error: "Encounter is required for dispensing." });
+
+    const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${s(encounterId)}'`);
+    if (!encounter.length) return res.status(404).json({ error: "Encounter not found." });
+
+    for (const item of items || []) {
+      if (!item.drugId || Number(item.quantity || 0) <= 0) continue;
+      const stock = await req.prisma.$queryRawUnsafe(`SELECT name, stock_quantity, unit_price FROM "${req.schemaName}".medicines WHERE id = '${s(item.drugId)}'`);
+      if (!stock.length) continue;
+      if (Number(stock[0].stock_quantity || 0) < Number(item.quantity)) {
+        return res.status(409).json({ error: `Insufficient stock for ${stock[0].name}` });
+      }
+
+      await req.prisma.$executeRawUnsafe(`
+        UPDATE "${req.schemaName}".medicines
+        SET stock_quantity = stock_quantity - ${Number(item.quantity)}
+        WHERE id = '${s(item.drugId)}'
+      `);
+
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price, is_discountable)
+        VALUES ('${encounter[0].patient_id}', '${s(encounterId)}', 'PHARMACY', '${s(item.drugId)}', 'Pharmacy: ${s(item.drugName || stock[0].name)}', ${Number(item.quantity)}, ${Number(item.unitPrice || stock[0].unit_price || 0)}, FALSE)
+      `);
+    }
+
+    if (prescriptionId) {
+      await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".prescriptions SET status = 'Dispensed' WHERE id = '${s(prescriptionId)}'`);
+    } else {
+      await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".prescriptions SET status = 'Dispensed' WHERE encounter_id = '${s(encounterId)}'`);
+    }
+
+    res.json({ message: "Medication dispensed and queued for billing." });
+  } catch (error) { next(error); }
+});
+
+// --- Clinical Encounters (OPD/IPD Queue) ---
+router.get("/encounters", async (req, res, next) => {
+  try {
+    const { status, type } = req.query;
+    let query = `
+      SELECT e.*, p.name as patient_name, p.mrn, p.phone, p.age, p.gender, u.name as doctor_name
+      FROM "${req.schemaName}".encounters e
+      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
+      JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      WHERE 1=1
+    `;
+    
+    if (status) query += ` AND e.status = '${status}'`;
+    if (type) query += ` AND e.type = '${type}'`;
+    
+    query += ` ORDER BY e.created_at DESC`;
+    
+    const data = await req.prisma.$queryRawUnsafe(query);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/encounters", async (req, res, next) => {
+  try {
+    const { patientId, doctorId, type, vitals, complaints } = req.body;
+    if (!patientId || !doctorId) return res.status(400).json({ error: "Patient and doctor are required." });
+
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, type, status, vitals, complaints)
+      VALUES ('${s(patientId)}', '${s(doctorId)}', '${s(type || "OPD")}', 'Draft', ${jsonValue(vitals)}, '${s(complaints)}')
+      RETURNING id
+    `);
+    res.status(201).json({ id: result[0].id, message: "Encounter created" });
+  } catch (error) { next(error); }
+});
+
+router.put("/encounters/:id", async (req, res, next) => {
+  try {
+    const { diagnosis, status, notes } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".encounters
+      SET diagnosis = '${s(diagnosis)}', status = '${s(status || "Completed")}', notes = '${s(notes)}'
+      WHERE id = '${s(req.params.id)}'
+    `);
+    res.json({ message: "Encounter updated" });
+  } catch (error) { next(error); }
+});
+
+router.post("/encounters/:id/prescriptions", async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    const { items } = req.body;
+    const prescription = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".prescriptions (encounter_id, status)
+      VALUES ('${s(req.params.id)}', 'Pending')
+      RETURNING id
+    `);
+
+    for (const item of items || []) {
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".prescription_items (prescription_id, medicine_id, drug_name, dosage, frequency, duration, instructions)
+        VALUES ('${prescription[0].id}', ${sqlValue(item.medicine_id)}, '${s(item.name)}', '${s(item.dosage)}', '${s(item.frequency)}', '${s(item.duration)}', '${s(item.instructions)}')
+      `);
+    }
+
+    res.status(201).json({ message: "Prescription saved", id: prescription[0].id });
+  } catch (error) { next(error); }
+});
+
+router.post("/encounters/:id/lab-orders", async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    const encounterRows = await req.prisma.$queryRawUnsafe(`SELECT patient_id, doctor_id FROM "${req.schemaName}".encounters WHERE id = '${s(req.params.id)}'`);
+    if (!encounterRows.length) return res.status(404).json({ error: "Encounter not found" });
+
+    for (const diagnosticId of req.body.diagnosticIds || []) {
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".lab_orders (patient_id, encounter_id, doctor_id, diagnostic_id, status, priority)
+        VALUES ('${encounterRows[0].patient_id}', '${s(req.params.id)}', '${encounterRows[0].doctor_id}', '${s(diagnosticId)}', 'Pending', 'Normal')
+      `);
+    }
+
+    res.status(201).json({ message: "Lab orders created" });
+  } catch (error) { next(error); }
+});
+
+// --- Analytics & Reporting ---
+router.use("/metrics", metricsRoutes);
+
+// Catch-all for debugging 404s within this module
+router.use((req, res) => {
+  console.warn(`[HOSPITAL 404] Route not found within hospital module: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ error: "Route not found in hospital module", path: req.originalUrl });
 });
 
 module.exports = router;

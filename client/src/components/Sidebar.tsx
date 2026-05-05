@@ -23,14 +23,79 @@ export default function Sidebar() {
   const rawMenus = localStorage.getItem("userMenus");
   const dynamicMenus: any[] = rawMenus ? JSON.parse(rawMenus) : [];
 
-  const groups = [
-    { title: "Clinical Workflow", items: dynamicMenus.filter(m => ["Doctor's Queue", "IPD Census & Daycare", "OPD Registration", "OPD Queue", "Consultation Desk", "Appointment List", "IPD Bed Map", "Admission Desk", "Discharge Summaries"].includes(m.label)) },
-    { title: "Services & Pharmacy", items: dynamicMenus.filter(m => ["Laboratory", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"].includes(m.label)) },
-    { title: "Billing & Finance", items: dynamicMenus.filter(m => ["Invoicing & Billing", "OPD Billing & Revenue Center", "Laboratory Billing", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"].includes(m.label)) },
-    { title: "Management", items: dynamicMenus.filter(m => ["Branding & UI Settings", "Staff & RBAC", "Staff Management", "User Management", "Hospital Settings (Masters)", "Hospital Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"].includes(m.label)) }
+  const orderedItems = (labels: string[]) =>
+    dynamicMenus
+      .filter(m => labels.includes(m.label))
+      .map(normalizeMenu)
+      .sort((a, b) => labels.indexOf(a.label) - labels.indexOf(b.label));
+
+  const normalizeMenu = (menu: any) => {
+    const pathOverrides: Record<string, string> = {
+      "Consultation Desk": "/tenant/opd/consultation",
+      "IPD Admission Desk": "/tenant/ipd/admission-desk",
+      "Admission Desk": "/tenant/ipd/admission-desk"
+    };
+
+    return {
+      ...menu,
+      path: pathOverrides[menu.label] || menu.path
+    };
+  };
+
+  const clinicalFlow = [
+    "OPD Registration",
+    "OPD Queue",
+    "Doctor's Queue",
+    "Consultation Desk",
+    "Appointment List",
+    "Admission Desk",
+    "IPD Bed Map",
+    "IPD Census & Daycare",
+    "Discharge Summaries"
   ];
 
-  const ungroupped = dynamicMenus.filter(m => !groups.some(g => g.items.some(gi => gi.label === m.label)));
+  const serviceFlow = [
+    "Laboratory",
+    "Laboratory Billing",
+    "AI Lab Assistant",
+    "Pharmacy",
+    "Pharmacy Dashboard",
+    "Stock Inventory",
+    "Prescription Queue"
+  ];
+
+  const billingFlow = [
+    "Invoicing & Billing",
+    "OPD Billing & Revenue Center",
+    "Pharmacy Billing",
+    "IPD & Discharge Billing",
+    "Hospital Billing",
+    "Insurance Management"
+  ];
+
+  const managementFlow = [
+    "Staff & RBAC",
+    "Staff Management",
+    "User Management",
+    "Hospital Settings (Masters)",
+    "Hospital Settings",
+    "Branding & UI Settings",
+    "Message Board",
+    "Mail Management",
+    "Help & Support",
+    "Ticketing Management System"
+  ];
+
+  const groups = [
+    { title: "Clinical Workflow", items: orderedItems(clinicalFlow) },
+    { title: "Services & Pharmacy", items: orderedItems(serviceFlow) },
+    { title: "Billing & Finance", items: orderedItems(billingFlow) },
+    { title: "Management", items: orderedItems(managementFlow) }
+  ];
+
+  const ungroupped = dynamicMenus
+    .filter(m => !groups.some(g => g.items.some(gi => gi.label === m.label)))
+    .map(normalizeMenu);
 
   return (
     <>

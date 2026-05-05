@@ -3,10 +3,12 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 export default function AdmissionDeskPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<any[]>([]);
   const [wards, setWards] = useState<any[]>([]);
@@ -63,16 +65,16 @@ export default function AdmissionDeskPage() {
   const handleAdmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.patientId || !form.bedId || !form.admittingDoctorId) {
-      alert("Please fill all required fields.");
+      showToast("Please fill all required fields.", "error");
       return;
     }
     setLoading(true);
     try {
       await axios.post(`${API_BASE}/api/hospital/ipd/admissions`, form, { headers });
-      alert("Patient admitted successfully!");
+      showToast("Patient admitted successfully.", "success");
       navigate("/tenant/ipd/admissions");
     } catch (err: any) {
-      alert(err.response?.data?.error || "Admission failed");
+      showToast(err.response?.data?.error || "Admission failed", "error");
     } finally {
       setLoading(false);
     }

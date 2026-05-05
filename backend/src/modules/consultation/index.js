@@ -61,12 +61,41 @@ router.post("/", async (req, res, next) => {
     if (followUpDate) {
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".follow_ups (patient_id, encounter_id, scheduled_date)
-        VALUES ('${patientId}', '${encounterId}', '${followUpDate}')
+        VALUES ('${patientId}', '${encounter_id}', '${followUpDate}')
       `);
     }
 
+    // --- NEW: Push to Billing Queue (The "Pull-based" Foundation) ---
+    
+    // A. Push Consultation Fee (Flexible/Discountable)
+    const doctorData = await req.prisma.$queryRawUnsafe(`
+      SELECT u.name, s.base_consultation_fee as fee 
+      FROM "${req.schemaName}".users u
+      LEFT JOIN "${req.schemaName}".specialities s ON u.specialization = s.name
+      WHERE u.id = '${doctorId}'
+    `);
+    
+    const fee = doctorData[0]?.fee || 500; // Default if not set
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, unit_price, is_discountable)
+      VALUES ('${patientId}', '${encounterId}', 'CONSULTATION', '${doctorId}', 'Consultation: ${doctorData[0]?.name || 'Doctor'}', ${fee}, TRUE)
+    `);
+
+    // B. Push Prescriptions (Fixed/Non-Discountable)
+    if (Array.isArray(prescriptions)) {
+      for (const p of prescriptions) {
+        const medData = await req.prisma.$queryRawUnsafe(`SELECT unit_price FROM "${req.schemaName}".medicines WHERE name ILIKE '%${p.drugName.replace(/'/g, "''")}%' LIMIT 1`);
+        const price = medData[0]?.unit_price || 0;
+        
+        await req.prisma.$executeRawUnsafe(`
+          INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, description, unit_price, is_discountable)
+          VALUES ('${patientId}', '${encounterId}', 'PHARMACY', 'Medicine: ${p.drugName}', ${price}, FALSE)
+        `);
+      }
+    }
+
     res.status(201).json({
-      message: "Consultation finalized successfully",
+      message: "Consultation finalized and pushed to Billing Queue",
       encounterId
     });
 

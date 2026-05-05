@@ -3,6 +3,20 @@ const router = express.Router();
 const upload = require("../../config/upload");
 const aiService = require("../../services/aiService");
 
+async function ensurePatientColumns(req) {
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS dob DATE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS occupation VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS address TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS guardian_name VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS guardian_phone VARCHAR(50)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS medical_history TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS allergies TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS ai_summary TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+}
+
 router.get("/", async (req, res, next) => {
   try {
     const search = req.query.search || '';
@@ -24,7 +38,14 @@ router.get("/:id", async (req, res, next) => {
 router.post("/", upload.array('history_files', 5), async (req, res, next) => {
   console.log(`[PATIENT] Incoming registration request for schema: ${req.schemaName}`);
   try {
-    const { name, phone, gender, age } = req.body;
+    await ensurePatientColumns(req);
+
+    const { 
+      name, phone, email, gender, age, dob, 
+      blood_group, occupation, address, 
+      guardian_name, guardian_phone, 
+      medical_history, allergies 
+    } = req.body;
     
     // Healthcare Standard MRN Generation: MRN-[YYMM]-[6-Digit Sequence]
     const date = new Date();
@@ -38,26 +59,36 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
     
     const mrn = `MRN-${yy}${mm}-${sequence}`;
     
-    // Sanitize name for SQL (escape single quotes)
-    const safeName = name ? name.replace(/'/g, "''") : 'Unknown';
+    // SQL Sanitization Helpers
+    const s = (val) => val ? val.toString().replace(/'/g, "''") : '';
     
     let aiSummary = '';
     
     // Generate AI Summary if files were uploaded
     if (req.files && req.files.length > 0) {
-      console.log(`[PATIENT] Processing ${req.files.length} uploaded files for AI Summary...`);
       const filePaths = req.files.map(f => f.path);
       aiSummary = await aiService.generatePatientHistorySummary(filePaths);
-      console.log(`[PATIENT] AI Summary generated successfully.`);
     }
     
-    const safeSummary = (aiSummary || '').replace(/'/g, "''");
+    const safeSummary = s(aiSummary);
 
-    const result = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".patients (mrn, name, phone, gender, age, ai_summary) 
-      VALUES ('${mrn}', '${safeName}', '${phone || ''}', '${gender || 'Male'}', ${parseInt(age) || 0}, '${safeSummary}')
+    const query = `
+      INSERT INTO "${req.schemaName}".patients (
+        mrn, name, phone, email, gender, age, dob, 
+        blood_group, occupation, address, 
+        guardian_name, guardian_phone, 
+        medical_history, allergies, ai_summary
+      ) 
+      VALUES (
+        '${mrn}', '${s(name)}', '${s(phone)}', '${s(email)}', '${s(gender)}', ${parseInt(age) || 0}, 
+        ${dob ? `'${dob}'` : 'NULL'}, '${s(blood_group)}', '${s(occupation)}', '${s(address)}', 
+        '${s(guardian_name)}', '${s(guardian_phone)}', 
+        '${s(medical_history)}', '${s(allergies)}', '${safeSummary}'
+      )
       RETURNING *
-    `);
+    `;
+
+    const result = await req.prisma.$queryRawUnsafe(query);
     res.status(201).json(result[0]);
   } catch (error) { 
     console.error("[PATIENT] Registration failed:", error);

@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --primary-dark: #0f172a;
   --primary-accent: #3b82f6;
@@ -231,6 +235,77 @@ h1, h2, h3 {
   gap: 10px;
   margin-bottom: 24px;
   border: 1px solid rgba(153, 27, 27, 0.1);
+}
+
+.toast-stack {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.app-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.app-toast-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: #3b82f6;
+}
+
+.app-toast-success .app-toast-dot {
+  background: #10b981;
+}
+
+.app-toast-error .app-toast-dot {
+  background: #ef4444;
+}
+
+.app-toast-info .app-toast-dot {
+  background: #3b82f6;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-document,
+  .print-document * {
+    visibility: visible;
+  }
+
+  .print-document {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
 }
 
 .submit-btn {
@@ -720,4 +795,36 @@ h1, h2, h3 {
 .mobile-overlay.active {
   display: block;
   opacity: 1;
+}
+
+/* High-Velocity Utility Classes */
+.hover-light {
+  transition: all 0.2s ease;
+}
+
+.hover-light:hover {
+  background-color: #f1f5f9 !important;
+  transform: translateX(4px);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.high-velocity-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+}
+
+.pulse-indicator {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
 }

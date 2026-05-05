@@ -6,6 +6,7 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 export default function DischargeSummariesPage() {
   const [summaries, setSummaries] = useState<any[]>([]);
+  const [activeSummary, setActiveSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const headers = {
@@ -23,6 +24,10 @@ export default function DischargeSummariesPage() {
       setSummaries(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  const printSummary = () => {
+    window.print();
   };
 
   return (
@@ -44,11 +49,12 @@ export default function DischargeSummariesPage() {
                 <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#64748b' }}>DISCHARGE DATE</th>
                 <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#64748b' }}>DOCTOR</th>
                 <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '12px', fontWeight: 800, color: '#64748b' }}>TYPE</th>
+                <th style={{ padding: '16px 24px', textAlign: 'right', fontSize: '12px', fontWeight: 800, color: '#64748b' }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
               {summaries.length === 0 ? (
-                <tr><td colSpan={4} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>No discharge records found for current period.</td></tr>
+                <tr><td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>No discharge records found for current period.</td></tr>
               ) : summaries.map((s, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '20px 24px' }}>
@@ -60,11 +66,51 @@ export default function DischargeSummariesPage() {
                   <td style={{ padding: '20px 24px' }}>
                      <span style={{ fontSize: '10px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontWeight: 900 }}>{s.discharge_type || 'STANDARD'}</span>
                   </td>
+                  <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                    <button onClick={() => setActiveSummary(s)} style={{ padding: '10px 18px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}>
+                      View / Print
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
+        {activeSummary && (
+          <div className="print-modal" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+            <div className="print-document" style={{ width: '760px', maxHeight: '88vh', overflowY: 'auto', background: 'white', borderRadius: '20px', padding: '36px', boxShadow: '0 25px 60px rgba(0,0,0,0.25)' }}>
+              <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '24px' }}>
+                <button onClick={() => setActiveSummary(null)} style={{ padding: '10px 16px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '10px', fontWeight: 700, cursor: 'pointer' }}>Close</button>
+                <button onClick={printSummary} style={{ padding: '10px 18px', border: 'none', background: '#3b82f6', color: 'white', borderRadius: '10px', fontWeight: 800, cursor: 'pointer' }}>Print</button>
+              </div>
+
+              <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '18px', marginBottom: '24px' }}>
+                <h1 style={{ margin: 0, fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>Hospital Discharge Summary</h1>
+                <p style={{ margin: '8px 0 0', color: '#64748b' }}>{localStorage.getItem("tenantName") || "Healthezee Hospital"}</p>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                <div><strong>Patient:</strong> {activeSummary.patient_name}</div>
+                <div><strong>MRN:</strong> {activeSummary.mrn}</div>
+                <div><strong>Discharge Date:</strong> {new Date(activeSummary.discharge_date).toLocaleString()}</div>
+                <div><strong>Doctor:</strong> Dr. {activeSummary.doctor_name || 'Not assigned'}</div>
+                <div><strong>Type:</strong> {activeSummary.discharge_type || 'STANDARD'}</div>
+              </div>
+
+              <section>
+                <h2 style={{ fontSize: '15px', color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>Clinical Summary</h2>
+                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7, color: '#334155' }}>
+                  {activeSummary.summary_text || 'Discharge summary details are not available yet. Generate an AI summary from the IPD patient record or finalize discharge documentation.'}
+                </p>
+              </section>
+
+              {activeSummary.pdf_path && (
+                <p className="no-print" style={{ marginTop: '20px', color: '#64748b', fontSize: '12px' }}>Generated PDF path: {activeSummary.pdf_path}</p>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

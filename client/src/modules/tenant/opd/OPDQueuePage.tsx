@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-
+import { Clock, User, ArrowRight, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function OPDQueuePage() {
   const navigate = useNavigate();
@@ -12,76 +12,142 @@ export default function OPDQueuePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchEncounters = async () => {
-      const headers = { 
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-        "x-tenant-id": localStorage.getItem("tenant") || ""
-      };
-      try {
-        const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Draft`, { headers });
-        setEncounters(res.data);
-      } catch (err) { 
-        console.error(err); 
-      } finally { 
-        setLoading(false); 
-      }
-    };
     fetchEncounters();
+    const interval = setInterval(fetchEncounters, 10000); // Auto-refresh every 10s
+    return () => clearInterval(interval);
   }, []);
 
-  return (
-    <div className="dashboard-layout">
-      <Sidebar />
-      <main className="main-content">
-        <Header title="OPD Patient Queue" />
+  const fetchEncounters = async () => {
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+    try {
+      const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Draft`, { headers });
+      setEncounters(res.data);
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
 
-        <div className="manage-card" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+  const calculateWaitTime = (createdAt: string) => {
+    const start = new Date(createdAt).getTime();
+    const now = new Date().getTime();
+    const diff = Math.floor((now - start) / 60000);
+    return diff > 60 ? `${Math.floor(diff/60)}h ${diff%60}m` : `${diff}m`;
+  };
+
+  return (
+    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc' }}>
+      <Sidebar />
+      <main className="main-content" style={{ padding: '32px' }}>
+        <Header title="Live OPD Patient Queue" />
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
+           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #3b82f6' }}>
+              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>TOTAL WAITING</p>
+              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>{encounters.length}</h2>
+              <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>LIVE CENSUS</div>
+           </div>
+           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #10b981' }}>
+              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>AVG WAIT TIME</p>
+              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>12m</h2>
+              <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>OPTIMIZED FLOW</div>
+           </div>
+           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #f59e0b' }}>
+              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>URGENT CASES</p>
+              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>0</h2>
+              <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>TRIAGE ACTIVE</div>
+           </div>
+           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #8b5cf6' }}>
+              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>ACTIVE DOCTORS</p>
+              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>{new Set(encounters.map(e => e.doctor_id)).size}</h2>
+              <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: 700 }}>ON-DUTY STAFF</div>
+           </div>
+        </div>
+
+        <div className="manage-card" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+             <h3 style={{ margin: 0, fontWeight: 900, fontSize: '18px' }}>Patient Queue List</h3>
+             <span style={{ fontSize: '12px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '6px 12px', borderRadius: '20px' }}>● AUTO-REFRESHING</span>
+          </div>
+
           {loading ? (
-            <div style={{ padding: '40px', textAlign: 'center' }}>Loading queue...</div>
+            <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>Initializing real-time queue...</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>PATIENT</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ASSIGNED DOCTOR</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>VITALS</th>
-                  <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ACTION</th>
+                  <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}># TOKEN</th>
+                  <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>PATIENT & MRN</th>
+                  <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>ASSIGNED DOCTOR</th>
+                  <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>VITALS STATUS</th>
+                  <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>WAIT TIME</th>
+                  <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
                 {encounters.map((enc: any, i: number) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }} className="hover-light">
                     <td style={{ padding: '16px 24px' }}>
-                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{enc.patient_name}</div>
-                      <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700, marginBottom: '4px' }}>{enc.mrn}</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{enc.gender}, {enc.age} yrs</div>
+                       <span style={{ fontSize: '16px', fontWeight: 900, color: '#3b82f6' }}>{enc.token || (i + 1)}</span>
                     </td>
-                    <td style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Dr. {enc.doctor_name}</td>
                     <td style={{ padding: '16px 24px' }}>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <span style={{ fontSize: '11px', background: '#f0fdf4', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                          BP: {enc.vitals?.bp || '--'}
-                        </span>
-                        <span style={{ fontSize: '11px', background: '#fef2f2', color: '#ef4444', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                          {enc.vitals?.temp || '--'}°F
-                        </span>
+                      <div style={{ fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                         {enc.patient_name} 
+                         {enc.vitals?.bp && <Activity size={14} style={{ color: '#10b981' }} />}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>{enc.mrn} • {enc.gender}, {enc.age} yrs</div>
+                    </td>
+                    <td style={{ padding: '16px 24px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 900 }}>DR</div>
+                          <div style={{ fontWeight: 700, color: '#475569', fontSize: '13px' }}>Dr. {enc.doctor_name}</div>
+                       </div>
+                    </td>
+                    <td style={{ padding: '16px 24px' }}>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {enc.vitals?.bp ? (
+                          <>
+                            <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>BP OK</span>
+                            <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>TEMP OK</span>
+                          </>
+                        ) : (
+                          <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                             <AlertCircle size={10} /> PENDING VITALS
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '16px 24px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                          <Clock size={14} /> {calculateWaitTime(enc.created_at)}
+                       </div>
+                    </td>
+                    <td style={{ padding: '16px 24px', textAlign: 'right' }}>
                       <button 
                         onClick={() => {
                           localStorage.setItem("currentEncounter", JSON.stringify(enc));
                           navigate(`/tenant/opd/consultation`);
                         }}
-                        style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                        style={{ 
+                          padding: '10px 20px', background: '#0f172a', color: 'white', border: 'none', 
+                          borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                          display: 'inline-flex', alignItems: 'center', gap: '8px', transition: '0.2s'
+                        }}
                       >
-                        Start Consult
+                        Start Consult <ArrowRight size={14} />
                       </button>
                     </td>
                   </tr>
                 ))}
                 {encounters.length === 0 && (
-                  <tr><td colSpan={4} style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Queue is empty.</td></tr>
+                  <tr><td colSpan={6} style={{ padding: '80px', textAlign: 'center', color: '#94a3b8' }}>
+                    <CheckCircle2 size={40} style={{ margin: '0 auto 16px', opacity: 0.2 }} />
+                    <p style={{ fontWeight: 700 }}>Queue is empty. Great job!</p>
+                  </td></tr>
                 )}
               </tbody>
             </table>

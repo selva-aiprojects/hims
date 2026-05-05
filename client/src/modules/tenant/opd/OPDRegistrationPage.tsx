@@ -4,291 +4,352 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import PrivacyValue from "../../../components/PrivacyValue";
+import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
+import { 
+  Search, UserPlus, Zap, Activity, Clock, 
+  CheckCircle2, Users, ArrowRight, Save, Trash2, User,
+  Calendar, Phone, Mail, MapPin, Shield, HeartPulse, Briefcase, Scale
+} from 'lucide-react';
 
 export default function OPDRegistrationPage() {
   const navigate = useNavigate();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [recentPatients, setRecentPatients] = useState<any[]>([]);
-  const [doctors, setDoctors] = useState<any[]>([]);
-  const [services, setServices] = useState<any[]>([]);
+  const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
-  const [showRegForm, setShowRegForm] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [showFullReg, setShowFullReg] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
-  const [newPatient, setNewPatient] = useState({ name: '', phone: '', gender: 'Male', age: '' });
-  const [historyFiles, setHistoryFiles] = useState<FileList | null>(null);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [opdEntry, setOpdEntry] = useState({ patientId: '', doctorId: '', departmentId: '', weight: '', height: '', bp: '', temp: '' });
-  
-  const fetchRecentPatients = async () => {
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-    try {
-      // Fetch latest 10 patients
-      const res = await axios.get(`${API_BASE}/api/patients?limit=10`, { headers });
-      setRecentPatients(res.data);
-    } catch (err) { console.error(err); }
+  // Masters
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [recentQueue, setRecentQueue] = useState<any[]>([]);
+
+  // Comprehensive Form State
+  const [regData, setRegData] = useState({ 
+    name: '', phone: '', email: '', dob: '', gender: 'Male', 
+    blood_group: '', occupation: '', address: '', 
+    guardian_name: '', guardian_phone: '', medical_history: '', allergies: '' 
+  });
+  const [vitals, setVitals] = useState({ weight: '', bp: '', temp: '', height: '' });
+  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+
+  const headers = { 
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+    "x-tenant-id": localStorage.getItem("tenant") || ""
   };
 
   useEffect(() => {
-    const fetchMasters = async () => {
-      const headers = { 
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-        "x-tenant-id": localStorage.getItem("tenant") || ""
-      };
-      try {
-        const [docRes, srvRes] = await Promise.all([
-          axios.get(`${API_BASE}/api/hospital/staff`, { headers }),
-          axios.get(`${API_BASE}/api/hospital/masters/services`, { headers })
-        ]);
-        setDoctors(docRes.data.filter((s: any) => s.role === 'doctor'));
-        setServices(srvRes.data);
-        fetchRecentPatients();
-      } catch (err) { console.error(err); }
-    };
-    fetchMasters();
+    fetchInitialData();
   }, []);
 
-  const consultationService = services.find(s => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation')) || { price: 0 };
-  
-  const handleSearch = async () => {
-    if (!searchTerm) {
-      setPatients([]);
-      return;
-    }
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
+  const fetchInitialData = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/patients?search=${searchTerm}`, { headers });
-      setPatients(res.data);
+      const [docRes, queueRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
+        axios.get(`${API_BASE}/api/hospital/encounters?status=Draft`, { headers })
+      ]);
+      setDoctors(docRes.data);
+      setRecentQueue(queueRes.data.slice(0, 5));
     } catch (err) { console.error(err); }
   };
 
-  const registerPatient = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsRegistering(true);
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-    try {
-      const formData = new FormData();
-      formData.append("name", newPatient.name);
-      formData.append("phone", newPatient.phone);
-      formData.append("age", newPatient.age);
-      formData.append("gender", newPatient.gender || 'Male');
-      
-      if (historyFiles) {
-        for (let i = 0; i < historyFiles.length; i++) {
-          formData.append("history_files", historyFiles[i]);
-        }
-      }
-
-      const res = await axios.post(`${API_BASE}/api/patients`, formData, { headers });
-      
-      setOpdEntry({ ...opdEntry, patientId: res.data.id });
-      setShowRegForm(false);
-      setHistoryFiles(null);
-      alert(`Patient Record Created Successfully! MRN: ${res.data.mrn}`);
-      fetchRecentPatients();
-    } catch (err: any) { 
-      console.error("Registration Failed:", err);
-      alert(`Registration Error: ${err.message}`); 
-    } finally {
-      setIsRegistering(false);
-    }
-  };
-
-  const startVisit = async () => {
-    if (!opdEntry.patientId || !opdEntry.doctorId) {
-      alert("Please select both a patient and a doctor.");
+  const handleLiveSearch = async (val: string) => {
+    setSearchTerm(val);
+    if (val.length < 3) {
+      setSearchResults([]);
       return;
     }
-    
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-
     try {
-      const payload = {
-        patientId: opdEntry.patientId,
-        doctorId: opdEntry.doctorId,
-        type: 'OPD',
-        vitals: {
-          weight: opdEntry.weight,
-          height: opdEntry.height,
-          bp: opdEntry.bp,
-          temp: opdEntry.temp
-        },
-        complaints: '' 
-      };
+      const res = await axios.get(`${API_BASE}/api/patients?search=${val}`, { headers });
+      setSearchResults(res.data);
+      // Auto-expand registration if absolutely no matches
+      if (res.data.length === 0) setShowFullReg(true);
+      else setShowFullReg(false);
+    } catch (err) { console.error(err); }
+  };
 
-      await axios.post(`${API_BASE}/api/hospital/encounters`, payload, { headers });
-      alert(`Patient added to queue successfully.`);
-      navigate('/tenant/opd/queue');
-    } catch (err) {
-      console.error(err);
-      alert("Failed to create visit encounter.");
+  const selectPatient = (p: any) => {
+    setSelectedPatient(p);
+    setSearchResults([]);
+    setSearchTerm(p.name);
+    setShowFullReg(false);
+  };
+
+  const registerAndQueue = async () => {
+    if (!regData.name || !regData.phone || !selectedDoctorId) {
+      showToast("Basic info (Name, Phone) and Doctor selection are mandatory.", "error");
+      return;
     }
+    setIsProcessing(true);
+    try {
+      const pRes = await axios.post(`${API_BASE}/api/patients`, regData, { headers });
+      const patientId = pRes.data.id;
+
+      await axios.post(`${API_BASE}/api/hospital/encounters`, {
+        patientId,
+        doctorId: selectedDoctorId,
+        type: 'OPD',
+        vitals,
+        complaints: regData.medical_history || 'Routine Checkup'
+      }, { headers });
+
+      resetFlow("Registration Successful! Patient is now in queue.");
+    } catch (err) { showToast("Registration failed. Please check your data.", "error"); }
+    finally { setIsProcessing(false); }
+  };
+
+  const queueExistingPatient = async () => {
+    if (!selectedPatient || !selectedDoctorId) return;
+    setIsProcessing(true);
+    try {
+      await axios.post(`${API_BASE}/api/hospital/encounters`, {
+        patientId: selectedPatient.id,
+        doctorId: selectedDoctorId,
+        type: 'OPD',
+        vitals,
+        complaints: 'Follow-up Consultation'
+      }, { headers });
+      resetFlow("Visit generated. Token issued.");
+    } catch (err) { showToast("Failed to issue token.", "error"); }
+    finally { setIsProcessing(false); }
+  };
+
+  const resetFlow = (msg: string) => {
+    showToast(msg, "success");
+    setSelectedPatient(null);
+    setSearchTerm("");
+    setRegData({ 
+        name: '', phone: '', email: '', dob: '', gender: 'Male', 
+        blood_group: '', occupation: '', address: '', 
+        guardian_name: '', guardian_phone: '', medical_history: '', allergies: '' 
+    });
+    setVitals({ weight: '', bp: '', temp: '', height: '' });
+    setSelectedDoctorId("");
+    setShowFullReg(false);
+    fetchInitialData();
   };
 
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout" style={{ backgroundColor: '#f1f5f9' }}>
       <Sidebar />
-      <main className="main-content">
-        <Header title="OPD Patient Intake" />
+      <main className="main-content" style={{ padding: '32px' }}>
+        <Header title="OPD Professional Intake Desk" />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '40px' }}>
-          {/* IDENTIFY PATIENT */}
-          <section className="form-card">
-            <div className="section-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>1</div>
-                <h2 className="section-title">Identify Patient</h2>
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-              <input 
-                placeholder="Search by MRN, Name or Phone..." 
-                className="input-field"
-                style={{ flex: 1 }}
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              />
-              <button onClick={handleSearch} className="button-primary">Search</button>
-            </div>
-
-            <div style={{ marginBottom: '24px', maxHeight: '200px', overflowY: 'auto' }}>
-              {patients.map(p => (
-                <div key={p.id} onClick={() => setOpdEntry({ ...opdEntry, patientId: p.id })} style={{ padding: '16px', borderRadius: '16px', border: `2px solid ${opdEntry.patientId === p.id ? '#3b82f6' : '#e2e8f0'}`, marginBottom: '10px', cursor: 'pointer', background: opdEntry.patientId === p.id ? '#f0f9ff' : 'white' }}>
-                  <div style={{ fontWeight: 800 }}>{p.name}</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>
-                    <span style={{ color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</span> • <PrivacyValue value={p.phone} type="phone" /> • {p.age} Yrs
-                  </div>
-                </div>
-              ))}
-              {searchTerm && patients.length === 0 && (
-                <p style={{ textAlign: 'center', fontSize: '13px', color: '#64748b' }}>No matches found.</p>
-              )}
-            </div>
-
-            <button onClick={() => setShowRegForm(!showRegForm)} className="button-secondary" style={{ width: '100%', border: '2px dashed #3b82f6', background: 'rgba(59, 130, 246, 0.05)', color: '#3b82f6' }}>
-              {showRegForm ? '✕ Cancel Registration' : '+ Register New Patient'}
-            </button>
-
-            {showRegForm && (
-              <form onSubmit={registerPatient} className="form-card" style={{ marginTop: '24px', background: '#f8fafc' }}>
-                <input placeholder="Full Name" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, name: e.target.value})} />
-                <input placeholder="Phone Number" required className="input-field" style={{ marginBottom: '12px' }} onChange={e => setNewPatient({...newPatient, phone: e.target.value})} />
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                    <input placeholder="Age" type="number" required className="input-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, age: e.target.value})} />
-                    <select className="select-field" style={{ flex: 1 }} onChange={e => setNewPatient({...newPatient, gender: e.target.value})}><option>Male</option><option>Female</option></select>
-                </div>
-                <div style={{ marginBottom: '12px', padding: '12px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#64748b', marginBottom: '8px' }}>Upload History Records (Optional for AI Summary)</label>
-                  <input type="file" multiple accept=".pdf,image/*" onChange={(e) => setHistoryFiles(e.target.files)} style={{ fontSize: '12px' }} />
-                </div>
-                <button type="submit" disabled={isRegistering} className="button-primary" style={{ width: '100%', marginTop: '12px', opacity: isRegistering ? 0.7 : 1 }}>
-                  {isRegistering ? 'Generating AI Summary & Saving...' : 'Save Record & Generate AI Summary'}
-                </button>
-              </form>
-            )}
-          </section>
-
-          {/* VITALS & VISIT */}
-          <section className="form-card">
-            <div className="section-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#f0fdf4', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>2</div>
-                <h2 className="section-title">Capture Vitals & Assign</h2>
-              </div>
-            </div>
-            
-            <div className="form-grid grid-2" style={{ marginBottom: '24px' }}>
-               <div><label className="field-label">Weight (kg)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, weight: e.target.value})} /></div>
-               <div><label className="field-label">BP (120/80)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, bp: e.target.value})} /></div>
-               <div><label className="field-label">Temp (°F)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, temp: e.target.value})} /></div>
-               <div><label className="field-label">Height (cm)</label><input className="input-field" onChange={e => setOpdEntry({...opdEntry, height: e.target.value})} /></div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-               <label className="field-label">Assign Doctor</label>
-               <select className="select-field" onChange={e => setOpdEntry({...opdEntry, doctorId: e.target.value})}>
-                  <option value="">Select Doctor</option>
-                  {doctors.map(d => <option key={d.id} value={d.id}>{d.name} ({d.role})</option>)}
-               </select>
-            </div>
-
-            <div style={{ padding: '24px', background: '#0f172a', borderRadius: '24px', color: 'white', marginBottom: '24px' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}><span style={{ color: '#94a3b8' }}>Service Fee</span><span style={{ fontWeight: 800 }}>₹{consultationService.price || '0.00'}</span></div>
-               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '12px' }}><span style={{ fontWeight: 700 }}>Payable Now</span><span style={{ fontSize: '24px', fontWeight: 900, color: '#3b82f6' }}>₹{consultationService.price || '0.00'}</span></div>
-            </div>
-
-            <button disabled={!opdEntry.patientId || !opdEntry.doctorId} onClick={startVisit} style={{ width: '100%', padding: '20px', borderRadius: '20px', border: 'none', background: opdEntry.patientId && opdEntry.doctorId ? '#3b82f6' : '#f1f5f9', color: opdEntry.patientId && opdEntry.doctorId ? 'white' : '#94a3b8', fontWeight: 900, fontSize: '16px', cursor: 'pointer' }}>Generate Token & Start Visit</button>
-          </section>
-        </div>
-
-        {/* RECENT PATIENTS LIST */}
-        <div className="manage-card" style={{ background: 'white', borderRadius: '28px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Recent Registrations</h3>
-              <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>Latest patients added to the system</p>
-            </div>
-            <button onClick={fetchRecentPatients} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '8px 16px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Refresh List</button>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '28px' }}>
           
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
-                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>MRN / PATIENT</th>
-                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>CONTACT</th>
-                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>AGE/GENDER</th>
-                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DATE</th>
-                <th style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentPatients.map((p, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '16px 24px' }}>
-                    <div style={{ fontWeight: 800 }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</div>
-                  </td>
-                  <td style={{ padding: '16px 24px', fontSize: '14px', color: '#475569' }}>
-                    <PrivacyValue value={p.phone} type="phone" />
-                  </td>
-                  <td style={{ padding: '16px 24px', fontSize: '14px', color: '#475569' }}>
-                    {p.age} Y • {p.gender}
-                  </td>
-                  <td style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8' }}>
-                    {new Date(p.created_at).toLocaleDateString()}
-                  </td>
-                  <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                    <button 
-                      onClick={() => {
-                        setOpdEntry({ ...opdEntry, patientId: p.id });
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+          {/* LEFT: UNIFIED INTAKE CONSOLE */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+            <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
+              <h3 style={{ margin: '0 0 24px', fontSize: '13px', fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Search size={16} /> 1. IDENTIFY OR REGISTER PATIENT
+              </h3>
+              
+              <div style={{ position: 'relative', marginBottom: '24px' }}>
+                <input 
+                  placeholder="Type Phone, Name or MRN to begin..." 
+                  className="input-field high-velocity-input" 
+                  style={{ paddingLeft: '52px', fontSize: '16px', height: '60px', borderRadius: '18px', border: '2px solid #e2e8f0' }}
+                  value={searchTerm}
+                  onChange={e => handleLiveSearch(e.target.value)}
+                />
+                <Search style={{ position: 'absolute', left: '18px', top: '20px', color: '#3b82f6' }} size={22} />
+              </div>
+
+              {/* SEARCH RESULTS */}
+              {searchResults.length > 0 && (
+                <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '18px', overflow: 'hidden', marginBottom: '24px', boxShadow: '0 12px 20px -5px rgba(0,0,0,0.1)' }}>
+                  {searchResults.map(p => (
+                    <div
+                      key={p.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => selectPatient(p)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          selectPatient(p);
+                        }
                       }}
-                      style={{ padding: '8px 16px', borderRadius: '10px', background: opdEntry.patientId === p.id ? '#10b981' : '#f1f5f9', color: opdEntry.patientId === p.id ? 'white' : '#475569', border: 'none', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                      style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      className="hover-light"
                     >
-                      {opdEntry.patientId === p.id ? 'Selected' : 'Select for Visit'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {recentPatients.length === 0 && (
-                <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No recent registrations found.</td></tr>
+                       <div>
+                          <div style={{ fontWeight: 800, fontSize: '15px' }}>{p.name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>{p.mrn} • {p.phone} • {p.blood_group || 'N/A'}</div>
+                       </div>
+                       <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>SELECT</div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </tbody>
-          </table>
+
+              {/* FULL REGISTRATION FORM (The "Clean" Expanded View) */}
+              {(showFullReg || (searchTerm && searchResults.length === 0)) && (
+                <div style={{ backgroundColor: '#f8fafc', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <UserPlus size={16} /> NEW PATIENT PROFILE
+                      </div>
+                      <button onClick={() => setShowFullReg(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                   </div>
+
+                   {/* Personal Section */}
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                      <div className="input-group">
+                         <label className="field-label">Full Name*</label>
+                         <input className="input-field" value={regData.name} onChange={e => setRegData({...regData, name: e.target.value})} />
+                      </div>
+                      <div className="input-group">
+                         <label className="field-label">Phone Number*</label>
+                         <input className="input-field" value={regData.phone} onChange={e => setRegData({...regData, phone: e.target.value})} />
+                      </div>
+                      <div className="input-group">
+                         <label className="field-label">Date of Birth</label>
+                         <input type="date" className="input-field" value={regData.dob} onChange={e => setRegData({...regData, dob: e.target.value})} />
+                      </div>
+                      <div className="input-group">
+                         <label className="field-label">Gender</label>
+                         <select className="select-field" value={regData.gender} onChange={e => setRegData({...regData, gender: e.target.value})}>
+                            <option>Male</option><option>Female</option><option>Other</option>
+                         </select>
+                      </div>
+                   </div>
+
+                   {/* Additional Details */}
+                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                      <div><label className="field-label">Blood Group</label><select className="select-field" value={regData.blood_group} onChange={e => setRegData({...regData, blood_group: e.target.value})}><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select></div>
+                      <div><label className="field-label">Occupation</label><input className="input-field" value={regData.occupation} onChange={e => setRegData({...regData, occupation: e.target.value})} /></div>
+                   </div>
+
+                   <div className="input-group" style={{ marginBottom: '24px' }}>
+                      <label className="field-label">Guardian / Emergency Contact Name</label>
+                      <input className="input-field" value={regData.guardian_name} onChange={e => setRegData({...regData, guardian_name: e.target.value})} />
+                   </div>
+
+                   <div className="input-group">
+                      <label className="field-label">Permanent Address</label>
+                      <textarea className="input-field" style={{ height: '80px', resize: 'none' }} value={regData.address} onChange={e => setRegData({...regData, address: e.target.value})} />
+                   </div>
+                </div>
+              )}
+
+              {/* SELECTED PATIENT BANNER */}
+              {selectedPatient && (
+                <div style={{ background: '#0f172a', color: 'white', padding: '24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <User size={28} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 900, fontSize: '18px' }}>{selectedPatient.name}</div>
+                    <div style={{ fontSize: '12px', opacity: 0.7, fontWeight: 600 }}>{selectedPatient.mrn} • {selectedPatient.phone} • {selectedPatient.gender}</div>
+                  </div>
+                  <button onClick={() => setSelectedPatient(null)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '8px 16px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>CHANGE</button>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* RIGHT: CLINICAL & ASSIGNMENT (The "Professional" Checkout) */}
+          <div className="page-card glass-card" style={{ padding: '32px', borderRadius: '32px', display: 'flex', flexDirection: 'column', border: '2px solid white', boxShadow: '0 20px 50px rgba(0,0,0,0.08)' }}>
+            <h3 style={{ margin: '0 0 28px', fontSize: '13px', fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={18} /> 2. CAPTURE VITALS & ASSIGN DOCTOR
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '32px' }}>
+               <div className="input-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Scale size={12} /> Weight (kg)</label>
+                  <input className="input-field high-velocity-input" placeholder="e.g. 70" value={vitals.weight} onChange={e => setVitals({...vitals, weight: e.target.value})} />
+               </div>
+               <div className="input-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Activity size={12} /> BP (Syst/Dia)</label>
+                  <input className="input-field high-velocity-input" placeholder="e.g. 120/80" value={vitals.bp} onChange={e => setVitals({...vitals, bp: e.target.value})} />
+               </div>
+               <div className="input-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><HeartPulse size={12} /> Temp (°F)</label>
+                  <input className="input-field high-velocity-input" placeholder="e.g. 98.6" value={vitals.temp} onChange={e => setVitals({...vitals, temp: e.target.value})} />
+               </div>
+               <div className="input-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> Height (cm)</label>
+                  <input className="input-field high-velocity-input" placeholder="e.g. 175" value={vitals.height} onChange={e => setVitals({...vitals, height: e.target.value})} />
+               </div>
+            </div>
+
+            <div style={{ marginBottom: '40px' }}>
+               <label className="field-label" style={{ marginBottom: '16px' }}>SELECT CONSULTING DOCTOR</label>
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                 {doctors.map(d => (
+                   <div 
+                    key={d.id} 
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedDoctorId(d.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedDoctorId(d.id);
+                      }
+                    }}
+                    style={{ 
+                      padding: '20px', borderRadius: '20px', border: `2px solid ${selectedDoctorId === d.id ? '#3b82f6' : '#f1f5f9'}`, 
+                      background: selectedDoctorId === d.id ? '#f0f9ff' : 'white', cursor: 'pointer', transition: '0.2s',
+                      display: 'flex', alignItems: 'center', gap: '16px'
+                    }}
+                  >
+                     <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: selectedDoctorId === d.id ? '#3b82f6' : '#f8fafc', color: selectedDoctorId === d.id ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Users size={20} />
+                     </div>
+                     <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 800, fontSize: '15px', color: selectedDoctorId === d.id ? '#1e40af' : '#1e293b' }}>Dr. {d.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{d.specialization || d.department || 'General Physician'}</div>
+                     </div>
+                     {selectedDoctorId === d.id && <CheckCircle2 size={20} style={{ color: '#3b82f6' }} />}
+                   </div>
+                 ))}
+               </div>
+            </div>
+
+            <div style={{ marginTop: 'auto' }}>
+               <button 
+                disabled={isProcessing || (!selectedPatient && !regData.name)}
+                onClick={selectedPatient ? queueExistingPatient : registerAndQueue}
+                style={{ 
+                  width: '100%', padding: '26px', borderRadius: '24px', border: 'none', 
+                  background: (selectedPatient || regData.name) && selectedDoctorId ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#cbd5e1',
+                  color: 'white', fontWeight: 900, fontSize: '18px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
+                  boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)'
+                }}
+               >
+                 {isProcessing ? 'PROCESSING...' : <><Zap size={22} fill="currentColor" /> FINALIZE & ISSUE TOKEN</>}
+               </button>
+               <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', fontWeight: 700 }}><Shield size={12} /> HIPAA COMPLIANT</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', fontWeight: 700 }}><CheckCircle2 size={12} /> REAL-TIME SYNC</div>
+               </div>
+            </div>
+          </div>
+
+          {/* RECENT QUEUE MINI-CARD */}
+          <div className="page-card" style={{ gridColumn: '1 / 2', padding: '28px', borderRadius: '28px' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#64748b' }}>RECENTLY PROCESSED</h3>
+                <button onClick={fetchInitialData} className="button-link" style={{ fontSize: '11px', fontWeight: 800 }}>REFRESH</button>
+             </div>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+               {recentQueue.map((q, i) => (
+                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '5px', background: '#10b981' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 800 }}>{q.patient_name}</div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>Assigned to Dr. {q.doctor_name}</div>
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6' }}>TOKEN #{q.token || (i+1)}</div>
+                 </div>
+               ))}
+             </div>
+          </div>
         </div>
       </main>
     </div>

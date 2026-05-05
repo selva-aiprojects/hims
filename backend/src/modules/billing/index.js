@@ -1,6 +1,25 @@
 const express = require("express");
 const router = express.Router();
 
+/**
+ * Professional Billing Engine (Hybrid Model)
+ * Supports Fixed (Lab/Pharmacy) and Flexible (Consultation/Ward) billing.
+ */
+
+// 1. Fetch all pending items from the Clinical Queue for a specific patient
+router.get("/queue/:patientId", async (req, res, next) => {
+  try {
+    const { patientId } = req.params;
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".billing_queue 
+      WHERE patient_id = '${patientId}' AND status = 'PENDING'
+      ORDER BY created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// 2. Fetch existing invoices
 router.get("/", async (req, res, next) => {
   try {
     const { type } = req.query;
@@ -16,48 +35,62 @@ router.get("/", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// 3. Create Final Invoice (Consumes Queue Items)
 router.post("/", async (req, res, next) => {
   try {
-    const { patientId, encounterId, billType, items, totalAmount, paymentMode, status, labOrderId } = req.body;
+    const { patientId, encounterId, billType, items, totalAmount, paymentMode, status } = req.body;
     
-    // Validation
-    if (!patientId || patientId === 'p1') {
-      return res.status(400).json({ error: "Invalid Patient ID. Please search and select a patient." });
+    if (!patientId) {
+      return res.status(400).json({ error: "Patient selection required." });
     }
 
-    // 1. Create Invoice Header
-    const subtotal = items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
-    const taxTotal = items.reduce((acc, it) => acc + (it.price * it.quantity * (it.tax / 100)), 0);
+    // A. Calculate Totals and Tax
+    const normalizedItems = (items || []).map((it) => {
+      const unitPrice = Number(it.unit_price ?? it.price ?? 0);
+      const quantity = Number(it.quantity || 1);
+      const taxPercent = Number(it.tax_percent ?? it.tax ?? 0);
+      return {
+        ...it,
+        unit_price: unitPrice,
+        quantity,
+        tax_percent: taxPercent,
+        amount: Number(it.amount ?? unitPrice * quantity)
+      };
+    });
 
+    const subtotal = normalizedItems.reduce((acc, it) => acc + (it.unit_price * it.quantity), 0);
+    const taxTotal = normalizedItems.reduce((acc, it) => acc + (it.unit_price * it.quantity * (it.tax_percent / 100)), 0);
+    const totalDiscount = normalizedItems.reduce((acc, it) => acc + (parseFloat(it.discount_amount) || 0), 0);
+    const finalTotal = subtotal + taxTotal - totalDiscount;
+
+    // B. Create Invoice Header
     const invHeader = await req.prisma.$queryRawUnsafe(`
       INSERT INTO "${req.schemaName}".invoices (patient_id, encounter_id, bill_type, payment_mode, subtotal, tax_total, total, status)
-      VALUES ('${patientId}', ${encounterId && encounterId !== 'p1' ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${totalAmount}, '${status || 'PAID'}')
+      VALUES ('${patientId}', ${encounterId ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${finalTotal}, '${status || 'PAID'}')
       RETURNING id
     `);
     
-    if (!invHeader || invHeader.length === 0) {
-      throw new Error("Failed to generate invoice header");
-    }
     const invId = invHeader[0].id;
 
-    // 2. Insert Items
-    for (const item of items) {
+    // C. Insert Items and Close Queue
+    for (const item of normalizedItems) {
+      // 1. Save line item with discount tracking
       await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".invoice_items (invoice_id, description, quantity, unit_price, tax_percent, amount)
-        VALUES ('${invId}', '${item.description.replace(/'/g, "''")}', ${item.quantity}, ${item.price}, ${item.tax}, ${item.price * item.quantity})
+        INSERT INTO "${req.schemaName}".invoice_items (invoice_id, description, quantity, unit_price, tax_percent, amount, discount_amount, source_queue_id)
+        VALUES ('${invId}', '${item.description.replace(/'/g, "''")}', ${item.quantity}, ${item.unit_price}, ${item.tax_percent || 0}, ${item.amount}, ${item.discount_amount || 0}, ${item.id ? `'${item.id}'` : 'NULL'})
       `);
+
+      // 2. Mark queue item as BILLED if it originated from the clinical queue
+      if (item.id) {
+        await req.prisma.$executeRawUnsafe(`
+          UPDATE "${req.schemaName}".billing_queue 
+          SET status = 'BILLED' 
+          WHERE id = '${item.id}'
+        `);
+      }
     }
 
-    // 3. Link to Lab Order if applicable
-    if (labOrderId && billType === 'LAB') {
-      await req.prisma.$executeRawUnsafe(`
-        UPDATE "${req.schemaName}".lab_orders 
-        SET invoice_id = '${invId}', is_billed = TRUE 
-        WHERE id = '${labOrderId}'
-      `);
-    }
-
-    res.status(201).json({ id: invId, message: "Invoice generated successfully" });
+    res.status(201).json({ id: invId, message: "Professional Invoice finalized and ledger updated." });
   } catch (error) { 
     console.error("[BILLING_ERROR]", error.message);
     next(error); 

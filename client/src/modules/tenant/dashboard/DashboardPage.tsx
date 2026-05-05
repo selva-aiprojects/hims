@@ -1,204 +1,217 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import ReactECharts from 'echarts-for-react';
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-
-
-// SVG Icons
-const Icons = {
-  Patients: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-    </svg>
-  ),
-  Appointments: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-    </svg>
-  ),
-  Billing: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  ),
-  Plus: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  )
-};
+import { 
+  Users, Calendar, FileText, Pill, Activity, TrendingUp, 
+  AlertCircle, ChevronRight, HeartPulse, PieChart, BarChart3, Clock, ArrowUpRight, FlaskConical, Bell, Zap, Plus
+} from 'lucide-react';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [userName] = useState(localStorage.getItem("userName") || "User");
   const [stats, setStats] = useState<any>({
     metrics: { patientInflow: 0, activeAdmissions: 0, pendingBills: 0, dailyRevenue: 0 },
+    ipOpRatio: { op_count: 0, ip_count: 0 },
+    stockAlerts: [],
+    bedStats: [],
+    labStats: [],
+    dischargeTrend: [],
     weeklyFlow: []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    localStorage.setItem('theme_app_bg', '#f8fafc');
+    localStorage.setItem('theme_primary_dark', '#0f172a');
+    localStorage.setItem('theme_primary_accent', '#3b82f6');
+    document.documentElement.style.setProperty('--app-bg', '#f8fafc');
+    document.documentElement.style.setProperty('--primary-dark', '#0f172a');
+    document.documentElement.style.setProperty('--primary-accent', '#3b82f6');
+    
     const fetchStats = async () => {
-      console.log("[DASHBOARD] Fetching live metrics...");
       try {
         const token = localStorage.getItem("token");
         const tenant = localStorage.getItem("tenant");
-        
-        if (!token || !tenant) {
-          setError("Auth session missing. Please re-login.");
-          return;
-        }
-
-        const res = await axios.get(`${API_BASE}/api/hospital/stats`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-tenant-id": tenant
-          }
+        const res = await axios.get(`${API_BASE}/api/hospital/metrics/stats`, {
+          headers: { Authorization: `Bearer ${token}`, "x-tenant-id": tenant }
         });
-        
-        console.log("[DASHBOARD] Stats received:", res.data);
-        if (res.data && res.data.metrics) {
+        if (res.data) {
           setStats(res.data);
           setError(null);
-        } else {
-          console.warn("[DASHBOARD] Stats response was empty or malformed");
         }
       } catch (err: any) {
-        console.error("[DASHBOARD] Fetch failed:", err);
-        setError(`Failed to sync metrics: ${err.message}`);
+        console.error("Stats Fetch Error:", err);
+        setError("Failed to fetch live data");
       } finally {
-        setLoading(false);
+        setTimeout(() => setLoading(false), 500); 
       }
     };
     fetchStats();
   }, []);
 
-  const metrics = [
-    { label: 'Patient Inflow', value: stats.metrics.patientInflow, trend: '+12%', color: '#3b82f6', icon: <Icons.Patients /> },
-    { label: 'Active Admissions', value: stats.metrics.activeAdmissions, trend: 'Live', color: '#10b981', icon: <Icons.Appointments /> },
-    { label: 'Pending Bills', value: stats.metrics.pendingBills, trend: 'Urgent', color: '#f59e0b', icon: <Icons.Billing /> },
-    { label: 'Daily Revenue', value: `₹ ${Number(stats.metrics.dailyRevenue).toLocaleString() || '0.00'}`, trend: '+5%', color: '#8b5cf6', icon: <Icons.Billing /> }
-  ];
+  // --- LIVE CHART CONFIGURATIONS ---
+  
+  // 1. IP vs OP Comparison (Pie)
+  const ipOpOption = {
+    tooltip: { trigger: 'item' },
+    series: [{
+      type: 'pie', radius: ['50%', '70%'], avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      data: [
+        { value: stats.ipOpRatio.op_count, name: 'Outpatient (OP)' },
+        { value: stats.ipOpRatio.ip_count, name: 'Inpatient (IP)' }
+      ],
+      color: ['#3b82f6', '#f59e0b']
+    }]
+  };
+
+  // 2. Discharge Comparison Trend (Line)
+  const dischargeOption = {
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, icon: 'circle', textStyle: { fontSize: 10, fontWeight: 700 } },
+    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true, top: '10%' },
+    xAxis: { 
+      type: 'category', 
+      data: stats.dischargeTrend.map((d: any) => new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })),
+      axisLine: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 700 }
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
+    series: [
+      { name: 'Admitted', data: stats.dischargeTrend.map((d: any) => d.admitted), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6' },
+      { name: 'Discharged', data: stats.dischargeTrend.map((d: any) => d.discharged), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#10b981' }
+    ]
+  };
+
+  // 3. Lab Performance (Pending vs Completed)
+  const labOption = {
+    tooltip: { trigger: 'axis' },
+    xAxis: { type: 'category', data: stats.labStats.map((l: any) => l.status), axisLine: { show: false } },
+    yAxis: { type: 'value', show: false },
+    series: [{
+      data: stats.labStats.map((l: any) => l.count),
+      type: 'bar', barWidth: '40%', itemStyle: { borderRadius: [4, 4, 0, 0], color: '#6366f1' }
+    }]
+  };
+
+  // 4. Bed Occupancy
+  const bedOccupancy = stats.bedStats.find((b: any) => b.status === 'Occupied')?.count || 0;
+  const bedTotal = stats.bedStats.reduce((acc: number, b: any) => acc + b.count, 0) || 1;
+  const occupancyPercent = Math.round((bedOccupancy / bedTotal) * 100);
 
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc' }}>
       <Sidebar />
-      <main className="main-content">
+      <main className="main-content" style={{ padding: '40px', backgroundColor: '#f8fafc' }}>
         <Header title={`Welcome, ${userName}`} />
 
-        {error && (
-          <div style={{ padding: '16px', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '16px', color: '#b91c1c', marginBottom: '24px', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            {error}
-            <button onClick={() => window.location.reload()} style={{ marginLeft: 'auto', background: '#b91c1c', color: 'white', border: 'none', padding: '4px 12px', borderRadius: '8px', cursor: 'pointer' }}>Retry Sync</button>
-          </div>
-        )}
-
-        {/* Advanced Metrics Grid */}
-        <div className="stats-grid" style={{ marginBottom: '32px' }}>
-          {metrics.map((stat, i) => (
-            <div key={i} className="stat-card" style={{ padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', background: 'white' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div style={{ padding: '10px', background: `${stat.color}15`, color: stat.color, borderRadius: '12px' }}>{stat.icon}</div>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: stat.color, padding: '4px 8px', background: `${stat.color}10`, borderRadius: '8px' }}>
-                  {stat.trend}
-                </span>
+        {/* TOP ROW: REAL-TIME KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '32px' }}>
+          {[
+            { label: 'Patient Inflow', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6' },
+            { label: 'Active IPD', val: stats.metrics.activeAdmissions, icon: Activity, color: '#f59e0b' },
+            { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444' },
+            { label: 'Daily Revenue', val: `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981' }
+          ].map((m, i) => (
+            <div key={i} className="stat-card" style={{ padding: '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: `${m.color}15`, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <m.icon size={20} />
               </div>
-              <div style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>{loading ? '...' : stat.value}</div>
-              <div style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>{stat.label}</div>
+              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>{loading ? '...' : m.val}</div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Visual Trends Section */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '32px' }}>
-          <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: 800 }}>Weekly Patient Flow</h3>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: '12px', padding: '20px', border: '1px solid #f1f5f9', borderRadius: '16px' }}>
-              {stats?.weeklyFlow?.length > 0 ? (
-                stats.weeklyFlow.map((day: any, idx: number) => (
-                  <div key={idx} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ 
-                      width: '100%', 
-                      height: `${(day.count / Math.max(...stats.weeklyFlow.map((d: any) => d.count), 1)) * 150}px`, 
-                      background: 'linear-gradient(to top, #3b82f6, #60a5fa)', 
-                      borderRadius: '6px',
-                      minHeight: '4px'
-                    }}></div>
-                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8' }}>{new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                  </div>
-                ))
-              ) : (
-                <div style={{ width: '100%', textAlign: 'center', color: '#94a3b8' }}>No flow data recorded for this week.</div>
-              )}
+        {/* MIDDLE ROW: PERFORMANCE COMPARISON */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '32px', marginBottom: '32px' }}>
+          {/* Discharge vs Admission Comparison */}
+          <div className="page-card" style={{ padding: '24px' }}>
+            <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Admission vs. Discharge (7D)</h3>
+            <ReactECharts option={dischargeOption} style={{ height: '240px' }} />
+          </div>
+
+          {/* IP vs OP Ratio */}
+          <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <h3 className="section-title" style={{ fontSize: '14px', alignSelf: 'flex-start', marginBottom: '24px' }}>IP vs. OP Ratio (30D)</h3>
+            <ReactECharts option={ipOpOption} style={{ height: '180px', width: '100%' }} />
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+               <div style={{ fontSize: '18px', fontWeight: 900 }}>{stats.ipOpRatio.op_count} : {stats.ipOpRatio.ip_count}</div>
+               <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>TOTAL CLINICAL LOAD</div>
             </div>
           </div>
-          
-          <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-            <h3 style={{ margin: '0 0 24px 0', fontSize: '18px', fontWeight: 800 }}>Clinical Load</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-               {stats?.departmentLoad?.length > 0 ? (
-                 stats.departmentLoad.map((dept: any, i: number) => (
-                   <div key={i}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '6px' }}>
-                         <span>{dept.name}</span>
-                         <span>{dept.count} Active</span>
-                      </div>
-                      <div style={{ width: '100%', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                         <div style={{ 
-                           width: `${Math.min((dept.count / (stats.metrics.patientInflow || 1)) * 100, 100)}%`, 
-                           height: '100%', 
-                           background: '#3b82f6' 
-                         }}></div>
-                      </div>
-                   </div>
-                 ))
-               ) : (
-                 <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>No active clinical sessions.</div>
-               )}
+
+          {/* Bed Occupancy */}
+          <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+            <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Live Bed Census</h3>
+            <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px', alignContent: 'flex-start' }}>
+               {Array.from({ length: bedTotal }).map((_, i) => (
+                 <div key={i} style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: i < bedOccupancy ? '#ef4444' : '#10b981' }}></div>
+               ))}
+            </div>
+            <div style={{ marginTop: '16px' }}>
+               <div style={{ fontSize: '20px', fontWeight: 900 }}>{occupancyPercent}%</div>
+               <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>BED OCCUPANCY RATE</div>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <h2 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '20px', color: '#0f172a' }}>Priority Workflows</h2>
-        <div className="action-grid">
-          <div className="action-card" onClick={() => navigate('/tenant/opd/queue')} style={{ background: 'white', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'all 0.2s' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icons.Plus />
-            </div>
-            <div className="action-content">
-              <h3>Clinical Consultation</h3>
-              <p>Execute precision patient encounters</p>
-            </div>
+        {/* BOTTOM ROW: ALERTS & LAB */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '32px' }}>
+          {/* Pharmacy Stock Alerts */}
+          <div className="page-card" style={{ padding: '24px' }}>
+             <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Bell size={16} style={{ color: '#ef4444' }} /> Pharmacy Stock Alerts
+             </h3>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {stats.stockAlerts.length > 0 ? stats.stockAlerts.map((item: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#fef2f2', borderRadius: '10px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b' }}>{item.name}</span>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626' }}>{item.stock_quantity} Left</span>
+                  </div>
+                )) : (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>Inventory Healthy</div>
+                )}
+             </div>
           </div>
 
-          <div className="action-card" onClick={() => navigate('/tenant/appointments')}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icons.Appointments />
-            </div>
-            <div className="action-content">
-              <h3>Schedule Appointment</h3>
-              <p>Book a future slot for a patient</p>
-            </div>
+          {/* Lab Performance */}
+          <div className="page-card" style={{ padding: '24px' }}>
+             <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px' }}>Lab Orders (7D)</h3>
+             <ReactECharts option={labOption} style={{ height: '150px' }} />
+             <div style={{ marginTop: '12px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
+                Processing {stats.labStats.reduce((acc: number, l: any) => acc + l.count, 0)} diagnostic requests this week.
+             </div>
           </div>
 
-          <div className="action-card" onClick={() => navigate('/billing')}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icons.Billing />
-            </div>
-            <div className="action-content" style={{ flex: 1 }}>
-              <h3>Generate Bill</h3>
-              <p>Create invoice for pending services</p>
-            </div>
+          {/* Live OPD Command Center */}
+          <div className="page-card" style={{ padding: '24px', backgroundColor: '#0f172a', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+             <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.1 }}><Zap size={80} /></div>
+             <h3 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 900, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+                <Activity size={16} /> LIVE OPD HUB
+             </h3>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+                   <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>CURRENT WAITING</div>
+                   <div style={{ fontSize: '20px', fontWeight: 900, color: '#3b82f6' }}>{stats.metrics.patientInflow || 0}</div>
+                </div>
+                <div style={{ padding: '14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
+                   <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Latest Entry</div>
+                   <div style={{ fontSize: '14px', fontWeight: 800 }}>{stats.metrics.lastPatient || 'Ready for Intake'}</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', marginTop: '4px' }}>
+                   <button onClick={() => navigate('/tenant/opd/registration')} style={{ padding: '14px', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <Plus size={16} /> START RAPID INTAKE
+                   </button>
+                   <button onClick={() => navigate('/tenant/opd/queue')} style={{ padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>VIEW FULL QUEUE</button>
+                </div>
+             </div>
           </div>
         </div>
       </main>

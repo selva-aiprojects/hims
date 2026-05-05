@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
@@ -16,6 +17,7 @@ const WARD_COLORS: Record<string, { bg: string; badge: string; text: string }> =
 
 export default function IPDBedMap() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [wards, setWards] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [staff, setStaff] = useState<any[]>([]);
@@ -82,12 +84,12 @@ export default function IPDBedMap() {
     e.preventDefault();
     try {
       await axios.post(`${API_BASE}/api/hospital/ipd/admissions`, admitForm, { headers });
-      alert("Patient admitted successfully!");
+      showToast("Patient admitted successfully.", "success");
       setShowAdmitModal(false);
       selectWard(activeWard);
       fetchData();
     } catch (err: any) {
-      alert(err.response?.data?.error || "Admission failed");
+      showToast(err.response?.data?.error || "Admission failed", "error");
     }
   };
 

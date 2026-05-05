@@ -230,7 +230,14 @@ CREATE TABLE patients (
   dob DATE,
   age INTEGER,
   phone VARCHAR(20),
+  email VARCHAR(255),
+  blood_group VARCHAR(10),
+  occupation VARCHAR(100),
   address TEXT,
+  guardian_name VARCHAR(255),
+  guardian_phone VARCHAR(50),
+  medical_history TEXT,
+  allergies TEXT,
   ai_summary TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -358,9 +365,11 @@ CREATE TABLE prescription_items (
 DROP TABLE IF EXISTS lab_orders CASCADE;
 CREATE TABLE lab_orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  patient_id UUID REFERENCES patients(id),
   encounter_id UUID REFERENCES encounters(id),
   diagnostic_id UUID REFERENCES diagnostics(id),
-  status VARCHAR(50) DEFAULT 'Pending'
+  status VARCHAR(50) DEFAULT 'Pending',
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 DROP TABLE IF EXISTS lab_results CASCADE;
@@ -393,7 +402,9 @@ CREATE TABLE invoice_items (
   quantity INTEGER DEFAULT 1,
   unit_price NUMERIC DEFAULT 0,
   tax_percent NUMERIC DEFAULT 0,
-  amount NUMERIC DEFAULT 0
+  discount_amount NUMERIC DEFAULT 0,
+  amount NUMERIC DEFAULT 0,
+  source_queue_id UUID
 );
 
 DROP TABLE IF EXISTS payments CASCADE;
@@ -417,6 +428,22 @@ CREATE TABLE insurance_claims (
   encounter_id UUID REFERENCES encounters(id),
   claim_amount NUMERIC,
   status VARCHAR(50)
+);
+
+-- ================= CLINICAL BILLING LEDGER =================
+CREATE TABLE billing_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    encounter_id UUID REFERENCES encounters(id),
+    source_module VARCHAR(50), 
+    source_id UUID,            
+    description TEXT,
+    quantity NUMERIC DEFAULT 1,
+    unit_price NUMERIC NOT NULL,
+    tax_percent NUMERIC DEFAULT 0,
+    is_discountable BOOLEAN DEFAULT TRUE,
+    status VARCHAR(20) DEFAULT 'PENDING', 
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- ================= COMMUNICATIONS & TICKETING =================

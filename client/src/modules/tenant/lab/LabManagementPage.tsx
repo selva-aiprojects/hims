@@ -78,7 +78,8 @@ export default function LabManagementPage() {
           billType: 'LAB', 
           totalAmount: Number(completedOrder.price || 0),
           patientName: completedOrder.patient_name,
-          encounterId: completedOrder.patient_id,
+          patientId: completedOrder.patient_id,
+          encounterId: completedOrder.encounter_id,
           labOrderId: completedOrder.id
         } });
       }

@@ -1,3 +1,4 @@
+// [HEARTBEAT] Clinical Infrastructure Sync - 2026-05-05
 const express = require("express");
 const cors = require("cors");
 const routes = require("./routes");
@@ -165,7 +166,7 @@ app.get("/api/nexus/fix-system-menus", async (req, res) => {
         { label: 'Mail Management', path: '/tenant/mail', icon: 'Receipt', sort: 18, plan: 'basic' },
         { label: 'Ticketing Management System', path: '/tenant/support', icon: 'Receipt', sort: 16, plan: 'basic' },
         { label: 'AI Lab Assistant', path: '/tenant/lab/ai', icon: 'Lab', sort: 9, plan: 'professional' },
-        { label: 'Consultation Desk', path: '/tenant/consultation', icon: 'Doctor', sort: 5, plan: 'basic' },
+        { label: 'Consultation Desk', path: '/tenant/opd/consultation', icon: 'Doctor', sort: 5, plan: 'basic' },
         { label: 'Staff & RBAC', path: '/tenant/staff', icon: 'Settings', sort: 20, plan: 'basic' }
       ];
 
@@ -272,6 +273,66 @@ app.get("/api/nexus/fix-ward-categories", async (req, res) => {
       updated++;
     }
     res.json({ message: `Successfully synchronized ward categories for ${updated} shards.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Administrative Route to synchronize billing infrastructure (Queue & Discounts)
+app.get("/api/nexus/fix-billing-infrastructure", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants`);
+    let updated = 0;
+    
+    for (const t of tenants) {
+      const schema = t.db_name;
+      try {
+        // 1. Create Billing Queue Table
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schema}".billing_queue (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              patient_id UUID NOT NULL,
+              encounter_id UUID,
+              source_module VARCHAR(50), 
+              source_id UUID,            
+              description TEXT,
+              quantity NUMERIC DEFAULT 1,
+              unit_price NUMERIC NOT NULL,
+              tax_percent NUMERIC DEFAULT 0,
+              is_discountable BOOLEAN DEFAULT TRUE,
+              status VARCHAR(20) DEFAULT 'PENDING', 
+              created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+
+        // 2. Add Discount Columns to Invoices
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoice_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoice_items ADD COLUMN IF NOT EXISTS source_queue_id UUID`);
+        
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".lab_orders ADD COLUMN IF NOT EXISTS patient_id UUID REFERENCES "${schema}".patients(id)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".lab_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".appointments ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".ipd_admissions ADD COLUMN IF NOT EXISTS admitted_at TIMESTAMP DEFAULT NOW()`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".ipd_admissions ADD COLUMN IF NOT EXISTS discharged_at TIMESTAMP`);
+        
+        // 4. Comprehensive Patient Profile Healing
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS dob DATE`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS occupation VARCHAR(100)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS address TEXT`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS guardian_name VARCHAR(255)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS guardian_phone VARCHAR(50)`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS medical_history TEXT`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS allergies TEXT`);
+        
+        updated++;
+      } catch (shardErr) {
+        console.error(`Failed to upgrade billing for shard ${schema}:`, shardErr.message);
+      }
+    }
+    res.json({ message: `Successfully upgraded billing infrastructure and healed clinical columns for ${updated} shards.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

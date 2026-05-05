@@ -32,7 +32,7 @@ type BillType = 'OPD' | 'LAB' | 'PHARMACY' | 'IPD' | 'DAYCARE' | 'DISCHARGE';
 export default function BillingPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const state = location.state as { billType?: BillType; totalAmount?: number; patientName?: string; encounterId?: string } | null;
+  const state = location.state as { billType?: BillType; totalAmount?: number; patientName?: string; patientId?: string; encounterId?: string; labOrderId?: string } | null;
   const queryParams = new URLSearchParams(location.search);
   const queryType = queryParams.get('type') as BillType;
 
@@ -81,6 +81,31 @@ export default function BillingPage() {
     };
     fetchMasters();
   }, []);
+
+  useEffect(() => {
+    if (!patientId) return;
+
+    const fetchQueue = async () => {
+      const headers = {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "x-tenant-id": localStorage.getItem("tenant") || ""
+      };
+      try {
+        const res = await axios.get(`${API_BASE}/api/billing/queue/${patientId}`, { headers });
+        if (res.data.length > 0) {
+          setItems(res.data.map((item: any) => ({
+            ...item,
+            description: item.description,
+            price: Number(item.unit_price || 0),
+            quantity: Number(item.quantity || 1),
+            tax: Number(item.tax_percent || 0)
+          })));
+        }
+      } catch (err) { console.error(err); }
+    };
+
+    fetchQueue();
+  }, [patientId]);
 
   const addItem = (srv: any) => {
     setItems([...items, { description: srv.name, price: Number(srv.price), quantity: 1, tax: Number(srv.tax_percent || 0) }]);
@@ -158,9 +183,6 @@ export default function BillingPage() {
                             (e.target as HTMLInputElement).value = `${p.name} (${p.mrn})`;
                             setPatientName(p.name);
                             setPatientId(p.id);
-                            
-                            const consultationPrice = services.find((s: any) => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation'))?.price || 0;
-                            setItems([{ description: 'General Consultation', price: Number(consultationPrice), quantity: 1, tax: 0 }]);
                             alert(`Found Patient: ${p.name}`);
                           } else {
                             alert("No patient found with this MRN/Name");

@@ -44,11 +44,11 @@ export default function PharmacyManagementPage() {
       const res = await axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions/${pres.id}/items`, { headers });
       setActivePrescription({ ...pres, items: res.data });
       setSelectedItems(res.data.map((item: any) => ({
-        drugId: inventory.find(i => i.drug_name === item.drug_name)?.id,
-        drugName: item.drug_name,
-        requestedQuantity: item.duration.split(' ')[0] * 3, // rough estimate for 3x day
+        drugId: item.medicine_id || inventory.find(i => i.drug_name === (item.medicine_name || item.drug_name))?.id,
+        drugName: item.medicine_name || item.drug_name,
+        requestedQuantity: Number((item.duration || '').split(' ')[0]) * 3 || 10,
         quantity: 10, // default dispense
-        unitPrice: inventory.find(i => i.drug_name === item.drug_name)?.unit_price || 0
+        unitPrice: item.unit_price || inventory.find(i => i.drug_name === (item.medicine_name || item.drug_name))?.unit_price || 0
       })));
     } catch (err) { alert("Failed to fetch prescription details"); }
   };
@@ -61,6 +61,7 @@ export default function PharmacyManagementPage() {
     try {
       await axios.post(`${API_BASE}/api/hospital/pharmacy/dispense`, {
         encounterId: activePrescription.encounter_id,
+        prescriptionId: activePrescription.id,
         items: selectedItems.filter(i => i.drugId)
       }, { headers });
       
@@ -75,6 +76,7 @@ export default function PharmacyManagementPage() {
             billType: 'PHARMACY', 
             totalAmount: total,
             patientName: activePrescription.patient_name,
+            patientId: activePrescription.patient_id,
             encounterId: activePrescription.encounter_id
           } 
         });

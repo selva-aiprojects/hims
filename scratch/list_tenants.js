@@ -1,15 +1,19 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+require('dotenv').config();
+const { Pool } = require('pg');
 
-async function main() {
+async function listTenants() {
+  const dbUrl = new URL(process.env.DATABASE_URL);
+  dbUrl.searchParams.delete('sslmode');
+  const pool = new Pool({ connectionString: dbUrl.toString(), ssl: { rejectUnauthorized: false } });
+
   try {
-    const tenants = await prisma.$queryRawUnsafe('SELECT * FROM nexus.tenants');
-    console.log(JSON.stringify(tenants, null, 2));
-  } catch (e) {
-    console.error(e);
+    const res = await pool.query("SELECT id, name, db_name, plan FROM nexus.tenants ORDER BY name");
+    console.log(JSON.stringify(res.rows, null, 2));
+  } catch (err) {
+    console.error('Failed to list tenants:', err.message);
   } finally {
-    await prisma.$disconnect();
+    await pool.end();
   }
 }
 
-main();
+listTenants();

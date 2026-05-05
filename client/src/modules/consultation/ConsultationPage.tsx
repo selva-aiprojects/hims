@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import { useToast } from "../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../config/api";
 
 
@@ -40,6 +41,7 @@ const Icons = {
 
 export default function ConsultationPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [patientId] = useState("P-10024");
   const [patientName] = useState("John Doe");
   const [diagnosis, setDiagnosis] = useState("");
@@ -63,10 +65,11 @@ export default function ConsultationPage() {
       });
 
       localStorage.setItem("encounterId", res.data.encounterId);
+      showToast("Consultation saved. Opening billing.", "success");
       navigate("/billing");
     } catch (err) {
       console.error(err);
-      alert("Error saving consultation");
+      showToast("Error saving consultation.", "error");
     } finally {
       setLoading(false);
     }

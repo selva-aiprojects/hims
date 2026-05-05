@@ -3,12 +3,14 @@ import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
 export default function IPDPatientView() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [data, setData] = useState<{ admission: any; notes: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState("");
@@ -32,14 +34,18 @@ export default function IPDPatientView() {
   useEffect(() => { fetchData(); }, [id]);
 
   const addNote = async () => {
-    if (!noteText.trim()) return;
+    if (!noteText.trim()) {
+      showToast("Enter a clinical note before saving.", "error");
+      return;
+    }
     try {
       await axios.post(`${API_BASE}/api/hospital/ipd/admissions/${id}/notes`, {
         noteText, noteType
       }, { headers });
       setNoteText("");
+      showToast("Clinical note saved.", "success");
       fetchData();
-    } catch (err) { alert("Failed to save note"); }
+    } catch (err) { showToast("Failed to save note.", "error"); }
   };
 
   const handleDischarge = async () => {
@@ -47,6 +53,7 @@ export default function IPDPatientView() {
       const res = await axios.put(`${API_BASE}/api/hospital/ipd/admissions/${id}/discharge`, {}, { headers });
       const bill = res.data.billingSummary;
       setShowDischargeConfirm(false);
+      showToast("Patient discharged successfully.", "success");
       if (confirm(`Patient discharged!\n\n${bill.daysAdmitted} days × ₹${bill.dailyCharge} = ₹${bill.bedCharges} bed charges.\n\nProceed to generate the final IPD bill?`)) {
         navigate('/billing', {
           state: {
@@ -59,18 +66,18 @@ export default function IPDPatientView() {
       } else {
         navigate('/tenant/ipd/admissions');
       }
-    } catch (err) { alert("Discharge failed"); }
+    } catch (err) { showToast("Discharge failed.", "error"); }
   };
 
   const generateAISummary = async () => {
     setIsGeneratingSummary(true);
     try {
       const res = await axios.post(`${API_BASE}/api/hospital/ipd/admissions/${id}/generate-summary`, {}, { headers });
-      alert(`AI Discharge Summary Generated Successfully!\nPDF saved at: ${res.data.pdfPath}`);
+      showToast(`AI discharge summary generated. PDF saved at: ${res.data.pdfPath}`, "success");
       fetchData(); // Refresh the notes
     } catch (err) {
       console.error(err);
-      alert("Failed to generate AI Discharge Summary");
+      showToast("Failed to generate AI discharge summary.", "error");
     } finally {
       setIsGeneratingSummary(false);
     }
