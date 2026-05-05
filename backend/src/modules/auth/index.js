@@ -107,11 +107,40 @@ router.post("/login", async (req, res) => {
                     PRIMARY KEY (user_id, role_id)
                 );
 
-                -- Seed Roles if empty
+                -- Seed HIPAA Compliant Roles if empty
                 INSERT INTO "${schema}".rbac_roles (name, description) VALUES 
-                ('ADMIN', 'Full access'), ('DOCTOR', 'Clinical access'), ('NURSE', 'Nursing access'), 
-                ('PHARMACIST', 'Pharmacy access'), ('LAB_TECH', 'Lab access'), ('SUPPORT', 'Front desk')
+                ('ADMIN', 'Full system access with PII masking for audit purposes'),
+                ('DOCTOR', 'Clinical access to full patient information for treatment'),
+                ('NURSE', 'Clinical access to patient information for care delivery'),
+                ('PHARMACIST', 'Access to pharmacy functions with masked patient PII'),
+                ('LAB_ASSISTANT', 'Access to laboratory functions with masked patient PII'),
+                ('RECEPTIONIST', 'Front desk access with limited patient PII'),
+                ('SUPPORT', 'Administrative support with masked patient PII')
                 ON CONFLICT (name) DO NOTHING;
+
+                -- Seed HIPAA Permissions if empty
+                INSERT INTO "${schema}".rbac_permissions (key, description) VALUES
+                ('PATIENT_PII_VIEW_FULL', 'Ability to view complete unmasked patient information'),
+                ('PATIENT_PII_VIEW_MASKED', 'Ability to view masked patient information (limited PII)'),
+                ('PATIENT_PII_VIEW_DEIDENTIFIED', 'Ability to view de-identified patient information only'),
+                ('CLINICAL_ACCESS_FULL', 'Full clinical access including diagnosis, prescriptions, vitals'),
+                ('CLINICAL_ACCESS_LIMITED', 'Limited clinical access with PII masking'),
+                ('PHARMACY_ACCESS_FULL', 'Full pharmacy access including patient PII'),
+                ('PHARMACY_ACCESS_MASKED', 'Pharmacy access with masked patient PII'),
+                ('LAB_ACCESS_FULL', 'Full laboratory access including patient PII'),
+                ('LAB_ACCESS_MASKED', 'Laboratory access with masked patient PII'),
+                ('FRONT_DESK_ACCESS_FULL', 'Full front desk access including patient PII'),
+                ('FRONT_DESK_ACCESS_MASKED', 'Front desk access with masked patient PII'),
+                ('USER_MANAGE', 'Ability to manage user accounts and roles'),
+                ('ROLE_MANAGE', 'Ability to manage role assignments and permissions'),
+                ('SYSTEM_CONFIG', 'Ability to modify system settings and configurations'),
+                ('AUDIT_VIEW', 'Ability to view audit logs and compliance reports'),
+                ('DATA_EXPORT', 'Ability to export system data (with compliance checks)'),
+                ('BILLING_ACCESS_FULL', 'Full access to billing and financial information'),
+                ('BILLING_ACCESS_MASKED', 'Limited billing access with PII masking'),
+                ('IPD_MANAGE', 'Ability to manage IPD admissions and bed assignments'),
+                ('EMERGENCY_OVERRIDE', 'Ability to override access controls in emergency situations')
+                ON CONFLICT (key) DO NOTHING;
               `);
             } catch (e) {
               console.warn(`[AUTH] RBAC Schema Hardening skipped or failed for ${schema}: ${e.message}`);
@@ -137,8 +166,23 @@ router.post("/login", async (req, res) => {
                 // --- SELF-HEALING RBAC ---
                 // If link is missing, try to link based on users.role column
                 console.log(`[AUTH] RBAC link missing for ${email}, attempting self-healing...`);
+                
+                // Map legacy roles to HIPAA roles
+                const roleMapping = {
+                  'admin': 'ADMIN',
+                  'doctor': 'DOCTOR', 
+                  'nurse': 'NURSE',
+                  'pharmacist': 'PHARMACIST',
+                  'lab_tech': 'LAB_ASSISTANT',
+                  'lab_assistant': 'LAB_ASSISTANT',
+                  'receptionist': 'RECEPTIONIST',
+                  'support': 'SUPPORT',
+                  'staff': 'SUPPORT'
+                };
+                
+                const mappedRole = roleMapping[user.role?.toLowerCase()] || 'SUPPORT';
                 const matchedRoles = await req.prisma.$queryRawUnsafe(`
-                  SELECT id, name FROM "${schema}".rbac_roles WHERE LOWER(name) = LOWER('${user.role || 'staff'}')
+                  SELECT id, name FROM "${schema}".rbac_roles WHERE LOWER(name) = LOWER('${mappedRole}')
                 `);
                 if (matchedRoles.length > 0) {
                   roleId = matchedRoles[0].id;
