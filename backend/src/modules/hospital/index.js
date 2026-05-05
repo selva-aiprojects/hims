@@ -168,7 +168,7 @@ router.get("/lab/billing-queue", checkPermission('BILLING_MANAGE'), async (req, 
       FROM "${req.schemaName}".lab_orders lo
       JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
       JOIN "${req.schemaName}".patients p ON lo.patient_id = p.id
-      JOIN "${req.schemaName}".medicines d ON lo.test_id = d.id
+      JOIN "${req.schemaName}".diagnostics d ON lo.diagnostic_id = d.id
       WHERE lo.status = 'Authorized' AND (lo.is_billed = false OR lo.is_billed IS NULL)
     `);
     res.json(data);
@@ -273,6 +273,42 @@ router.get("/masters/diagnostics", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/masters/departments", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT DISTINCT specialization as name, specialization as id
+      FROM "${req.schemaName}".users
+      WHERE specialization IS NOT NULL AND specialization != ''
+      ORDER BY specialization ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/masters/specialities", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT DISTINCT specialization as name, specialization as id
+      FROM "${req.schemaName}".users
+      WHERE specialization IS NOT NULL AND specialization != ''
+      ORDER BY specialization ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/masters/treatments", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT id, name, composition as description, category
+      FROM "${req.schemaName}".medicines
+      WHERE category IN ('Medication', 'Treatment')
+      ORDER BY name ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 router.get("/masters/modes", async (req, res, next) => {
   try {
     // Self-healing fallback for consultation modes
@@ -291,7 +327,7 @@ router.get("/masters/modes", async (req, res, next) => {
 
 router.get("/masters/services", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".medicines WHERE type = 'service' OR category = 'Laboratory' ORDER BY name ASC`);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".medicines WHERE category = 'Laboratory' ORDER BY name ASC`);
     res.json(data);
   } catch (error) { next(error); }
 });
@@ -543,6 +579,31 @@ router.get("/pharmacy/inventory", checkPermission('PHARMACY_MANAGE'), async (req
       ORDER BY name ASC
     `);
     res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/stats", checkPermission('PHARMACY_MANAGE'), async (req, res, next) => {
+  try {
+    const stats = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        COUNT(*)::int as total_medicines,
+        COUNT(CASE WHEN stock_quantity <= 10 THEN 1 END)::int as low_stock_items,
+        COUNT(CASE WHEN expiry_date <= CURRENT_DATE + INTERVAL '30 days' THEN 1 END)::int as expiring_items,
+        SUM(stock_quantity)::int as total_stock
+      FROM "${req.schemaName}".medicines
+      WHERE COALESCE(is_active, true) = true
+    `);
+    
+    const pendingPrescriptions = await req.prisma.$queryRawUnsafe(`
+      SELECT COUNT(*)::int as pending_count
+      FROM "${req.schemaName}".prescriptions
+      WHERE COALESCE(status, 'Pending') != 'Dispensed'
+    `);
+    
+    res.json({
+      inventory: stats[0],
+      prescriptions: pendingPrescriptions[0]
+    });
   } catch (error) { next(error); }
 });
 
