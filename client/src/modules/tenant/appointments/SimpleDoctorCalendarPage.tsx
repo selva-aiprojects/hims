@@ -9,6 +9,7 @@ export default function SimpleDoctorCalendarPage() {
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -87,6 +88,20 @@ export default function SimpleDoctorCalendarPage() {
     });
   };
 
+  const isSlotUnavailable = (time: string) => {
+    return unavailableSlots.includes(time);
+  };
+
+  const toggleUnavailableSlot = (time: string) => {
+    if (isSlotUnavailable(time)) {
+      // Remove from unavailable slots
+      setUnavailableSlots(prev => prev.filter(slot => slot !== time));
+    } else {
+      // Add to unavailable slots
+      setUnavailableSlots(prev => [...prev, time]);
+    }
+  };
+
   const getWeekDates = () => {
     const dates = [];
     const startOfWeek = new Date(currentDate);
@@ -138,13 +153,14 @@ export default function SimpleDoctorCalendarPage() {
                       </div>
                       {timeSlots.map((time, slotIndex) => {
                         const hasAppointment = hasAppointmentAtTime(time);
+                        const isUnavailable = isSlotUnavailable(time);
 
                         return (
                           <div 
                             key={slotIndex}
                             style={{
                               height: '36px',
-                              background: hasAppointment ? '#3b82f6' : '#10b981',
+                              background: hasAppointment ? '#3b82f6' : isUnavailable ? '#ef4444' : '#10b981',
                               border: '1px solid #e2e8f0',
                               borderRadius: '4px',
                               margin: '1px',
@@ -154,10 +170,20 @@ export default function SimpleDoctorCalendarPage() {
                               justifyContent: 'center',
                               fontSize: '10px'
                             }}
-                            title={hasAppointment ? 'Booked' : 'Available'}
+                            title={
+                              hasAppointment ? 'Booked' : 
+                              isUnavailable ? 'Unavailable (Surgery/Urgent)' : 'Available'
+                            }
+                            onClick={() => {
+                              if (selectedDoctor && !hasAppointment) {
+                                toggleUnavailableSlot(time);
+                              }
+                            }}
                           >
                             {hasAppointment ? (
                               <X size={12} style={{ color: 'white' }} />
+                            ) : isUnavailable ? (
+                              <div style={{ color: 'white', fontSize: '10px', fontWeight: 'bold' }}>🚫</div>
                             ) : (
                               <Plus size={12} style={{ color: 'white' }} />
                             )}
@@ -324,6 +350,29 @@ export default function SimpleDoctorCalendarPage() {
               >
                 📅 Set Available Today
               </button>
+              
+              <button
+                onClick={() => {
+                  setUnavailableSlots([]);
+                  alert('All unavailable slots cleared!\n\nDoctors can now:\n• Click green slots to make them unavailable (red)\n• Click red slots to make them available again');
+                }}
+                style={{ 
+                  padding: '8px 16px', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e2e8f0', 
+                  background: '#64748b',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500
+                }}
+              >
+                🔄 Clear Unavailable
+              </button>
+              
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', textAlign: 'center' }}>
+                <strong>How to use:</strong> Click green slots to mark as unavailable (red) for surgery/urgent cases
+              </div>
             </div>
           </div>
 
