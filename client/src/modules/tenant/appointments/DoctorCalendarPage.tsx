@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import Sidebar from "../../components/Sidebar";
-import Header from "../../components/Header";
-import { API_BASE_URL as API_BASE } from "../../config/api";
+import Sidebar from "../../../components/Sidebar";
+import Header from "../../../components/Header";
+import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { Calendar, Clock, Users, Plus, Settings, ChevronRight, ChevronLeft, Check, X, AlertCircle } from 'lucide-react';
 
 export default function DoctorCalendarPage() {
