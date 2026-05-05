@@ -11,6 +11,10 @@ export default function SimpleDoctorCalendarPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [showBookingModal, setShowBookingModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const headers = {
@@ -20,7 +24,54 @@ export default function SimpleDoctorCalendarPage() {
 
   useEffect(() => {
     fetchDoctors();
+    fetchPatients();
   }, []);
+
+  const fetchPatients = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/patients?limit=100`, { headers });
+      setPatients(response.data || []);
+    } catch (error) {
+      console.error("Failed to fetch patients:", error);
+    }
+  };
+
+  const handleBookAppointment = (time: string, date: Date) => {
+    setSelectedTime(time);
+    setCurrentDate(date);
+    setShowBookingModal(true);
+  };
+
+  const bookAppointment = async () => {
+    if (!selectedPatient || !selectedTime || !selectedDoctor) {
+      alert("Please select patient, doctor, and time slot");
+      return;
+    }
+
+    try {
+      const appointmentData = {
+        patient_id: selectedPatient,
+        doctor_id: selectedDoctor,
+        appointment_time: new Date(`${currentDate.toDateString()} ${selectedTime}`).toISOString(),
+        status: 'Scheduled'
+      };
+
+      await axios.post(`${API_BASE}/api/appointments`, appointmentData, { headers });
+      
+      // Refresh appointments
+      fetchAppointments();
+      
+      // Close modal
+      setShowBookingModal(false);
+      setSelectedPatient("");
+      setSelectedTime("");
+      
+      alert("Appointment booked successfully!");
+    } catch (error) {
+      console.error("Failed to book appointment:", error);
+      alert("Failed to book appointment. Please try again.");
+    }
+  };
 
   useEffect(() => {
     if (selectedDoctor) {
@@ -178,8 +229,17 @@ export default function SimpleDoctorCalendarPage() {
                               isUnavailable ? 'Unavailable (Surgery/Urgent)' : 'Available'
                             }
                             onClick={() => {
-                              if (selectedDoctor && !hasAppointment) {
-                                toggleUnavailableSlot(time, date);
+                              if (selectedDoctor) {
+                                if (hasAppointment) {
+                                  // Booked slot - show appointment details
+                                  alert(`Appointment already booked for this time slot`);
+                                } else if (isSlotUnavailableForDate(time, date)) {
+                                  // Unavailable slot - toggle to available
+                                  toggleUnavailableSlot(time, date);
+                                } else {
+                                  // Available slot - open booking modal
+                                  handleBookAppointment(time, date);
+                                }
                               }
                             }}
                           >
@@ -384,6 +444,125 @@ export default function SimpleDoctorCalendarPage() {
             {renderWeekView()}
           </div>
         </div>
+
+        {/* Booking Modal */}
+        {showBookingModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              padding: '32px',
+              borderRadius: '16px',
+              boxShadow: '0 20px 25px rgba(0, 0, 0, 0.1)',
+              minWidth: '400px',
+              maxWidth: '500px'
+            }}>
+              <h3 style={{ marginBottom: '24px', fontSize: '20px', fontWeight: 700 }}>
+                Book Appointment
+              </h3>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  Select Patient:
+                </label>
+                <select
+                  value={selectedPatient}
+                  onChange={(e) => setSelectedPatient(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">Select Patient</option>
+                  {patients.map((patient: any) => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.name} ({patient.mrn})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  Time Slot:
+                </label>
+                <input
+                  type="text"
+                  value={selectedTime}
+                  readOnly
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    backgroundColor: '#f8fafc'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                  Doctor:
+                </label>
+                <div style={{
+                  padding: '12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  backgroundColor: '#f8fafc',
+                  fontSize: '14px'
+                }}>
+                  {doctors.find((doc: any) => doc.id === selectedDoctor)?.name || 'Select Doctor'}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowBookingModal(false)}
+                  style={{
+                    padding: '12px 24px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    backgroundColor: 'white',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={bookAppointment}
+                  style={{
+                    padding: '12px 24px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 500
+                  }}
+                >
+                  Book Appointment
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
