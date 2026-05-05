@@ -21,7 +21,24 @@ export default function Sidebar() {
   
   // Dynamic menus loaded from database via login response
   const rawMenus = localStorage.getItem("userMenus");
-  const dynamicMenus: any[] = rawMenus ? JSON.parse(rawMenus) : [];
+  let dynamicMenus: any[] = rawMenus ? JSON.parse(rawMenus) : [];
+  
+  // Fallback: Add Doctor Calendar if not in database
+  const hasDoctorCalendar = dynamicMenus.some((menu: any) => menu.label === "Doctor Calendar");
+  if (!hasDoctorCalendar) {
+    dynamicMenus.push({
+      label: "Doctor Calendar",
+      path: "/tenant/appointments/doctor-calendar",
+      icon: "Calendar",
+      required_plan: "basic",
+      sort_order: 6
+    });
+  }
+
+  const refreshMenus = () => {
+    localStorage.removeItem("userMenus");
+    window.location.reload();
+  };
 
   const orderedItems = (labels: string[]) =>
     dynamicMenus
@@ -157,6 +174,21 @@ export default function Sidebar() {
                 <span style={{ fontSize: '9px', fontWeight: 900, color: plan === 'enterprise' ? '#f59e0b' : '#64748b', textTransform: 'uppercase' }}>
                   {plan} TIER
                 </span>
+                <button 
+                  onClick={refreshMenus}
+                  style={{
+                    background: 'none',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    width: '100%'
+                  }}
+                  title="Refresh Menus"
+                >
+                  🔄 Refresh Menus
+                </button>
               </div>
             </div>
           </div>
