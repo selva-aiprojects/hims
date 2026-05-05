@@ -34,7 +34,17 @@ export default function Sidebar() {
       "Consultation Desk": "/tenant/opd/consultation",
       "IPD Admission Desk": "/tenant/ipd/admission-desk",
       "Admission Desk": "/tenant/ipd/admission-desk",
-      "User Management": "/tenant/staff/user-management"
+      "User Management": "/tenant/staff/user-management",
+      "Laboratory": "/tenant/lab",
+      "Laboratory Billing": "/tenant/lab/billing",
+      "AI Lab Assistant": "/tenant/lab/ai",
+      "Help & Support": "/tenant/support",
+      "Ticketing Management System": "/tenant/support/tickets",
+      "Pharmacy": "/tenant/pharmacy",
+      "Pharmacy Dashboard": "/tenant/pharmacy/dashboard",
+      "Stock Inventory": "/tenant/pharmacy/inventory",
+      "Prescription Queue": "/tenant/pharmacy/queue",
+      "Pharmacy Billing": "/tenant/pharmacy/billing"
     };
 
     return {
