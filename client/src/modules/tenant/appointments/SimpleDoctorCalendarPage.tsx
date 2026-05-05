@@ -88,17 +88,20 @@ export default function SimpleDoctorCalendarPage() {
     });
   };
 
-  const isSlotUnavailable = (time: string) => {
-    return unavailableSlots.includes(time);
+  const isSlotUnavailable = (time: string, date: Date) => {
+    const slotKey = `${date.toDateString()}-${time}`;
+    return unavailableSlots.includes(slotKey);
   };
 
-  const toggleUnavailableSlot = (time: string) => {
-    if (isSlotUnavailable(time)) {
-      // Remove from unavailable slots
-      setUnavailableSlots(prev => prev.filter(slot => slot !== time));
+  const toggleUnavailableSlot = (time: string, date: Date) => {
+    const slotKey = `${date.toDateString()}-${time}`;
+    
+    if (unavailableSlots.includes(slotKey)) {
+      // Remove from unavailable Slots
+      setUnavailableSlots(prev => prev.filter(slot => slot !== slotKey));
     } else {
-      // Add to unavailable slots
-      setUnavailableSlots(prev => [...prev, time]);
+      // Add to unavailable Slots
+      setUnavailableSlots(prev => [...prev, slotKey]);
     }
   };
 
@@ -153,7 +156,7 @@ export default function SimpleDoctorCalendarPage() {
                       </div>
                       {timeSlots.map((time, slotIndex) => {
                         const hasAppointment = hasAppointmentAtTime(time);
-                        const isUnavailable = isSlotUnavailable(time);
+                        const isUnavailable = isSlotUnavailableForDate(time, date);
 
                         return (
                           <div 
@@ -176,7 +179,7 @@ export default function SimpleDoctorCalendarPage() {
                             }
                             onClick={() => {
                               if (selectedDoctor && !hasAppointment) {
-                                toggleUnavailableSlot(time);
+                                toggleUnavailableSlot(time, date);
                               }
                             }}
                           >
@@ -354,7 +357,7 @@ export default function SimpleDoctorCalendarPage() {
               <button
                 onClick={() => {
                   setUnavailableSlots([]);
-                  alert('All unavailable slots cleared!\n\nDoctors can now:\n• Click green slots to make them unavailable (red)\n• Click red slots to make them available again');
+                  alert('All unavailable slots cleared!\n\nDoctors can now:\n• Click green slots to make them unavailable (red) for specific days\n• Click red slots to make them available again');
                 }}
                 style={{ 
                   padding: '8px 16px', 
@@ -367,7 +370,7 @@ export default function SimpleDoctorCalendarPage() {
                   fontWeight: 500
                 }}
               >
-                🔄 Clear Unavailable
+                🔄 Clear All Unavailable
               </button>
               
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', textAlign: 'center' }}>
