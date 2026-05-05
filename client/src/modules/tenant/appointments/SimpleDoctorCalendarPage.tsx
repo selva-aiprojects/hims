@@ -88,7 +88,7 @@ export default function SimpleDoctorCalendarPage() {
     });
   };
 
-  const isSlotUnavailable = (time: string, date: Date) => {
+  const isSlotUnavailableForDate = (time: string, date: Date) => {
     const slotKey = `${date.toDateString()}-${time}`;
     return unavailableSlots.includes(slotKey);
   };
