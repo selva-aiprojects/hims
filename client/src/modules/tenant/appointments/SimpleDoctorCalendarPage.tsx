@@ -305,6 +305,25 @@ export default function SimpleDoctorCalendarPage() {
               >
                 Today
               </button>
+              
+              <button
+                onClick={() => {
+                  // Quick set availability for today (8 AM - 6 PM)
+                  alert('Setting availability for today: 8 AM - 6 PM\n\nIn full system, you can set custom hours per day!');
+                }}
+                style={{ 
+                  padding: '8px 16px', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e2e8f0', 
+                  background: '#10b981',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500
+                }}
+              >
+                📅 Set Available Today
+              </button>
             </div>
           </div>
 
