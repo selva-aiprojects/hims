@@ -141,6 +141,40 @@ router.post("/login", async (req, res) => {
                 ('IPD_MANAGE', 'Ability to manage IPD admissions and bed assignments'),
                 ('EMERGENCY_OVERRIDE', 'Ability to override access controls in emergency situations')
                 ON CONFLICT (key) DO NOTHING;
+
+                -- Seed Menus if empty
+                INSERT INTO "${schema}".rbac_menus (label, path, icon, required_plan, sort_order) VALUES
+                ('OPD Registration', '/tenant/opd/registration', 'UserPlus', 'basic', 1),
+                ('OPD Queue', '/tenant/opd/queue', 'Users', 'basic', 2),
+                ('Doctor''s Queue', '/tenant/opd/doctor-queue', 'Activity', 'basic', 3),
+                ('Consultation Desk', '/tenant/opd/consultation', 'Stethoscope', 'basic', 4),
+                ('Appointment List', '/tenant/appointments', 'Calendar', 'basic', 5),
+                ('Doctor Calendar', '/tenant/appointments/doctor-calendar', 'Calendar', 'basic', 6),
+                ('Admission Desk', '/tenant/ipd/admission-desk', 'Building', 'basic', 7),
+                ('IPD Bed Map', '/tenant/ipd/beds', 'Map', 'basic', 8),
+                ('Laboratory', '/tenant/lab', 'FlaskConical', 'standard', 9),
+                ('Pharmacy Dashboard', '/tenant/pharmacy/dashboard', 'Pill', 'standard', 10),
+                ('Stock Inventory', '/tenant/pharmacy/inventory', 'Package', 'standard', 11),
+                ('Prescription Queue', '/tenant/pharmacy/queue', 'Receipt', 'standard', 12),
+                ('Staff & RBAC', '/tenant/staff', 'Users', 'professional', 13),
+                ('Hospital Settings', '/tenant/masters', 'Settings', 'professional', 14),
+                ('Help & Support', '/tenant/support', 'HelpCircle', 'basic', 15),
+                ('Ticketing Management System', '/tenant/support/tickets', 'Ticket', 'basic', 16)
+                ON CONFLICT (label) DO NOTHING;
+
+                -- Link Roles to Menus
+                INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+                SELECT r.id, m.id 
+                FROM "${schema}".rbac_roles r
+                CROSS JOIN "${schema}".rbac_menus m
+                WHERE r.name IN ('ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST')
+                AND m.label IN (
+                  'OPD Registration', 'OPD Queue', 'Doctor''s Queue', 'Consultation Desk', 
+                  'Appointment List', 'Doctor Calendar', 'Admission Desk', 'IPD Bed Map',
+                  'Laboratory', 'Pharmacy Dashboard', 'Stock Inventory', 'Prescription Queue',
+                  'Staff & RBAC', 'Hospital Settings', 'Help & Support', 'Ticketing Management System'
+                )
+                ON CONFLICT (role_id, menu_id) DO NOTHING;
               `);
             } catch (e) {
               console.warn(`[AUTH] RBAC Schema Hardening skipped or failed for ${schema}: ${e.message}`);
