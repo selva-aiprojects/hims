@@ -29,6 +29,11 @@ CREATE TABLE users (
   specialization VARCHAR(100), -- For doctors (Department)
   department VARCHAR(100), -- For other staff
   is_active BOOLEAN DEFAULT TRUE,
+  -- HIPAA Compliance Fields
+  privacy_level VARCHAR(20) DEFAULT 'LIMITED', -- FULL | CLINICAL | LIMITED | ADMIN_VIEW
+  last_login TIMESTAMP,
+  failed_login_attempts INTEGER DEFAULT 0,
+  account_locked BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -216,6 +221,11 @@ CREATE TABLE wards (
   type VARCHAR(50) DEFAULT 'General',
   floor VARCHAR(20),
   base_charge NUMERIC DEFAULT 0,
+  -- Age-appropriate constraints
+  min_age INTEGER DEFAULT 0,
+  max_age INTEGER DEFAULT 120,
+  gender_restriction VARCHAR(20) DEFAULT 'Any', -- Any | Male | Female
+  age_validation_required BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -348,17 +358,23 @@ DROP TABLE IF EXISTS prescriptions CASCADE;
 CREATE TABLE prescriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   encounter_id UUID REFERENCES encounters(id),
-  visit_id UUID REFERENCES visits(id)
+  visit_id UUID REFERENCES visits(id),
+  status VARCHAR(50) DEFAULT 'Pending',
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 DROP TABLE IF EXISTS prescription_items CASCADE;
 CREATE TABLE prescription_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   prescription_id UUID REFERENCES prescriptions(id),
+  medicine_id UUID REFERENCES medicines(id),
   drug_name VARCHAR(255),
   dosage VARCHAR(100),
   frequency VARCHAR(50),
-  duration VARCHAR(50)
+  duration VARCHAR(50),
+  instructions TEXT,
+  unit_price NUMERIC DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- ================= LAB =================
@@ -368,7 +384,12 @@ CREATE TABLE lab_orders (
   patient_id UUID REFERENCES patients(id),
   encounter_id UUID REFERENCES encounters(id),
   diagnostic_id UUID REFERENCES diagnostics(id),
+  doctor_id UUID REFERENCES users(id),
+  priority VARCHAR(50) DEFAULT 'Normal',
   status VARCHAR(50) DEFAULT 'Pending',
+  results JSONB,
+  technician_notes TEXT,
+  is_billed BOOLEAN DEFAULT false,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -530,14 +551,15 @@ INSERT INTO diagnostic_types (name) VALUES ('Lab'), ('Radiology'), ('Pathology')
 INSERT INTO diagnostics (name, price, type_id) VALUES ('CBC', 300, (SELECT id FROM diagnostic_types LIMIT 1));
 INSERT INTO designations (name) VALUES ('Consultant'), ('Senior Resident'), ('Staff Nurse');
 
--- RBAC BOOTSTRAP SEEDING
+-- RBAC BOOTSTRAP SEEDING - HIPAA Compliant Roles
 INSERT INTO rbac_roles (name, description) VALUES 
-('ADMIN', 'Full access to all modules and system settings'),
-('DOCTOR', 'Clinical access, consultations, and patient EMR'),
-('NURSE', 'Clinical support, vitals, and IPD monitoring'),
-('PHARMACIST', 'Pharmacy inventory and prescription dispensing'),
-('LAB_TECH', 'Laboratory orders and result processing'),
-('SUPPORT', 'Front desk, registration, and administrative support');
+('ADMIN', 'Full system access with PII masking for audit purposes'),
+('DOCTOR', 'Clinical access to full patient information for treatment'),
+('NURSE', 'Clinical access to patient information for care delivery'),
+('PHARMACIST', 'Access to pharmacy functions with masked patient PII'),
+('LAB_ASSISTANT', 'Access to laboratory functions with masked patient PII'),
+('RECEPTIONIST', 'Front desk access with limited patient PII'),
+('SUPPORT', 'Administrative support with masked patient PII');
 
 -- Menu Registry with Subscription Mapping (Revised 4-Tier Model)
 INSERT INTO rbac_menus (label, path, icon, sort_order, required_plan) VALUES
@@ -584,31 +606,69 @@ INSERT INTO rbac_role_menus (role_id, menu_id)
 SELECT r.id, m.id FROM rbac_roles r, rbac_menus m 
 WHERE r.name = 'SUPPORT' AND m.label IN ('Dashboard', 'OPD Registration', 'Invoicing & Billing');
 
--- Permissions Registry
+-- HIPAA Compliant Permissions Registry
 INSERT INTO rbac_permissions (key, description) VALUES
-('PATIENT_PII_VIEW_FULL', 'Ability to view unmasked patient contact info'),
-('PATIENT_PII_VIEW_MASKED', 'View masked patient contact info (last 4 digits only)'),
-('STAFF_MANAGE', 'Ability to add, edit or remove staff members'),
-('MASTERS_MANAGE', 'Ability to manage hospital master data (Depts, Services, etc.)'),
-('LAB_MANAGE', 'Ability to process lab orders and enter results'),
-('PHARMACY_MANAGE', 'Ability to manage inventory and dispense medications'),
-('IPD_MANAGE', 'Ability to manage bed assignments and IPD admissions'),
-('BILLING_MANAGE', 'Ability to generate invoices and process payments');
+('PATIENT_PII_VIEW_FULL', 'Ability to view complete unmasked patient information'),
+('PATIENT_PII_VIEW_MASKED', 'Ability to view masked patient information (limited PII)'),
+('PATIENT_PII_VIEW_DEIDENTIFIED', 'Ability to view de-identified patient information only'),
+('CLINICAL_ACCESS_FULL', 'Full clinical access including diagnosis, prescriptions, vitals'),
+('CLINICAL_ACCESS_LIMITED', 'Limited clinical access with PII masking'),
+('PHARMACY_ACCESS_FULL', 'Full pharmacy access including patient PII'),
+('PHARMACY_ACCESS_MASKED', 'Pharmacy access with masked patient PII'),
+('LAB_ACCESS_FULL', 'Full laboratory access including patient PII'),
+('LAB_ACCESS_MASKED', 'Laboratory access with masked patient PII'),
+('FRONT_DESK_ACCESS_FULL', 'Full front desk access including patient PII'),
+('FRONT_DESK_ACCESS_MASKED', 'Front desk access with masked patient PII'),
+('USER_MANAGE', 'Ability to manage user accounts and roles'),
+('ROLE_MANAGE', 'Ability to manage role assignments and permissions'),
+('SYSTEM_CONFIG', 'Ability to modify system settings and configurations'),
+('AUDIT_VIEW', 'Ability to view audit logs and compliance reports'),
+('DATA_EXPORT', 'Ability to export system data (with compliance checks)'),
+('BILLING_ACCESS_FULL', 'Full access to billing and financial information'),
+('BILLING_ACCESS_MASKED', 'Limited billing access with PII masking'),
+('IPD_MANAGE', 'Ability to manage IPD admissions and bed assignments'),
+('EMERGENCY_OVERRIDE', 'Ability to override access controls in emergency situations');
 
 -- Assign Permissions to ADMIN (ALL)
 INSERT INTO rbac_role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
 WHERE r.name = 'ADMIN';
 
--- Assign Permissions to DOCTOR
+-- Assign Permissions to DOCTOR (Full Clinical Access)
 INSERT INTO rbac_role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
-WHERE r.name = 'DOCTOR' AND p.key IN ('PATIENT_PII_VIEW_FULL', 'LAB_MANAGE', 'PHARMACY_MANAGE', 'IPD_MANAGE');
+WHERE r.name = 'DOCTOR' AND p.key IN ('CLINICAL_ACCESS_FULL', 'PATIENT_PII_VIEW_FULL', 'LAB_MANAGE', 'PHARMACY_MANAGE', 'IPD_MANAGE')
+ON CONFLICT DO NOTHING;
 
--- Assign Permissions to PHARMACIST
+-- Assign Permissions to NURSE (Clinical Access with PII)
 INSERT INTO rbac_role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
-WHERE r.name = 'PHARMACIST' AND p.key IN ('PHARMACY_MANAGE');
+WHERE r.name = 'NURSE' AND p.key IN ('CLINICAL_ACCESS_FULL', 'PATIENT_PII_VIEW_FULL', 'IPD_MANAGE')
+ON CONFLICT DO NOTHING;
+
+-- Assign Permissions to PHARMACIST (Pharmacy with PII)
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'PHARMACIST' AND p.key IN ('PHARMACY_ACCESS_FULL', 'PATIENT_PII_VIEW_FULL', 'BILLING_ACCESS_FULL')
+ON CONFLICT DO NOTHING;
+
+-- Assign Permissions to LAB_ASSISTANT (Lab with PII)
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'LAB_ASSISTANT' AND p.key IN ('LAB_ACCESS_FULL', 'PATIENT_PII_VIEW_FULL', 'BILLING_ACCESS_FULL')
+ON CONFLICT DO NOTHING;
+
+-- Assign Permissions to RECEPTIONIST (Front Desk with Limited PII)
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'RECEPTIONIST' AND p.key IN ('FRONT_DESK_ACCESS_MASKED', 'PATIENT_PII_VIEW_MASKED', 'BILLING_ACCESS_MASKED')
+ON CONFLICT DO NOTHING;
+
+-- Assign Permissions to SUPPORT (Admin with Masked PII)
+INSERT INTO rbac_role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM rbac_roles r, rbac_permissions p 
+WHERE r.name = 'SUPPORT' AND p.key IN ('USER_MANAGE', 'ROLE_MANAGE', 'SYSTEM_CONFIG', 'AUDIT_VIEW', 'PATIENT_PII_VIEW_MASKED')
+ON CONFLICT DO NOTHING;
 
 -- Assign Permissions to LAB_TECH
 INSERT INTO rbac_role_permissions (role_id, permission_id)
@@ -644,7 +704,11 @@ CREATE TABLE ipd_admissions (
   daily_charge NUMERIC DEFAULT 0,
   status VARCHAR(20) DEFAULT 'Active', -- Active | Discharged
   admitted_at TIMESTAMP DEFAULT NOW(),
-  discharged_at TIMESTAMP
+  discharged_at TIMESTAMP,
+  -- Age validation constraints
+  age_appropriate BOOLEAN DEFAULT true,
+  validation_warnings TEXT[] DEFAULT '{}',
+  validated_by UUID REFERENCES users(id)
 );
 
 DROP TABLE IF EXISTS ipd_notes CASCADE;
@@ -657,12 +721,30 @@ CREATE TABLE ipd_notes (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- HIPAA Compliance Audit Trail
+DROP TABLE IF EXISTS audit_logs CASCADE;
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  action VARCHAR(100) NOT NULL, -- LOGIN, LOGOUT, VIEW_PATIENT, MODIFY_PATIENT, DELETE_PATIENT, ACCESS_DENIED, ROLE_CHANGE, EXPORT_DATA
+  resource VARCHAR(255) NOT NULL, -- /patient/123, /user-management, etc.
+  resource_id UUID, -- ID of the accessed resource
+  details TEXT, -- Details of the action
+  ip_address INET, -- User IP address
+  user_agent TEXT, -- Browser user agent
+  risk_level VARCHAR(20) DEFAULT 'LOW', -- LOW | MEDIUM | HIGH
+  pii_accessed VARCHAR(500), -- What PII was accessed
+  compliance_violation BOOLEAN DEFAULT FALSE, -- Whether HIPAA rules were violated
+  timestamp TIMESTAMP DEFAULT NOW(),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- ================= SEED DATA: IPD CARE CATEGORIES =================
-INSERT INTO wards (name, floor, type, capacity, base_charge) VALUES
-('Emergency Triage', 'Ground Floor', 'Emergency', 10, 2500),
-('Critical Care ICU', '1st Floor', 'ICU', 8, 6000),
-('Special Care Wing', '2nd Floor', 'Special Care', 15, 4000),
-('Regular Medical Ward', '3rd Floor', 'Regular Care', 25, 1500),
-('Surgical Recovery', '2nd Floor', 'Regular Care', 20, 1800),
-('Daycare Observation', 'Ground Floor', 'Daycare', 10, 900)
+INSERT INTO wards (name, floor, type, capacity, base_charge, min_age, max_age, gender_restriction, age_validation_required) VALUES
+('Emergency Triage', 'Ground Floor', 'Emergency', 10, 2500, 0, 120, 'Any', true),
+('Critical Care ICU', '1st Floor', 'ICU', 8, 6000, 18, 120, 'Any', true),
+('Special Care Wing', '2nd Floor', 'Special Care', 15, 4000, 0, 120, 'Any', true),
+('Regular Medical Ward', '3rd Floor', 'Regular Care', 25, 1500, 12, 65, 'Any', false),
+('Surgical Recovery', '2nd Floor', 'Regular Care', 20, 1800, 12, 65, 'Any', false),
+('Pediatric Daycare', 'Ground Floor', 'Daycare', 10, 900, 0, 12, 'Any', true)
 ON CONFLICT DO NOTHING;

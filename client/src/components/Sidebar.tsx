@@ -33,7 +33,8 @@ export default function Sidebar() {
     const pathOverrides: Record<string, string> = {
       "Consultation Desk": "/tenant/opd/consultation",
       "IPD Admission Desk": "/tenant/ipd/admission-desk",
-      "Admission Desk": "/tenant/ipd/admission-desk"
+      "Admission Desk": "/tenant/ipd/admission-desk",
+      "User Management": "/tenant/staff/user-management"
     };
 
     return {
