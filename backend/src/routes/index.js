@@ -7,6 +7,7 @@ const appointmentRoutes = require("../modules/appointment");
 const consultationRoutes = require("../modules/consultation");
 const billingRoutes = require("../modules/billing");
 const doctorRoutes = require("../modules/doctor");
+const insuranceRoutes = require("../modules/insurance");
 const { auth } = require("../middleware/auth");
 const { tenant } = require("../middleware/tenant");
 
@@ -22,6 +23,7 @@ router.use("/patients", auth, tenant, patientRoutes);
 router.use("/appointments", auth, tenant, appointmentRoutes);
 router.use("/consultations", auth, tenant, consultationRoutes);
 router.use("/billing", auth, tenant, billingRoutes);
+router.use("/insurance", auth, tenant, insuranceRoutes);
 router.use("/doctor", auth, tenant, doctorRoutes);
 
 module.exports = router;

@@ -7,6 +7,13 @@ import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
+import { 
+  User, Activity, Pill, FlaskConical, History, 
+  CheckCircle2, ChevronRight, FileText, 
+  Stethoscope, Thermometer, Droplets, Scale, Zap,
+  AlertTriangle, Heart, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, X, ClipboardCheck, ClipboardList
+} from 'lucide-react';
+
 export default function IPDPatientView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -17,6 +24,15 @@ export default function IPDPatientView() {
   const [noteType, setNoteType] = useState("Progress");
   const [showDischargeConfirm, setShowDischargeConfirm] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  
+  // Quick Order Modals
+  const [showLabModal, setShowLabModal] = useState(false);
+  const [showPharmacyModal, setShowPharmacyModal] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<any[]>([]);
+  const [medicines, setMedicines] = useState<any[]>([]);
+  const [selectedTests, setSelectedTests] = useState<string[]>([]);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+  const [isOrdering, setIsOrdering] = useState(false);
 
   const headers = {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -31,7 +47,21 @@ export default function IPDPatientView() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, [id]);
+  const fetchMasters = async () => {
+    try {
+      const [diagRes, medRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers }),
+        axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers })
+      ]);
+      setDiagnostics(diagRes.data);
+      setMedicines(medRes.data);
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => { 
+    fetchData(); 
+    fetchMasters();
+  }, [id]);
 
   const addNote = async () => {
     if (!noteText.trim()) {
@@ -73,14 +103,46 @@ export default function IPDPatientView() {
     setIsGeneratingSummary(true);
     try {
       const res = await axios.post(`${API_BASE}/api/hospital/ipd/admissions/${id}/generate-summary`, {}, { headers });
-      showToast(`AI discharge summary generated. PDF saved at: ${res.data.pdfPath}`, "success");
-      fetchData(); // Refresh the notes
+      if (res.data.summaryText?.includes("AI_LIMIT_REACHED")) {
+        showToast("AI Quota Reached. Please wait 60 seconds.", "warning");
+      } else {
+        showToast(`AI discharge summary generated.`, "success");
+        fetchData(); 
+      }
     } catch (err) {
       console.error(err);
       showToast("Failed to generate AI discharge summary.", "error");
     } finally {
       setIsGeneratingSummary(false);
     }
+  };
+
+  const submitLabOrder = async () => {
+    if (selectedTests.length === 0) return;
+    setIsOrdering(true);
+    try {
+      await axios.post(`${API_BASE}/api/hospital/encounters/${data?.admission.encounter_id}/lab-orders`, { 
+        diagnosticIds: selectedTests 
+      }, { headers });
+      showToast("Lab orders placed successfully.", "success");
+      setShowLabModal(false);
+      setSelectedTests([]);
+    } catch (err) { showToast("Failed to place lab order.", "error"); }
+    finally { setIsOrdering(false); }
+  };
+
+  const submitPharmacyOrder = async () => {
+    if (prescriptions.length === 0) return;
+    setIsOrdering(true);
+    try {
+      await axios.post(`${API_BASE}/api/hospital/encounters/${data?.admission.encounter_id}/prescriptions`, { 
+        items: prescriptions 
+      }, { headers });
+      showToast("Pharmacy order placed successfully.", "success");
+      setShowPharmacyModal(false);
+      setPrescriptions([]);
+    } catch (err) { showToast("Failed to place pharmacy order.", "error"); }
+    finally { setIsOrdering(false); }
   };
 
   if (loading) return (
@@ -214,6 +276,26 @@ export default function IPDPatientView() {
                   )}
                 </div>
               </div>
+
+              {/* AI DISCHARGE SUMMARY PREVIEW */}
+              {data?.dischargeSummary && (
+                <div style={{ padding: '32px', borderRadius: '28px', border: '1px solid #ddd6fe', background: 'linear-gradient(to bottom, #ffffff, #f5f3ff)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Sparkles size={22} /> AI Discharge Summary (Draft)
+                    </h3>
+                    <span style={{ fontSize: '11px', background: '#ddd6fe', color: '#5b21b6', padding: '4px 10px', borderRadius: '12px', fontWeight: 900 }}>PROPOSED</span>
+                  </div>
+                  <div style={{ background: 'white', padding: '24px', borderRadius: '18px', border: '1px solid #e2e8f0', color: '#334155', lineHeight: 1.8, fontSize: '14px', whiteSpace: 'pre-wrap' }}>
+                    {data.dischargeSummary.summary_text}
+                  </div>
+                  <div style={{ marginTop: '20px', textAlign: 'right' }}>
+                    <button onClick={() => navigate('/tenant/ipd/discharge')} style={{ background: '#7c3aed', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}>
+                      Go to Discharge Hub to Finalize →
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right: Billing Summary */}
@@ -246,9 +328,15 @@ export default function IPDPatientView() {
               <div style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
                 <h4 style={{ margin: '0 0 16px', fontWeight: 800 }}>Quick Actions</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <button onClick={() => navigate('/tenant/lab')} style={{ padding: '12px', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>🔬 Order Lab Test</button>
-                  <button onClick={() => navigate('/tenant/pharmacy/queue')} style={{ padding: '12px', background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}>💊 Pharmacy Order</button>
-                  <button onClick={generateAISummary} disabled={isGeneratingSummary} style={{ padding: '12px', background: '#fdf4ff', color: '#86198f', border: '1px solid #fae8ff', borderRadius: '12px', fontWeight: 700, cursor: isGeneratingSummary ? 'not-allowed' : 'pointer', opacity: isGeneratingSummary ? 0.7 : 1 }}>✨ {isGeneratingSummary ? 'Generating AI Summary...' : 'Generate AI Discharge Summary'}</button>
+                  <button onClick={() => setShowLabModal(true)} style={{ padding: '12px', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <FlaskConical size={18} /> Order Lab Test
+                  </button>
+                  <button onClick={() => setShowPharmacyModal(true)} style={{ padding: '12px', background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Pill size={18} /> Pharmacy Order
+                  </button>
+                  <button onClick={generateAISummary} disabled={isGeneratingSummary} style={{ padding: '12px', background: '#fdf4ff', color: '#86198f', border: '1px solid #fae8ff', borderRadius: '12px', fontWeight: 700, cursor: isGeneratingSummary ? 'not-allowed' : 'pointer', opacity: isGeneratingSummary ? 0.7 : 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Sparkles size={18} /> {isGeneratingSummary ? 'Generating...' : 'Generate AI Summary'}
+                  </button>
                 </div>
               </div>
             </aside>
@@ -268,6 +356,87 @@ export default function IPDPatientView() {
                 <button onClick={() => setShowDischargeConfirm(false)} style={{ flex: 1, padding: '14px', border: '1px solid #e2e8f0', borderRadius: '14px', background: 'white', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
                 <button onClick={handleDischarge} style={{ flex: 1, padding: '14px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 900, cursor: 'pointer' }}>Discharge</button>
               </div>
+            </div>
+          </div>
+        )}
+        {/* Lab Order Modal */}
+        {showLabModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+            <div style={{ background: 'white', width: '100%', maxWidth: '600px', borderRadius: '28px', padding: '32px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontWeight: 900, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <FlaskConical style={{ color: '#10b981' }} /> Direct Lab Requisition
+                </h2>
+                <button onClick={() => setShowLabModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X /></button>
+              </div>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {diagnostics.map(d => (
+                  <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: selectedTests.includes(d.id) ? '#f0fdf4' : '#f8fafc', borderRadius: '12px', border: `1px solid ${selectedTests.includes(d.id) ? '#10b981' : '#f1f5f9'}`, cursor: 'pointer' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedTests.includes(d.id)} 
+                      onChange={() => selectedTests.includes(d.id) ? setSelectedTests(selectedTests.filter(id => id !== d.id)) : setSelectedTests([...selectedTests, d.id])} 
+                    />
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>{d.name}</span>
+                  </label>
+                ))}
+              </div>
+              <button 
+                onClick={submitLabOrder} 
+                disabled={isOrdering || selectedTests.length === 0}
+                style={{ width: '100%', padding: '16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer' }}
+              >
+                {isOrdering ? 'PLACING ORDER...' : `SEND ${selectedTests.length} TEST REQUISITIONS`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Pharmacy Order Modal */}
+        {showPharmacyModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+            <div style={{ background: 'white', width: '100%', maxWidth: '700px', borderRadius: '28px', padding: '32px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontWeight: 900, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Pill style={{ color: '#3b82f6' }} /> IPD Medication Order
+                </h2>
+                <button onClick={() => setShowPharmacyModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X /></button>
+              </div>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <select 
+                  className="input-field" 
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px' }}
+                  onChange={(e) => {
+                    const m = medicines.find(med => med.id === e.target.value);
+                    if (m) setPrescriptions([...prescriptions, { medicine_id: m.id, name: m.name, dosage: '1 Tab', frequency: '1-0-1', duration: '5 Days' }]);
+                  }}
+                >
+                  <option value="">Search & Add Medicine...</option>
+                  {medicines.map(m => <option key={m.id} value={m.id}>{m.name} ({m.composition})</option>)}
+                </select>
+              </div>
+
+              <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '24px' }}>
+                {prescriptions.map((p, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px 100px 40px', gap: '10px', alignItems: 'center', padding: '12px', background: '#f8fafc', borderRadius: '12px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700 }}>{p.name}</span>
+                    <input className="input-field" placeholder="Dosage" value={p.dosage} onChange={e => { const np = [...prescriptions]; np[i].dosage = e.target.value; setPrescriptions(np); }} />
+                    <input className="input-field" placeholder="Freq" value={p.frequency} onChange={e => { const np = [...prescriptions]; np[i].frequency = e.target.value; setPrescriptions(np); }} />
+                    <input className="input-field" placeholder="Dur" value={p.duration} onChange={e => { const np = [...prescriptions]; np[i].duration = e.target.value; setPrescriptions(np); }} />
+                    <button onClick={() => setPrescriptions(prescriptions.filter((_, idx) => idx !== i))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><X size={16} /></button>
+                  </div>
+                ))}
+                {prescriptions.length === 0 && <p style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>No medications added yet.</p>}
+              </div>
+
+              <button 
+                onClick={submitPharmacyOrder} 
+                disabled={isOrdering || prescriptions.length === 0}
+                style={{ width: '100%', padding: '16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer' }}
+              >
+                {isOrdering ? 'PLACING ORDER...' : `SEND ${prescriptions.length} MEDICINE ORDERS`}
+              </button>
             </div>
           </div>
         )}

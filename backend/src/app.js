@@ -327,12 +327,52 @@ app.get("/api/nexus/fix-billing-infrastructure", async (req, res) => {
         await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS medical_history TEXT`);
         await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".patients ADD COLUMN IF NOT EXISTS allergies TEXT`);
         
+        // 5. Insurance & TPA Infrastructure
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schema}".insurance_providers (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(255) UNIQUE NOT NULL,
+            tpa_name VARCHAR(255),
+            contact_person VARCHAR(100),
+            email VARCHAR(255),
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS "${schema}".insurance_claims (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            patient_id UUID REFERENCES "${schema}".patients(id),
+            invoice_id UUID, -- Will link to invoices
+            provider_id UUID REFERENCES "${schema}".insurance_providers(id),
+            policy_number VARCHAR(100),
+            insurer_id VARCHAR(100), -- Family/Individual ID
+            claim_type VARCHAR(50), -- Cashless, Co-pay, Corporate, etc.
+            status VARCHAR(50) DEFAULT 'PRE-AUTH PENDING',
+            billed_amount NUMERIC DEFAULT 0,
+            sanctioned_amount NUMERIC DEFAULT 0,
+            reference_number VARCHAR(100), -- Billing Ref
+            claim_number VARCHAR(100), -- TPA Claim ID
+            remarks TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+
+          -- Seed default providers if empty
+          INSERT INTO "${schema}".insurance_providers (name, tpa_name)
+          VALUES 
+            ('Star Health Insurance', 'Star TPA'),
+            ('HDFC ERGO', 'HDFC TPA'),
+            ('ICICI Lombard', 'Lombard TPA'),
+            ('Apollo Munich', 'Apollo TPA'),
+            ('Government Health Scheme', 'Govt TPA')
+          ON CONFLICT DO NOTHING;
+        `);
+
         updated++;
       } catch (shardErr) {
         console.error(`Failed to upgrade billing for shard ${schema}:`, shardErr.message);
       }
     }
-    res.json({ message: `Successfully upgraded billing infrastructure and healed clinical columns for ${updated} shards.` });
+    res.json({ message: `Successfully upgraded billing and insurance infrastructure for ${updated} shards.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

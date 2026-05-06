@@ -45,7 +45,6 @@ const normalizePath = (label: string, originalPath: string) => {
     "appointment list": "/tenant/appointments",
     "doctor availability and book appointments": "/tenant/appointments/doctor-calendar",
     "laboratory": "/tenant/lab",
-    "laboratory billing": "/tenant/lab/billing",
     "ai lab assistant": "/tenant/lab/ai",
     "help & support": "/tenant/support",
     "ticketing management system": "/tenant/support/tickets",
@@ -55,7 +54,16 @@ const normalizePath = (label: string, originalPath: string) => {
     "pharmacy dashboard": "/tenant/pharmacy/dashboard",
     "stock inventory": "/tenant/pharmacy/inventory",
     "prescription queue": "/tenant/pharmacy/queue",
-    "pharmacy billing": "/tenant/pharmacy/billing"
+    "opd billing & revenue center": "/billing?type=OPD",
+    "opd billing & revenue": "/billing?type=OPD",
+    "opd billing": "/billing?type=OPD",
+    "ipd & discharge billing": "/billing?type=IPD",
+    "ipd billing": "/billing?type=IPD",
+    "discharge billing": "/billing?type=IPD",
+    "pharmacy billing": "/billing?type=PHARMACY",
+    "laboratory billing": "/billing?type=LAB",
+    "lab billing": "/billing?type=LAB",
+    "invoicing & billing": "/billing?type=OPD"
   };
   return overrides[l] || originalPath;
 };
@@ -81,8 +89,8 @@ export default function Sidebar() {
     const pm = Array.from(uniqueMap.values());
 
     const clinicalFlow = ["OPD Registration", "OPD Queue", "Doctor's Queue", "Consultation Desk", "Appointment List", "Doctor Availability and Book Appointments", "Admission Desk", "IPD Bed Map", "IPD Census & Daycare", "Discharge Summaries"];
-    const serviceFlow = ["Laboratory", "Laboratory Billing", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
-    const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"];
+    const serviceFlow = ["Laboratory", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
+    const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "Laboratory Billing", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"];
     const managementFlow = ["Staff & RBAC", "Staff Management", "User Management", "Hospital Settings (Masters)", "Hospital Settings", "Branding & UI Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"];
 
     const getItems = (labels: string[]) => pm
@@ -275,11 +283,26 @@ export default function Sidebar() {
 }
 
 function SidebarLink({ to, icon: Icon, label, isSubItem }: { to: string, icon: any, label: string, isSubItem?: boolean }) {
+  const location = useLocation();
+  
+  // Custom active check that accounts for query parameters
+  const isActive = useMemo(() => {
+    const [path, query] = to.split('?');
+    const matchesPath = location.pathname === path;
+    
+    if (!query) {
+      return matchesPath && (location.search === "" || location.search === "?");
+    }
+    
+    const searchParams = new URLSearchParams(location.search);
+    const [key, val] = query.split('=');
+    return matchesPath && searchParams.get(key) === val;
+  }, [location, to]);
+
   return (
     <NavLink 
       to={to} 
-      end
-      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}${isSubItem ? ' sub-item' : ''}`}
+      className={() => `nav-item${isActive ? ' active' : ''}${isSubItem ? ' sub-item' : ''}`}
     >
       <Icon size={isSubItem ? 15 : 18} style={{ minWidth: isSubItem ? '15px' : '18px' }} />
       <span style={{ flex: 1, lineHeight: '1.4' }}>{label}</span>

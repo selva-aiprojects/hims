@@ -1,5 +1,30 @@
 const express = require("express");
 const router = express.Router();
+const aiService = require("../../services/aiService");
+
+/**
+ * AI Consultation Advisor
+ * Suggests Diagnosis, Lab Tests, and Medicines
+ */
+router.post("/ai-suggest", async (req, res, next) => {
+  const { patientId, complaints } = req.body;
+  try {
+    const patients = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".patients WHERE id = '${patientId}'`);
+    if (!patients.length) return res.status(404).json({ error: "Patient not found" });
+
+    const medicines = await req.prisma.$queryRawUnsafe(`SELECT name FROM "${req.schemaName}".medicines WHERE COALESCE(is_active, true) = true`);
+    const diagnostics = await req.prisma.$queryRawUnsafe(`SELECT name FROM "${req.schemaName}".diagnostics`);
+
+    const advice = await aiService.generateClinicalAdvice(patients[0], complaints, { medicines, diagnostics });
+    if (advice && advice.error === "RATE_LIMIT_EXCEEDED") {
+      return res.status(429).json(advice);
+    }
+    res.json(advice);
+  } catch (error) {
+    console.error("[AI-SUGGEST] Error:", error);
+    res.status(500).json({ error: "AI Suggestion failed" });
+  }
+});
 
 /**
  * Atomic OPD Consultation Sync

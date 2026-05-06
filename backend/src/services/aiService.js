@@ -1,5 +1,9 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
+const axios = require('axios');
+
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_KEY = process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'hims-groq-key' ? process.env.GROQ_API_KEY : null;
 
 // Note: @google/genai uses process.env.GEMINI_API_KEY by default if not passed.
 const ai = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here' 
@@ -99,8 +103,86 @@ async function generateDischargeSummary(patientData, admissionData, notes, labs)
     const result = await model.generateContent(prompt);
     return result.response.text();
   } catch (error) {
-    console.error("[AI] Error generating discharge summary:", error);
+    console.error("[AI] Error generating discharge summary:", error.message);
+    if (error.message.includes("429") || error.message.includes("Too Many Requests")) {
+      return "AI_LIMIT_REACHED: Your clinical AI quota has been exceeded. Please wait 60 seconds.";
+    }
     return "Error generating AI Discharge Summary.";
+  }
+}
+
+/**
+ * Generate Clinical Advice / Suggestions for Doctor
+ */
+async function generateClinicalAdvice(patientInfo, currentComplaints, masters) {
+  // --- GROQ PRIORITY (Ultra-Fast Research Mode) ---
+  if (GROQ_KEY) {
+    try {
+      console.log(`[AI-GROQ] Researching advice for patient: ${patientInfo.name}...`);
+      const response = await axios.post(GROQ_API_URL, {
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a world-class clinical decision support AI. Analyze patient history and complaints to suggest diagnosis, tests, and medicines. Return ONLY valid JSON." 
+          },
+          {
+            role: "user",
+            content: `
+            PATIENT INFO:
+            - Name: ${patientInfo.name}, Age: ${patientInfo.age}
+            - History: ${patientInfo.medical_history || 'None'}
+            - Complaints: ${currentComplaints}
+            
+            AVAILABLE SYSTEM MASTERS (Use these names if possible):
+            - Meds: ${masters.medicines.map(m => m.name).slice(0, 50).join(', ')}
+            - Tests: ${masters.diagnostics.map(d => d.name).slice(0, 50).join(', ')}
+
+            Return a JSON object with: suggested_diagnosis, reasoning, proposed_tests (list), proposed_medicines (list of objects with name, dosage, frequency, duration, instructions), clinical_advice.
+            `
+          }
+        ],
+        response_format: { type: "json_object" }
+      }, {
+        headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" }
+      });
+
+      const content = response.data.choices[0].message.content;
+      return content ? JSON.parse(content) : null;
+    } catch (error) {
+      console.error("[AI-GROQ] Error:", error.message);
+      // Fallback to Gemini if Groq fails
+    }
+  }
+
+  if (!ai) {
+    console.warn("[AI] Using Clinical Mock Fallback.");
+    return {
+      suggested_diagnosis: "Acute Respiratory Infection (Mock)",
+      reasoning: "Symptoms indicate a standard respiratory infection. Mock used as AI providers are unavailable.",
+      proposed_tests: ["Complete Blood Count (CBC)"],
+      proposed_medicines: [
+        { name: "Paracetamol 500mg", dosage: "1 Tab", frequency: "1-1-1", duration: "5 Days", instructions: "After Food" }
+      ],
+      clinical_advice: "Follow standard URI protocol."
+    };
+  }
+
+  console.log(`[AI-GEMINI] Generating advice for patient: ${patientInfo.name}...`);
+  try {
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+
+    const prompt = `Suggest diagnosis, tests, and meds in JSON format for: ${currentComplaints}. Patient: ${patientInfo.name}.`;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    return JSON.parse(cleanJson);
+  } catch (error) {
+    console.error("[AI-GEMINI] Error:", error.message);
+    return { error: "PARSE_ERROR", message: "Failed to process AI response." };
   }
 }
 
@@ -175,6 +257,7 @@ async function hospitalChat(messages, hospitalContext) {
 module.exports = {
   generatePatientHistorySummary,
   generateDischargeSummary,
+  generateClinicalAdvice,
   parseExternalLabReport,
   hospitalChat
 };

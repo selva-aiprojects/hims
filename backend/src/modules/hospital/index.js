@@ -30,10 +30,17 @@ async function ensureDischargeTable(req) {
       summary_text TEXT,
       pdf_path TEXT,
       discharge_type VARCHAR(50) DEFAULT 'STANDARD',
+      status VARCHAR(50) DEFAULT 'Draft',
+      is_authenticated BOOLEAN DEFAULT false,
+      authenticated_at TIMESTAMP,
       discharge_date TIMESTAMP DEFAULT NOW(),
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  // Ensure columns exist for existing tables
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".discharge_summaries ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Draft'`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".discharge_summaries ADD COLUMN IF NOT EXISTS is_authenticated BOOLEAN DEFAULT false`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".discharge_summaries ADD COLUMN IF NOT EXISTS authenticated_at TIMESTAMP`);
 }
 
 async function ensureOrderColumns(req) {
@@ -273,6 +280,20 @@ router.get("/masters/diagnostics", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/masters/services", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT id, name, price, type, category FROM "${req.schemaName}".services ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/masters/treatments", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT id, name, price, category FROM "${req.schemaName}".treatments ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 router.get("/masters/departments", async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`
@@ -454,7 +475,13 @@ router.get("/ipd/admissions/:id", checkPermission('IPD_MANAGE'), async (req, res
       ORDER BY n.created_at DESC
     `);
 
-    res.json({ admission: admission[0], notes });
+    const dischargeSummary = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".discharge_summaries 
+      WHERE admission_id = '${s(req.params.id)}'
+      ORDER BY created_at DESC LIMIT 1
+    `);
+
+    res.json({ admission: admission[0], notes, dischargeSummary: dischargeSummary[0] || null });
   } catch (error) { next(error); }
 });
 
@@ -539,6 +566,24 @@ router.post("/ipd/admissions/:id/generate-summary", checkPermission('IPD_MANAGE'
     `);
 
     res.json({ message: "AI discharge summary generated", summaryText, pdfPath: pdf.filePath });
+  } catch (error) { next(error); }
+});
+
+router.put("/ipd/discharges/:id", checkPermission('IPD_MANAGE'), async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { summary_text, is_authenticated } = req.body;
+    
+    let query = `UPDATE "${req.schemaName}".discharge_summaries SET summary_text = '${s(summary_text)}'`;
+    
+    if (is_authenticated) {
+      query += `, is_authenticated = true, status = 'Authenticated', authenticated_at = NOW()`;
+    }
+    
+    query += ` WHERE id = '${id}'`;
+    
+    await req.prisma.$executeRawUnsafe(query);
+    res.json({ message: "Discharge summary updated successfully" });
   } catch (error) { next(error); }
 });
 

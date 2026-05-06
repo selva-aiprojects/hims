@@ -10,7 +10,7 @@ import {
   User, Activity, Pill, FlaskConical, History, 
   CheckCircle2, ChevronRight, FileText, 
   Stethoscope, Thermometer, Droplets, Scale, Zap,
-  AlertTriangle, Heart, Info, Briefcase
+  AlertTriangle, Heart, Info, Briefcase, Sparkles, Brain, Loader2, Wand2
 } from 'lucide-react';
 import PrescriptionTab from './components/PrescriptionTab';
 import LabTab from './components/LabTab';
@@ -37,6 +37,11 @@ export default function OPDConsultationPage() {
   const [medSearch, setMedSearch] = useState("");
   const [filteredMeds, setFilteredMeds] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('prescription'); // prescription, lab, history
+  
+  // AI State
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiAdvice, setAiAdvice] = useState<any>(null);
+  const [showAiPanel, setShowAiPanel] = useState(false);
 
   
   const headers = { 
@@ -69,18 +74,25 @@ export default function OPDConsultationPage() {
         axios.get(`${API_BASE}/api/hospital/masters/diseases`, { headers }),
         axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers })
       ]);
-      setMedicines(medRes.data);
-      setDiseases(disRes.data);
-      setDiagnostics(diagRes.data);
-    } catch (err) { console.error(err); }
+      setMedicines(medRes.data || []);
+      setDiseases(disRes.data || []);
+      setDiagnostics(diagRes.data || []);
+      
+      if ((medRes.data || []).length === 0) {
+        console.warn("No medicines found in master table.");
+      }
+    } catch (err) { 
+      console.error(err);
+      showToast("Failed to load hospital master data (Medicines/Tests).", "error");
+    }
   };
 
   const handleMedSearch = (val: string) => {
     setMedSearch(val);
-    if (val.length < 2) { setFilteredMeds([]); return; }
-    const filtered = medicines.filter(m => 
-      m.name.toLowerCase().includes(val.toLowerCase()) || 
-      m.composition.toLowerCase().includes(val.toLowerCase())
+    if (val.length < 1) { setFilteredMeds([]); return; }
+    const filtered = (medicines || []).filter(m => 
+      (m.name || "").toLowerCase().includes(val.toLowerCase()) || 
+      (m.composition || "").toLowerCase().includes(val.toLowerCase())
     ).slice(0, 8);
     setFilteredMeds(filtered);
   };
@@ -120,6 +132,78 @@ export default function OPDConsultationPage() {
       navigate("/tenant/opd/queue");
     } catch (err) { showToast("Failed to save consultation.", "error"); }
     finally { setIsFinishing(false); }
+  };
+
+  const getAiAdvice = async () => {
+    if (!notes && !encounter.complaints) {
+      showToast("Please enter patient complaints or notes first.", "error");
+      return;
+    }
+    setIsAiLoading(true);
+    setShowAiPanel(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/consultations/ai-suggest`, {
+        patientId: patient.id,
+        complaints: notes || encounter.complaints
+      }, { headers });
+      setAiAdvice(res.data);
+    } catch (err: any) {
+      if (err.response?.status === 429) {
+        showToast("AI limit reached. Please wait 30 seconds.", "warning");
+        setAiAdvice({ error: "LIMIT", message: "Maximum clinical AI capacity reached for this minute. Please pause for 30 seconds before retry." });
+      } else {
+        console.error(err);
+        showToast("AI Advice unavailable right now.", "error");
+        setAiAdvice({ error: "FAILED", message: "The clinical AI is temporarily unreachable. Please check your internet connection or try again in a moment." });
+      }
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const applyAiAdvice = () => {
+    if (!aiAdvice) return;
+    
+    if (aiAdvice.suggested_diagnosis) {
+      setDiagnosis(aiAdvice.suggested_diagnosis);
+    }
+    
+    if (aiAdvice.proposed_medicines && aiAdvice.proposed_medicines.length > 0) {
+      const newPrescriptions = [...prescriptions];
+      aiAdvice.proposed_medicines.forEach((m: any) => {
+        const sysMed = medicines.find(sm => (sm.name || "").toLowerCase().includes((m.name || "").toLowerCase()));
+        newPrescriptions.push({
+          medicine_id: sysMed?.id || null,
+          name: m.name,
+          dosage: m.dosage || '1 Tab',
+          frequency: m.frequency || '1-0-1',
+          duration: m.duration || '5 Days',
+          instructions: m.instructions || 'After Food'
+        });
+      });
+      setPrescriptions(newPrescriptions);
+    }
+    
+    if (aiAdvice.proposed_tests && aiAdvice.proposed_tests.length > 0) {
+      const newTests = [...selectedLabTests];
+      aiAdvice.proposed_tests.forEach((testName: string) => {
+        const sysTest = diagnostics.find(sd => (sd.name || "").toLowerCase().includes(testName.toLowerCase()));
+        if (sysTest && !newTests.includes(sysTest.id)) {
+          newTests.push(sysTest.id);
+        }
+      });
+      setSelectedLabTests(newTests);
+    }
+
+    // Append AI reasoning/advice to notes
+    let newNotes = notes;
+    if (aiAdvice.reasoning || aiAdvice.clinical_advice) {
+      newNotes += `\n\n--- AI CLINICAL NOTE ---\n${aiAdvice.clinical_advice || ''}\nReasoning: ${aiAdvice.reasoning || ''}`;
+      setNotes(newNotes.trim());
+    }
+    
+    showToast("AI proposal successfully applied to consultation.", "success");
+    setShowAiPanel(false);
   };
 
   if (!encounter) return (
@@ -181,10 +265,97 @@ export default function OPDConsultationPage() {
                <h3 style={{ margin: '0 0 24px', fontSize: '14px', fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                  <Stethoscope size={20} /> DIAGNOSIS & CHIEF COMPLAINTS
                </h3>
-               <select className="select-field" style={{ marginBottom: '20px', fontSize: '16px', height: '56px', borderRadius: '14px' }} value={diagnosis} onChange={e => setDiagnosis(e.target.value)}>
-                 <option value="">Select ICD-10 Clinical Diagnosis...</option>
-                 {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
-               </select>
+               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
+                 <select className="select-field" style={{ flex: 1, margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px' }} value={diagnosis} onChange={e => setDiagnosis(e.target.value)}>
+                   <option value="">Select ICD-10 Clinical Diagnosis...</option>
+                   {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
+                 </select>
+                 <button 
+                  onClick={getAiAdvice}
+                  disabled={isAiLoading}
+                  style={{ 
+                    height: '56px', padding: '0 24px', borderRadius: '14px', border: 'none', 
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)', 
+                    color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', 
+                    cursor: 'pointer', boxShadow: '0 10px 20px rgba(99, 102, 241, 0.2)' 
+                  }}
+                 >
+                   {isAiLoading ? <Loader2 className="animate-spin" /> : <Brain size={20} />}
+                   AI ADVISOR
+                 </button>
+               </div>
+
+               {showAiPanel && (
+                 <div style={{ 
+                   marginBottom: '20px', padding: '24px', borderRadius: '20px', 
+                   background: '#f5f3ff', border: '1px solid #ddd6fe', position: 'relative',
+                   animation: 'slideDown 0.3s ease-out'
+                 }}>
+                   <button onClick={() => setShowAiPanel(false)} style={{ position: 'absolute', top: '16px', right: '16px', border: 'none', background: 'transparent', color: '#7c3aed', cursor: 'pointer', fontWeight: 800 }}>CLOSE</button>
+                   <h4 style={{ margin: '0 0 16px', color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 900 }}>
+                     <Sparkles size={18} /> AI CLINICAL PROPOSAL
+                   </h4>
+                   
+                   {isAiLoading ? (
+                     <div style={{ padding: '20px', textAlign: 'center', color: '#7c3aed' }}>
+                        <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto 12px' }} />
+                        <p style={{ fontWeight: 700 }}>Synthesizing clinical advice based on history...</p>
+                     </div>
+                   ) : aiAdvice?.error === 'LIMIT' ? (
+                     <div style={{ padding: '20px', textAlign: 'center', color: '#991b1b' }}>
+                        <AlertTriangle size={32} style={{ margin: '0 auto 12px' }} />
+                        <p style={{ fontWeight: 800 }}>{aiAdvice.message}</p>
+                        <button onClick={getAiAdvice} style={{ marginTop: '16px', padding: '8px 16px', background: '#991b1b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Retry Now</button>
+                     </div>
+                   ) : aiAdvice ? (
+                     <div>
+                       <div style={{ marginBottom: '16px' }}>
+                         <p style={{ fontSize: '12px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Suggested Diagnosis</p>
+                         <p style={{ fontSize: '15px', fontWeight: 700, color: '#1e1b4b' }}>{aiAdvice.suggested_diagnosis}</p>
+                         <p style={{ fontSize: '13px', color: '#6d28d9', marginTop: '4px', fontStyle: 'italic' }}>{aiAdvice.reasoning}</p>
+                       </div>
+                       
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                          <div>
+                            <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Meds</p>
+                            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                              {aiAdvice.proposed_medicines?.map((m: any, i: number) => (
+                                <li key={i} style={{ fontSize: '13px', fontWeight: 600, color: '#4c1d95', marginBottom: '2px' }}>• {m.name} ({m.dosage})</li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div>
+                            <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Tests</p>
+                            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                              {aiAdvice.proposed_tests?.map((t: string, i: number) => (
+                                <li key={i} style={{ fontSize: '13px', fontWeight: 600, color: '#4c1d95', marginBottom: '2px' }}>• {t}</li>
+                              ))}
+                            </ul>
+                          </div>
+                       </div>
+                       
+                       <button 
+                        onClick={applyAiAdvice}
+                        style={{ 
+                          width: '100%', padding: '14px', borderRadius: '12px', border: 'none', 
+                          background: '#7c3aed', color: 'white', fontWeight: 800, cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                        }}
+                       >
+                         <Wand2 size={18} /> ACCEPT & APPLY AI PROPOSAL
+                       </button>
+                     </div>
+                    ) : (
+                      <div style={{ padding: '20px', textAlign: 'center', color: '#7c3aed' }}>
+                         <AlertTriangle size={32} style={{ margin: '0 auto 12px', color: '#ef4444' }} />
+                         <p style={{ fontWeight: 800, color: '#1e1b4b' }}>{aiAdvice?.message || "Failed to generate clinical suggestions."}</p>
+                         <p style={{ fontSize: '13px', marginTop: '8px', color: '#64748b' }}>Try adding more clinical observations or symptoms in the notes box below.</p>
+                         <button onClick={getAiAdvice} style={{ marginTop: '16px', padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Try Again</button>
+                      </div>
+                    )}
+                 </div>
+               )}
+
                <textarea 
                 className="input-field" 
                 placeholder="Type clinical notes, observations, or chief complaints..." 
@@ -326,17 +497,28 @@ export default function OPDConsultationPage() {
           </div>
 
             <button 
-              disabled={isFinishing || !diagnosis}
+              disabled={isFinishing}
               onClick={finishConsultation}
               style={{ 
                 width: '100%', padding: '28px', borderRadius: '28px', border: 'none', 
-                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : '#cbd5e1', 
+                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', 
                 color: 'white', fontWeight: 900, fontSize: '20px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
-                boxShadow: '0 20px 40px rgba(16, 185, 129, 0.2)'
+                boxShadow: diagnosis ? '0 20px 40px rgba(16, 185, 129, 0.2)' : 'none',
+                opacity: isFinishing ? 0.7 : 1
               }}
             >
-              {isFinishing ? 'FINALIZING...' : <span><CheckCircle2 size={26} /> FINISH CONSULTATION</span>}
+              {isFinishing ? (
+                <>
+                  <Loader2 className="animate-spin" size={26} />
+                  FINALIZING...
+                </>
+              ) : (
+                <span>
+                  <CheckCircle2 size={26} /> 
+                  {diagnosis ? 'FINISH CONSULTATION' : 'ENTER DIAGNOSIS TO FINISH'}
+                </span>
+              )}
             </button>
           </div>
 

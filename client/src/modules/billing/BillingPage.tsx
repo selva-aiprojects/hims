@@ -49,6 +49,14 @@ export default function BillingPage() {
   const [stats, setStats] = useState<any>({ metrics: { dailyCollection: 0, pendingInsurance: 0 } });
   const [items, setItems] = useState<any[]>([]);
   const [paymentMode, setPaymentMode] = useState('Cash');
+  const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [insuranceDetails, setInsuranceDetails] = useState({
+    policyNumber: "",
+    insurerId: "",
+    claimType: "Cashless",
+    claimNumber: ""
+  });
 
   useEffect(() => {
     const fetchMasters = async () => {
@@ -57,13 +65,22 @@ export default function BillingPage() {
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
       try {
-        const [srvRes, diagRes, statRes] = await Promise.all([
+        const [srvRes, diagRes, treatRes, medRes, statRes, provRes] = await Promise.all([
           axios.get(`${API_BASE}/api/hospital/masters/services`, { headers }),
+          axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers }),
           axios.get(`${API_BASE}/api/hospital/masters/treatments`, { headers }),
-          axios.get(`${API_BASE}/api/hospital/stats`, { headers })
+          axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers }),
+          axios.get(`${API_BASE}/api/hospital/metrics/stats`, { headers }),
+          axios.get(`${API_BASE}/api/insurance/providers`, { headers })
         ]);
-        setServices([...srvRes.data, ...diagRes.data]);
+        setServices([
+          ...srvRes.data.map((s: any) => ({ ...s, masterType: 'service' })),
+          ...diagRes.data.map((s: any) => ({ ...s, masterType: 'diagnostic' })),
+          ...treatRes.data.map((s: any) => ({ ...s, masterType: 'treatment' })),
+          ...medRes.data.map((s: any) => ({ ...s, masterType: 'medicine' }))
+        ]);
         setStats(statRes.data);
+        setInsuranceProviders(provRes.data);
         
         // Dynamic initial item
         const consultationPrice = srvRes.data.find((s: any) => s.category === 'Consultation' || s.name.toLowerCase().includes('consultation'))?.price || 500;
@@ -93,12 +110,23 @@ export default function BillingPage() {
       try {
         const res = await axios.get(`${API_BASE}/api/billing/queue/${patientId}`, { headers });
         if (res.data.length > 0) {
-          setItems(res.data.map((item: any) => ({
+          // Modular Filtering Logic: Ensure separate billing for accounts/tax clarity
+          const filteredQueue = res.data.filter((item: any) => {
+            const mod = item.source_module?.toUpperCase();
+            if (billType === 'OPD') return mod === 'CONSULTATION' || mod === 'REGISTRATION';
+            if (billType === 'PHARMACY') return mod === 'PHARMACY';
+            if (billType === 'LAB') return mod === 'LAB' || mod === 'DIAGNOSTIC';
+            if (billType === 'IPD' || billType === 'DISCHARGE') return true; 
+            return true;
+          });
+
+          setItems(filteredQueue.map((item: any) => ({
             ...item,
             description: item.description,
             price: Number(item.unit_price || 0),
             quantity: Number(item.quantity || 1),
-            tax: Number(item.tax_percent || 0)
+            tax: Number(item.tax_percent || 0),
+            discount_amount: 0 
           })));
         }
       } catch (err) { console.error(err); }
@@ -117,7 +145,8 @@ export default function BillingPage() {
 
   const calculateSubtotal = () => items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const calculateTax = () => items.reduce((acc, item) => acc + (item.price * item.quantity * (item.tax / 100)), 0);
-  const calculateTotal = () => calculateSubtotal() + calculateTax();
+  const calculateDiscount = () => items.reduce((acc, item) => acc + Number(item.discount_amount || 0), 0);
+  const calculateTotal = () => calculateSubtotal() + calculateTax() - calculateDiscount();
 
   const processBilling = async () => {
     if (!patientId) {
@@ -126,14 +155,14 @@ export default function BillingPage() {
     }
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/api/billing`, {
+      const billRes = await axios.post(`${API_BASE}/api/billing`, {
         patientId,
         encounterId,
         billType,
         items,
         totalAmount: calculateTotal(),
         paymentMode,
-        status: 'PAID',
+        status: paymentMode === 'Insurance' ? 'PENDING_SETTLEMENT' : 'PAID',
         labOrderId: state?.labOrderId
       }, {
         headers: {
@@ -141,7 +170,24 @@ export default function BillingPage() {
           "x-tenant-id": localStorage.getItem("tenant") || "",
         }
       });
-      alert(`Invoice generated for ${patientName || "Patient"}. Payment successful via ${paymentMode}.`);
+
+      // B. If Insurance, create the claim record
+      if (paymentMode === 'Insurance' && selectedProvider) {
+        await axios.post(`${API_BASE}/api/insurance/claims`, {
+          patientId,
+          invoiceId: billRes.data.id,
+          providerId: selectedProvider,
+          policyNumber: insuranceDetails.policyNumber,
+          insurerId: insuranceDetails.insurerId,
+          claimType: insuranceDetails.claimType,
+          billedAmount: calculateTotal(),
+          referenceNumber: `BILL-${Date.now().toString().slice(-6)}`,
+          claimNumber: insuranceDetails.claimNumber,
+          status: 'PRE-AUTH PENDING'
+        }, { headers: { ...headers, "x-tenant-id": localStorage.getItem("tenant") || "" } });
+      }
+
+      alert(`Invoice finalized. ${paymentMode === 'Insurance' ? 'Claim initiated for TPA settlement.' : 'Payment successful.'}`);
       navigate("/tenant/dashboard");
     } catch (err) {
       console.error(err);
@@ -230,15 +276,14 @@ export default function BillingPage() {
                     }}
                   >
                     <option value="">+ Add Service from Master</option>
-                    {services
-                      .filter(s => {
-                        if (billType === 'OPD') return s.type === 'consultation' || s.category === 'Consultation';
-                        if (billType === 'LAB') return s.type === 'lab' || s.category === 'Laboratory' || s.price > 0; // Fallback
-                        if (billType === 'PHARMACY') return s.type === 'pharmacy';
-                        if (billType === 'IPD' || billType === 'DISCHARGE') return true; // Show all for IPD
-                        return true;
-                      })
-                      .map(s => <option key={s.id} value={s.id}>{s.name} (₹{s.price})</option>)}
+                    {services.filter((s: any) => {
+                      if (billType === 'OPD') return s.type === 'consultation' || s.category === 'Consultation';
+                      if (billType === 'LAB') return s.masterType === 'diagnostic' || s.type === 'lab' || s.category === 'Laboratory';
+                      if (billType === 'PHARMACY') return s.masterType === 'medicine' || s.category === 'Pharmacy' || s.type === 'medicine';
+                      return true; // Show everything for IPD/Other
+                    }).map((s: any) => (
+                      <option key={`${s.masterType}-${s.id}`} value={s.id}>{s.name} - ₹{s.price}</option>
+                    ))}
                   </select>
                </div>
                
@@ -248,6 +293,7 @@ export default function BillingPage() {
                       <th style={{ padding: '12px 0', fontSize: '12px', color: '#64748b' }}>DESCRIPTION</th>
                       <th style={{ padding: '12px 0', fontSize: '12px', color: '#64748b' }}>PRICE</th>
                       <th style={{ padding: '12px 0', fontSize: '12px', color: '#64748b' }}>QTY</th>
+                      <th style={{ padding: '12px 0', fontSize: '12px', color: '#64748b' }}>DISCOUNT</th>
                       <th style={{ padding: '12px 0', fontSize: '12px', color: '#64748b', textAlign: 'right' }}>TOTAL</th>
                     </tr>
                   </thead>
@@ -271,8 +317,22 @@ export default function BillingPage() {
                             }}
                           />
                         </td>
+                        <td style={{ padding: '16px 0' }}>
+                          <input 
+                            type="number" min="0" 
+                            placeholder="Amt"
+                            style={{ width: '60px', padding: '4px', borderRadius: '6px', border: item.is_discountable ? '1px solid #10b981' : '1px solid #e2e8f0', color: '#166534', fontWeight: 700 }}
+                            value={item.discount_amount}
+                            disabled={item.is_discountable === false}
+                            onChange={(e) => {
+                              const newItems = [...items];
+                              newItems[idx].discount_amount = Number(e.target.value);
+                              setItems(newItems);
+                            }}
+                          />
+                        </td>
                         <td style={{ padding: '16px 0', fontWeight: 800, textAlign: 'right' }}>
-                          ₹{(item.price * item.quantity).toFixed(2)}
+                          ₹{(item.price * item.quantity - (item.discount_amount || 0)).toFixed(2)}
                           <button onClick={() => removeItem(idx)} style={{ marginLeft: '12px', color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
                         </td>
                       </tr>
@@ -298,6 +358,57 @@ export default function BillingPage() {
                       </button>
                     ))}
                  </div>
+                 
+                 {paymentMode === 'Insurance' && (
+                   <div style={{ marginTop: '24px', padding: '24px', background: '#f8fafc', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+                      <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>Insurance / TPA Details</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>Select Provider / TPA</label>
+                          <select 
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                            value={selectedProvider}
+                            onChange={(e) => setSelectedProvider(e.target.value)}
+                          >
+                            <option value="">-- Select TPA --</option>
+                            {insuranceProviders.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>Policy / Card Number</label>
+                          <input 
+                            placeholder="e.g. POL-99234"
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                            value={insuranceDetails.policyNumber}
+                            onChange={(e) => setInsuranceDetails({...insuranceDetails, policyNumber: e.target.value})}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>Insurer ID (Family/Indiv)</label>
+                          <input 
+                            placeholder="e.g. CID-8821"
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                            value={insuranceDetails.insurerId}
+                            onChange={(e) => setInsuranceDetails({...insuranceDetails, insurerId: e.target.value})}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>Claim Type</label>
+                          <select 
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                            value={insuranceDetails.claimType}
+                            onChange={(e) => setInsuranceDetails({...insuranceDetails, claimType: e.target.value})}
+                          >
+                            <option value="Cashless">Cashless</option>
+                            <option value="Co-pay">Co-pay</option>
+                            <option value="Corporate">Corporate</option>
+                            <option value="Government">Government</option>
+                            <option value="Employee Plan">Employee Plan</option>
+                          </select>
+                        </div>
+                      </div>
+                   </div>
+                 )}
                </div>
             </div>
           </div>

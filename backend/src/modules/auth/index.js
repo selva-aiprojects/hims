@@ -79,7 +79,7 @@ router.post("/login", async (req, res) => {
                 );
                 CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    label VARCHAR(100) NOT NULL,
+                    label VARCHAR(100) UNIQUE NOT NULL,
                     path VARCHAR(100) NOT NULL,
                     icon VARCHAR(50),
                     required_plan VARCHAR(50) DEFAULT 'basic',
@@ -107,6 +107,17 @@ router.post("/login", async (req, res) => {
                     PRIMARY KEY (user_id, role_id)
                 );
 
+                -- Ensure uniqueness for ON CONFLICT
+                ALTER TABLE "${schema}".rbac_menus ADD CONSTRAINT rbac_menus_label_key UNIQUE (label);
+              `);
+            } catch (e) {
+              if (!e.message.includes("already exists")) {
+                 console.warn(`[AUTH] RBAC Schema Hardening skipped or failed for ${schema}: ${e.message}`);
+              }
+            }
+
+            try {
+              await req.prisma.$executeRawUnsafe(`
                 -- Seed HIPAA Compliant Roles if empty
                 INSERT INTO "${schema}".rbac_roles (name, description) VALUES 
                 ('ADMIN', 'Full system access with PII masking for audit purposes'),

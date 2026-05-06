@@ -19,11 +19,16 @@
 - [x] **RBAC Foundation**: Cross-schema authentication for Nexus and Shard-specific logins.
 - [x] **Welcome Automation**: Integration with Resend for admin credential delivery.
 
-### 3. Laboratory & Diagnostic Command Center (New)
+### 3. Laboratory & Diagnostic Command Center
 - [x] **Workflow Orchestration**: Status-driven queue (Order -> Process -> Authorize -> Publish).
 - [x] **AI Lab Assistant**: Isolated module for OCR report parsing and diagnostic analytics.
 - [x] **Revenue Linkage**: Hard linkage between clinical results and automated billing.
 - [x] **Secure AI Chatbot**: Tenant-isolated assistant with real-time hospital metric awareness.
+
+### 4. Clinical AI Evolution (Latest)
+- [x] **AI Clinical Advisor**: OPD Consultation assistant providing real-time diagnosis, test, and medicine suggestions based on patient history.
+- [x] **AI Discharge Summary**: Automated clinical course synthesis for IPD admissions with doctor-in-the-loop authentication and PDF generation.
+- [x] **Integrated IPD Ordering**: Direct Lab/Pharmacy requisitions from the bedside patient view with atomic encounter linkage.
 
 ---
 
@@ -51,9 +56,9 @@
 
 ## 📋 Future Roadmap
 - [x] **OPD Module**: Registration, Consultation, and Digital Prescription (Live).
-- [ ] **IPD Module**: Admission, Bed Management, and Discharge.
+- [x] **IPD Module**: Admission, Bed Management, and AI Discharge Summary.
 - [ ] **Billing & Pharmacy**: Inventory sync and automated billing.
 - [ ] **Internationalization**: Multi-currency and multi-language support.
 
 ---
-*Last Updated: 2026-05-05*
+*Last Updated: 2026-05-06*
