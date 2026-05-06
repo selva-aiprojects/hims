@@ -26,13 +26,6 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    localStorage.setItem('theme_app_bg', '#f8fafc');
-    localStorage.setItem('theme_primary_dark', '#0f172a');
-    localStorage.setItem('theme_primary_accent', '#3b82f6');
-    document.documentElement.style.setProperty('--app-bg', '#f8fafc');
-    document.documentElement.style.setProperty('--primary-dark', '#0f172a');
-    document.documentElement.style.setProperty('--primary-accent', '#3b82f6');
-    
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem("token");
@@ -191,7 +184,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Live OPD Command Center */}
-          <div className="page-card" style={{ padding: '24px', backgroundColor: '#0f172a', color: '#fff', position: 'relative', overflow: 'hidden' }}>
+          <div className="page-card" style={{ padding: '24px', backgroundColor: 'var(--hero-bg, #0f172a)', color: 'var(--hero-text, #fff)', position: 'relative', overflow: 'hidden' }}>
              <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.1 }}><Zap size={80} /></div>
              <h3 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 900, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
                 <Activity size={16} /> LIVE OPD HUB

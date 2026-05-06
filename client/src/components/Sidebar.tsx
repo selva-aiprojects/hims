@@ -45,6 +45,9 @@ const normalizePath = (label: string, originalPath: string) => {
     "appointment list": "/tenant/appointments",
     "doctor availability and book appointments": "/tenant/appointments/doctor-calendar",
     "laboratory": "/tenant/lab",
+    "laboratory / diagnostics": "/tenant/lab",
+    "diagnostics": "/tenant/lab",
+    "lab": "/tenant/lab",
     "ai lab assistant": "/tenant/lab/ai",
     "help & support": "/tenant/support",
     "ticketing management system": "/tenant/support/tickets",
@@ -63,6 +66,10 @@ const normalizePath = (label: string, originalPath: string) => {
     "pharmacy billing": "/billing?type=PHARMACY",
     "laboratory billing": "/billing?type=LAB",
     "lab billing": "/billing?type=LAB",
+    "laboratory / diagnostics billing": "/billing?type=LAB",
+    "diagnostics billing": "/billing?type=LAB",
+    "laboratory billing center": "/tenant/lab/billing",
+    "lab billing queue": "/tenant/lab/billing",
     "invoicing & billing": "/billing?type=OPD"
   };
   return overrides[l] || originalPath;
@@ -89,8 +96,8 @@ export default function Sidebar() {
     const pm = Array.from(uniqueMap.values());
 
     const clinicalFlow = ["OPD Registration", "OPD Queue", "Doctor's Queue", "Consultation Desk", "Appointment List", "Doctor Availability and Book Appointments", "Admission Desk", "IPD Bed Map", "IPD Census & Daycare", "Discharge Summaries"];
-    const serviceFlow = ["Laboratory", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
-    const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "Laboratory Billing", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"];
+    const serviceFlow = ["Laboratory", "Laboratory / Diagnostics", "Diagnostics", "Lab", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
+    const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "Laboratory Billing", "Laboratory / Diagnostics Billing", "Diagnostics Billing", "Laboratory Billing Center", "Lab Billing Queue", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"];
     const managementFlow = ["Staff & RBAC", "Staff Management", "User Management", "Hospital Settings (Masters)", "Hospital Settings", "Branding & UI Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"];
 
     const getItems = (labels: string[]) => pm
@@ -142,15 +149,22 @@ export default function Sidebar() {
         <div style={{ padding: '0 8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
           <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
             <img 
-              src="/logo.png" 
+              src={localStorage.getItem('theme_logo_url') || "/logo.png"} 
               alt={tenantName} 
               style={{ width: '100%', height: 'auto', maxHeight: '80px', objectFit: 'contain', cursor: 'pointer', transition: 'transform 0.2s' }} 
               onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
               onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                const parent = (e.target as any).parentElement;
-                parent.innerHTML = `<div style="width:48px;height:48px;background:var(--primary-accent, #0ea5e9);border-radius:12px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:white;">${tenantName.charAt(0)}</div><h2 style="font-size:15px;font-weight:800;color:white;margin-top:12px;">${tenantName}</h2>`;
+                const img = e.target as HTMLImageElement;
+                if (img.src.includes('logo.png')) {
+                  img.style.display = 'none';
+                  const parent = img.parentElement;
+                  if (parent) {
+                    parent.innerHTML = `<div style="width:48px;height:48px;background:var(--primary-accent, #0ea5e9);border-radius:12px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:white;">${tenantName.charAt(0)}</div><h2 style="font-size:15px;font-weight:800;color:white;margin-top:12px;">${tenantName}</h2>`;
+                  }
+                } else {
+                  img.src = "/logo.png";
+                }
               }}
             />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '10px' }}>

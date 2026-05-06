@@ -15,7 +15,7 @@ const checkPermission = (permissionKey) => {
       }
 
       // 2. Fallback: Check database for the role's current permissions
-      const schema = req.headers['x-tenant-id']?.toLowerCase();
+      const schema = req.schemaName || req.headers['x-tenant-id']?.toLowerCase();
       if (schema) {
         try {
           const dbPerms = await req.prisma.$queryRawUnsafe(`
@@ -31,8 +31,12 @@ const checkPermission = (permissionKey) => {
             return next();
           }
         } catch (e) {
-          console.warn(`[RBAC] Security tables missing in ${schema}. Falling back to standard access.`);
-          return next(); 
+          // If tables don't exist, we fall back to standard access for non-production environments
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn(`[RBAC] Security tables missing in ${schema}. Falling back to standard access.`);
+            return next();
+          }
+          throw e; // In production, we want a hard failure if security tables are missing
         }
       }
 

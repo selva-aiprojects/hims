@@ -9,7 +9,8 @@ const STATUS_FLOW = [
   { id: 'Pending', label: 'Order Received', color: '#64748b', bg: '#f1f5f9' },
   { id: 'Sample Collected', label: 'Sample Collected', color: '#3b82f6', bg: '#eff6ff' },
   { id: 'In Progress', label: 'Analysis In-Progress', color: '#f59e0b', bg: '#fffbeb' },
-  { id: 'Completed', label: 'Result Authorized', color: '#10b981', bg: '#ecfdf5' }
+  { id: 'Completed', label: 'Result Authorized', color: '#10b981', bg: '#ecfdf5' },
+  { id: 'Authorized', label: 'Result Authorized', color: '#10b981', bg: '#ecfdf5' }
 ];
 
 export default function LabManagementPage() {
@@ -24,6 +25,10 @@ export default function LabManagementPage() {
     { param: '', value: '', unit: '' }
   ]);
   const [technicianNote, setTechnicianNote] = useState("");
+  
+  const addResultRow = () => {
+    setTestResults([...testResults, { param: '', value: '', unit: '' }]);
+  };
 
   const fetchOrders = async () => {
     const headers = { 
@@ -102,7 +107,7 @@ export default function LabManagementPage() {
     const status = (o.status || 'Pending').toLowerCase();
     if (activeTab === 'queue') return status === 'pending';
     if (activeTab === 'in_progress') return status === 'sample collected' || status === 'in progress';
-    if (activeTab === 'to_publish') return status === 'completed';
+    if (activeTab === 'to_publish') return status === 'completed' || status === 'authorized';
     if (activeTab === 'archive') return status === 'published';
     return false;
   });
@@ -256,7 +261,7 @@ export default function LabManagementPage() {
                       <button 
                         key={s.id}
                         onClick={() => updateStatus(activeOrder.id, s.id)}
-                        disabled={s.id === 'Completed'}
+                        disabled={s.id === 'Completed' || s.id === 'Authorized'}
                         style={{ 
                           padding: '12px', borderRadius: '12px', border: (activeOrder.status || 'Pending').toLowerCase() === s.id.toLowerCase() ? '2px solid #3b82f6' : '1px solid #e2e8f0',
                           background: (activeOrder.status || 'Pending').toLowerCase() === s.id.toLowerCase() ? '#eff6ff' : 'white',
