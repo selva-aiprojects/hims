@@ -70,7 +70,9 @@ const normalizePath = (label: string, originalPath: string) => {
     "diagnostics billing": "/billing?type=LAB",
     "laboratory billing center": "/tenant/lab/billing",
     "lab billing queue": "/tenant/lab/billing",
-    "invoicing & billing": "/billing?type=OPD"
+    "invoicing & billing": "/billing?type=OPD",
+    "mail management": "/tenant/mail",
+    "mall management": "/tenant/mail"
   };
   return overrides[l] || originalPath;
 };
@@ -98,7 +100,7 @@ export default function Sidebar() {
     const clinicalFlow = ["OPD Registration", "OPD Queue", "Doctor's Queue", "Consultation Desk", "Appointment List", "Doctor Availability and Book Appointments", "Admission Desk", "IPD Bed Map", "IPD Census & Daycare", "Discharge Summaries"];
     const serviceFlow = ["Laboratory", "Laboratory / Diagnostics", "Diagnostics", "Lab", "AI Lab Assistant", "Pharmacy", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
     const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "Laboratory Billing", "Laboratory / Diagnostics Billing", "Diagnostics Billing", "Laboratory Billing Center", "Lab Billing Queue", "Pharmacy Billing", "IPD & Discharge Billing", "Hospital Billing", "Insurance Management"];
-    const managementFlow = ["Staff & RBAC", "Staff Management", "User Management", "Hospital Settings (Masters)", "Hospital Settings", "Branding & UI Settings", "Message Board", "Mail Management", "Help & Support", "Ticketing Management System"];
+    const managementFlow = ["Staff & RBAC", "Staff Management", "User Management", "Hospital Settings (Masters)", "Hospital Settings", "Branding & UI Settings", "Message Board", "Mail Management", "Mall Management", "Help & Support", "Ticketing Management System"];
 
     const getItems = (labels: string[]) => pm
       .filter(m => labels.some(l => l.toLowerCase() === m.label.toLowerCase()))

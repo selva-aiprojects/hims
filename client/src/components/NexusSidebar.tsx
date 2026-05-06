@@ -37,14 +37,14 @@ export default function NexusSidebar() {
         </button>
         <div className="sidebar-logo">
          <BrandLogo size="sm" light={true} />
-         <p style={{ fontSize: '10px', color: '#94a3b8', margin: '4px 0 0 52px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Nexus Control</p>
+          <p style={{ fontSize: '9px', color: '#64748b', margin: '2px 0 0 52px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.8 }}>Nexus</p>
       </div>
 
       <nav className="nav-section">
         <SidebarLink to="/nexus/dashboard" icon={<Icons.Overview />} label="Overview" />
         <SidebarLink to="/nexus/tenants" icon={<Icons.Tenants />} label="Tenants" />
         <SidebarLink to="/nexus/tickets" icon={<Icons.Tickets />} label="Support Tickets" />
-        <SidebarLink to="/nexus/communications" icon={<Icons.Mail />} label="Communication Hub" />
+        <SidebarLink to="/nexus/communications" icon={<Icons.Mail />} label="Mail Management" />
         <SidebarLink to="/nexus/users" icon={<Icons.Admins />} label="Super Admins" />
         <SidebarLink to="/nexus/activity" icon={<Icons.Logs />} label="System Logs" />
         <SidebarLink to="/nexus/settings" icon={<Icons.Settings />} label="Settings" />

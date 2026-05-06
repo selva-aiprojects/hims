@@ -33,12 +33,13 @@ export default function NexusTicketingPage() {
         status,
         response
       }, { headers });
-      alert("Ticket updated and notification sent.");
+      alert("The ticket is resolved");
       setSelectedTicket(null);
       setResponse("");
       fetchTickets();
-    } catch (err) {
-      alert("Failed to update ticket.");
+    } catch (err: any) {
+      const msg = err.response?.data?.error || "Unable to resolve: Database or network connectivity issue.";
+      alert(msg);
     } finally {
       setLoading(false);
     }

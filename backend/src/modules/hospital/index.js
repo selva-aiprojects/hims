@@ -89,6 +89,20 @@ router.get("/doctors", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/mail-logs", async (req, res, next) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'];
+    const logs = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM nexus.communication_logs 
+      WHERE tenant_id = '${tenantId}' 
+      ORDER BY created_at DESC
+    `);
+    res.json(logs);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
     const { search } = req.query;

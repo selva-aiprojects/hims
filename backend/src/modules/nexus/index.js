@@ -31,6 +31,8 @@ async function ensureNexusColumns(prisma) {
         updated_at TIMESTAMP DEFAULT NOW()
       );
     `);
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.support_tickets ADD COLUMN IF NOT EXISTS response TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE nexus.support_tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
 
     // Communication Logs Infrastructure
     await prisma.$executeRawUnsafe(`
@@ -549,23 +551,39 @@ router.get("/tickets", async (req, res, next) => {
 
 // 3. Update/Respond to Ticket (Nexus Side)
 router.patch("/tickets/:id", async (req, res, next) => {
+  const id = req.params.id?.trim();
+  const { status, response } = req.body;
+  
   try {
-    const { id } = req.params;
-    const { status, response } = req.body;
-    
+    console.log(`[NEXUS_SUPPORT] Attempting to update ticket: ${id} to status: ${status}`);
+
+    // 1. Verify ticket exists first
+    const checkResult = await req.prisma.$queryRawUnsafe(`SELECT id FROM nexus.support_tickets WHERE id::text = $1`, id);
+    if (!checkResult || checkResult.length === 0) {
+       console.error(`[NEXUS_SUPPORT] Pre-check failed: No ticket found with ID ${id}`);
+       return res.status(404).json({ error: "Ticket record not found in database" });
+    }
+
+    // 2. Perform Update
     const result = await req.prisma.$queryRawUnsafe(`
       UPDATE nexus.support_tickets 
-      SET status = '${status}', response = '${response ? response.replace(/'/g, "''") : ""}', updated_at = NOW()
-      WHERE id = '${id}'
+      SET status = $1, response = $2, updated_at = NOW()
+      WHERE id::text = $3
       RETURNING *
-    `);
+    `, status || 'Open', response || '', id);
+
+    if (!result || result.length === 0) {
+       console.error(`[NEXUS_SUPPORT] Update executed but returned no rows for ID: ${id}`);
+       return res.status(500).json({ error: "Update failed to apply changes" });
+    }
 
     const ticket = result[0];
+    console.log(`[NEXUS_SUPPORT] Ticket ${id} updated successfully to ${ticket.status}`);
 
-    // Notification Email to Tenant
+    // 3. Notification Email to Tenant (Non-blocking)
     if (process.env.RESEND_API_KEY && ticket) {
       try {
-        const tenant = await req.prisma.$queryRawUnsafe(`SELECT admin_email FROM nexus.tenants WHERE id = '${ticket.tenant_id}'`);
+        const tenant = await req.prisma.$queryRawUnsafe(`SELECT admin_email FROM nexus.tenants WHERE id = $1`, ticket.tenant_id);
         if (tenant[0]?.admin_email) {
           await axios.post('https://api.resend.com/emails', {
             from: process.env.RESEND_FROM || "HIMS Support <support@cognivectra.com>",
@@ -574,10 +592,65 @@ router.patch("/tickets/:id", async (req, res, next) => {
             html: `<p>Your support ticket status has been updated to: <strong>${status}</strong>.</p><p><strong>Response from Support:</strong> ${response || "No comment."}</p>`
           }, { headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' } });
         }
-      } catch (e) { console.error("Email notification failed", e.message); }
+      } catch (e) { console.error("[NEXUS_SUPPORT] Email notification failed:", e.message); }
     }
 
     res.json(ticket);
+  } catch (err) {
+    console.error(`[NEXUS_SUPPORT] CRITICAL ERROR during ticket update:`, err.message);
+    res.status(500).json({ error: "Database transaction failed", details: err.message });
+  }
+});
+
+// --- SYSTEM SIGNAL TRIGGERS (Email Password Reset, Upgrade, Discounts) ---
+router.post("/send-signal", async (req, res, next) => {
+  try {
+    const { tenantId, type, subject, message, recipientOverride } = req.body;
+    
+    // 1. Resolve Recipient
+    let recipient = recipientOverride;
+    let tenantName = "System";
+    
+    if (tenantId) {
+       const tenant = await req.prisma.$queryRawUnsafe(`SELECT admin_email, name FROM nexus.tenants WHERE id = '${tenantId}' LIMIT 1`);
+       if (tenant[0]) {
+         recipient = recipient || tenant[0].admin_email;
+         tenantName = tenant[0].name;
+       }
+    }
+
+    if (!recipient) return res.status(400).json({ error: "Recipient could not be resolved." });
+
+    // 2. Prepare Template
+    let html = `<div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">`;
+    if (type === 'PASSWORD_RESET') {
+      html += `<h2 style="color: #ef4444;">Password Reset Request</h2><p>A password reset has been initiated for your HIMS admin account.</p><div style="background: #f8fafc; padding: 16px; border-radius: 8px; font-weight: bold; text-align: center;">RESET_TOKEN_PENDING</div>`;
+    } else if (type === 'UPGRADE') {
+      html += `<h2 style="color: #3b82f6;">Unlock New Capabilities</h2><p>Expand your hospital's operations with our latest features.</p><div style="background: #eff6ff; padding: 16px; border-radius: 8px;">${message}</div>`;
+    } else if (type === 'DISCOUNT') {
+      html += `<h2 style="color: #10b981;">Exclusive Upgrade Offer</h2><p>Upgrade your plan today and save on your next billing cycle.</p><div style="background: #ecfdf5; padding: 16px; border-radius: 8px;"><strong>OFFER:</strong> ${message}</div>`;
+    } else {
+      html += `<h2>${subject}</h2><p>${message}</p>`;
+    }
+    html += `<hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" /><p style="font-size: 11px; color: #94a3b8;">HIMS Nexus System Automation</p></div>`;
+
+    // 3. Send via Resend
+    if (process.env.RESEND_API_KEY) {
+       await axios.post('https://api.resend.com/emails', {
+         from: process.env.RESEND_FROM || "HIMS Nexus <nexus@cognivectra.com>",
+         to: [recipient],
+         subject: `[SIGNAL] ${subject}`,
+         html
+       }, { headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' } });
+    }
+
+    // 4. Log Communication
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO nexus.communication_logs (tenant_id, subject, recipient, status)
+      VALUES ('${tenantId || "SYSTEM"}', '${subject.replace(/'/g, "''")}', '${recipient}', 'SENT')
+    `);
+
+    res.json({ message: "Signal dispatched successfully" });
   } catch (error) { next(error); }
 });
 

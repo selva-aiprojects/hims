@@ -395,7 +395,7 @@ app.get("/api/nexus/seed-database", async (req, res) => {
 // CORS configuration
 app.use(cors({
   origin: true, // Dynamically allow the requesting origin
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-tenant-id"],
   credentials: true
 }));

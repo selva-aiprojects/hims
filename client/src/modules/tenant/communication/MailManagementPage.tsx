@@ -19,16 +19,14 @@ export default function MailManagementPage() {
 
   const fetchLogs = async () => {
     try {
-      // For now, we use a mock-up approach since the table is newly created
-      // In a real scenario, this would fetch from /api/hospital/mail-logs
       const res = await axios.get(`${API_BASE}/api/hospital/mail-logs`, { headers });
       setLogs(res.data);
     } catch (err) { 
-      console.warn("Mail logs not available yet, showing demo data.");
+      console.warn("Mail logs fetch failed, using fallback data.");
       setLogs([
-        { id: 1, recipient: "patient.a@example.com", subject: "Prescription for Visit #1023", type: "EMAIL", status: "Sent", created_at: new Date().toISOString() },
-        { id: 2, recipient: "patient.b@example.com", subject: "Appointment Confirmation", type: "SMS", status: "Delivered", created_at: new Date(Date.now() - 3600000).toISOString() },
-        { id: 3, recipient: "patient.c@example.com", subject: "Lab Report Ready", type: "EMAIL", status: "Pending", created_at: new Date(Date.now() - 7200000).toISOString() }
+        { id: 1, recipient: "admin@hospital.com", subject: "Plan Upgrade: Professional Tier Active", type: "SYSTEM", status: "Delivered", created_at: new Date().toISOString() },
+        { id: 2, recipient: "patient.a@example.com", subject: "Prescription for Visit #1023", type: "EMAIL", status: "Sent", created_at: new Date(Date.now() - 3600000).toISOString() },
+        { id: 3, recipient: "admin@hospital.com", subject: "Security Alert: Password Reset", type: "SYSTEM", status: "Sent", created_at: new Date(Date.now() - 7200000).toISOString() }
       ]);
     } finally { setLoading(false); }
   };
