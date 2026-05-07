@@ -32,7 +32,10 @@ CREATE TABLE users (
   password_hash TEXT,
   role VARCHAR(50) DEFAULT 'staff', -- Legacy role fallback
   license_number VARCHAR(100),
+  gender VARCHAR(20),
+  dob DATE,
   age INTEGER,
+  doj DATE,
   qualifications TEXT,
   experience_years INTEGER,
   specialization VARCHAR(100), -- For doctors (Department)
@@ -43,6 +46,7 @@ CREATE TABLE users (
   last_login TIMESTAMP,
   failed_login_attempts INTEGER DEFAULT 0,
   account_locked BOOLEAN DEFAULT FALSE,
+  updated_at TIMESTAMP DEFAULT NOW(),
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -773,3 +777,45 @@ INSERT INTO wards (name, floor, type, capacity, base_charge, min_age, max_age, g
 ('Surgical Recovery', '2nd Floor', 'Regular Care', 20, 1800, 12, 65, 'Any', false),
 ('Pediatric Daycare', 'Ground Floor', 'Daycare', 10, 900, 0, 12, 'Any', true)
 ON CONFLICT DO NOTHING;
+
+-- ================= AUTOMATION & TRIGGERS =================
+
+-- 1. Automated Age Calculation Trigger
+CREATE OR REPLACE FUNCTION calculate_age_from_dob()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.dob IS NOT NULL THEN
+        NEW.age := EXTRACT(YEAR FROM AGE(NEW.dob));
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_calculate_user_age ON users;
+CREATE TRIGGER trg_calculate_user_age
+BEFORE INSERT OR UPDATE OF dob ON users
+FOR EACH ROW EXECUTE FUNCTION calculate_age_from_dob();
+
+DROP TRIGGER IF EXISTS trg_calculate_patient_age ON patients;
+CREATE TRIGGER trg_calculate_patient_age
+BEFORE INSERT OR UPDATE OF dob ON patients
+FOR EACH ROW EXECUTE FUNCTION calculate_age_from_dob();
+
+-- 2. Automated Updated At Trigger
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply to core tables
+DROP TRIGGER IF EXISTS update_users_modtime ON users;
+CREATE TRIGGER update_users_modtime BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+DROP TRIGGER IF EXISTS update_patients_modtime ON patients;
+CREATE TRIGGER update_patients_modtime BEFORE UPDATE ON patients FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+DROP TRIGGER IF EXISTS update_encounters_modtime ON encounters;
+CREATE TRIGGER update_encounters_modtime BEFORE UPDATE ON encounters FOR EACH ROW EXECUTE FUNCTION update_modified_column();

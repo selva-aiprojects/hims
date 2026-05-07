@@ -25,5 +25,6 @@ router.use("/consultations", auth, tenant, consultationRoutes);
 router.use("/billing", auth, tenant, billingRoutes);
 router.use("/insurance", auth, tenant, insuranceRoutes);
 router.use("/doctor", auth, tenant, doctorRoutes);
+router.use("/doctors", auth, tenant, doctorRoutes);
 
 module.exports = router;

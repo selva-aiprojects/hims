@@ -54,6 +54,86 @@ async function ensureOrderColumns(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS results JSONB`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS technician_notes TEXT`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS is_billed BOOLEAN DEFAULT false`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
+}
+
+async function ensureStaffColumns(req) {
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS dob DATE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS doj DATE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS license_number VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS age INTEGER DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS qualifications TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS specialization VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
+}
+
+async function ensurePatientColumns(req) {
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS mrn VARCHAR(20)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS age INTEGER DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS dob DATE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+}
+
+async function ensureEncounterTable(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".encounters (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID NOT NULL,
+      doctor_id UUID NOT NULL,
+      type VARCHAR(50) DEFAULT 'OPD',
+      status VARCHAR(50) DEFAULT 'Draft',
+      vitals JSONB,
+      complaints TEXT,
+      diagnosis TEXT,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".encounters ADD COLUMN IF NOT EXISTS vitals JSONB`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".encounters ADD COLUMN IF NOT EXISTS complaints TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".encounters ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'OPD'`);
+}
+
+async function ensureIPDMasters(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".wards (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(100),
+      type VARCHAR(50),
+      capacity INTEGER DEFAULT 0
+    )
+  `);
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".beds (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      ward_id UUID,
+      bed_number VARCHAR(50),
+      status VARCHAR(50) DEFAULT 'Vacant'
+    )
+  `);
+}
+
+async function ensureIPDAdmissionsTable(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".ipd_admissions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID NOT NULL,
+      bed_id UUID NOT NULL,
+      ward_id UUID NOT NULL,
+      encounter_id UUID,
+      admitting_doctor_id UUID,
+      admission_reason TEXT,
+      daily_charge NUMERIC DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'Admitted',
+      admitted_at TIMESTAMP DEFAULT NOW(),
+      discharged_at TIMESTAMP
+    )
+  `);
 }
 
 async function ensureBillingQueue(req) {
@@ -79,8 +159,9 @@ async function ensureBillingQueue(req) {
 router.get("/doctors", async (req, res, next) => {
   console.log(`[HOSPITAL] Fetching doctors for schema: ${req.schemaName}`);
   try {
+    await ensureStaffColumns(req);
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT id, name, specialization, department 
+      SELECT id, name, role, specialization, department 
       FROM "${req.schemaName}".users 
       WHERE role ILIKE 'doctor' AND is_active = true
       ORDER BY name ASC
@@ -105,8 +186,9 @@ router.get("/mail-logs", async (req, res, next) => {
 
 router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
+    await ensureStaffColumns(req);
     const { search } = req.query;
-    let query = `SELECT id, name, role, email, created_at, license_number, age, qualifications, experience_years, specialization, department 
+    let query = `SELECT id, name, role, email, created_at, license_number, age, qualifications, experience_years, specialization, department, gender, dob, doj 
                  FROM "${req.schemaName}".users`;
     
     if (search) {
@@ -121,13 +203,14 @@ router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => 
 
 router.post("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
-    const { name, email, password, role, license_number, age, qualifications, experience_years, specialization, department } = req.body;
+    await ensureStaffColumns(req);
+    const { name, email, password, role, license_number, age, qualifications, experience_years, specialization, department, gender, dob, doj } = req.body;
     
     // Simple creation via raw SQL to match multi-tenant logic
     const userId = crypto.randomUUID();
     await req.prisma.$executeRawUnsafe(`
-      INSERT INTO "${req.schemaName}".users (id, name, email, password, role, license_number, age, qualifications, experience_years, specialization, department)
-      VALUES ('${userId}', '${name}', '${email}', '${password}', '${role}', '${license_number || ''}', ${age || 0}, '${qualifications || ''}', ${experience_years || 0}, '${specialization || ''}', '${department || ''}')
+      INSERT INTO "${req.schemaName}".users (id, name, email, password, role, license_number, age, qualifications, experience_years, specialization, department, gender, dob, doj)
+      VALUES ('${userId}', '${name}', '${email}', '${password}', '${role}', '${license_number || ''}', ${age || 0}, '${qualifications || ''}', ${experience_years || 0}, '${specialization || ''}', '${department || ''}', ${sqlValue(gender)}, ${sqlValue(dob)}, ${sqlValue(doj)})
     `);
     
     res.status(201).json({ message: "Staff member created", userId });
@@ -141,15 +224,17 @@ router.post("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) =>
 
 router.put("/staff/:id", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
   try {
+    await ensureStaffColumns(req);
     const { id } = req.params;
-    const { name, email, role, license_number, age, qualifications, experience_years, specialization, department } = req.body;
+    const { name, email, role, license_number, age, qualifications, experience_years, specialization, department, gender, dob, doj } = req.body;
     
     await req.prisma.$executeRawUnsafe(`
       UPDATE "${req.schemaName}".users 
       SET name = '${name}', email = '${email}', role = '${role}', 
           license_number = '${license_number || ''}', age = ${age || 0}, 
           qualifications = '${qualifications || ''}', experience_years = ${experience_years || 0}, 
-          specialization = '${specialization || ''}', department = '${department || ''}'
+          specialization = '${specialization || ''}', department = '${department || ''}',
+          gender = ${sqlValue(gender)}, dob = ${sqlValue(dob)}, doj = ${sqlValue(doj)}
       WHERE id = '${id}'
     `);
     
@@ -370,6 +455,7 @@ router.get("/masters/services", async (req, res, next) => {
 // --- In-Patient Department (IPD) ---
 router.get("/ipd/bedmap", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
+    await ensureIPDMasters(req);
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT w.*, COALESCE(COUNT(b.id), 0)::int as bed_count,
         COALESCE(SUM(CASE WHEN b.status = 'Occupied' THEN 1 ELSE 0 END), 0)::int as occupied
@@ -420,6 +506,9 @@ router.post("/ipd/wards/:id/provision-beds", checkPermission('IPD_MANAGE'), asyn
 
 router.get("/ipd/admissions", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
+    await ensureIPDAdmissionsTable(req);
+    await ensurePatientColumns(req);
+    await ensureIPDMasters(req);
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT ia.*, p.name as patient_name, p.mrn, p.age, p.gender,
         b.bed_number, w.name as ward_name
@@ -436,6 +525,8 @@ router.get("/ipd/admissions", checkPermission('IPD_MANAGE'), async (req, res, ne
 
 router.post("/ipd/admissions", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
+    await ensureIPDAdmissionsTable(req);
+    await ensureEncounterTable(req);
     const { patientId, bedId, wardId, admittingDoctorId, admissionReason, dailyCharge } = req.body;
     if (!patientId || !bedId || !wardId || !admittingDoctorId) {
       return res.status(400).json({ error: "Patient, ward, bed, and doctor are required." });
@@ -469,6 +560,10 @@ router.post("/ipd/admissions", checkPermission('IPD_MANAGE'), async (req, res, n
 
 router.get("/ipd/admissions/:id", checkPermission('IPD_MANAGE'), async (req, res, next) => {
   try {
+    await ensureIPDAdmissionsTable(req);
+    await ensurePatientColumns(req);
+    await ensureStaffColumns(req);
+    await ensureIPDMasters(req);
     const admission = await req.prisma.$queryRawUnsafe(`
       SELECT ia.*, p.name as patient_name, p.mrn, p.age, p.gender, p.phone,
         b.bed_number, w.name as ward_name, u.name as doctor_name
@@ -739,6 +834,9 @@ router.post("/pharmacy/dispense", checkPermission('PHARMACY_MANAGE'), async (req
 // --- Clinical Encounters (OPD/IPD Queue) ---
 router.get("/encounters", async (req, res, next) => {
   try {
+    await ensureEncounterTable(req);
+    await ensurePatientColumns(req);
+    await ensureStaffColumns(req);
     const { status, type } = req.query;
     let query = `
       SELECT e.*, p.name as patient_name, p.mrn, p.phone, p.age, p.gender, u.name as doctor_name
@@ -760,6 +858,7 @@ router.get("/encounters", async (req, res, next) => {
 
 router.post("/encounters", async (req, res, next) => {
   try {
+    await ensureEncounterTable(req);
     const { patientId, doctorId, type, vitals, complaints } = req.body;
     if (!patientId || !doctorId) return res.status(400).json({ error: "Patient and doctor are required." });
 
@@ -794,14 +893,33 @@ router.post("/encounters/:id/prescriptions", async (req, res, next) => {
       RETURNING id
     `);
 
+    const encounterRows = await req.prisma.$queryRawUnsafe(`SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${s(req.params.id)}'`);
+
     for (const item of items || []) {
+      // Get price from master
+      const medicine = await req.prisma.$queryRawUnsafe(`SELECT unit_price FROM "${req.schemaName}".medicines WHERE id = ${sqlValue(item.medicine_id)}`);
+      const price = Number(medicine[0]?.unit_price || 0);
+
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".prescription_items (prescription_id, medicine_id, drug_name, dosage, frequency, duration, instructions)
         VALUES ('${prescription[0].id}', ${sqlValue(item.medicine_id)}, '${s(item.name)}', '${s(item.dosage)}', '${s(item.frequency)}', '${s(item.duration)}', '${s(item.instructions)}')
       `);
+
+      // Add to billing queue
+      if (encounterRows.length) {
+        // Calculate quantity (simple estimate: duration * frequency parts)
+        const days = parseInt(item.duration) || 1;
+        const freq = (item.frequency || "1-0-1").split('-').length || 3;
+        const qty = days * freq;
+
+        await req.prisma.$executeRawUnsafe(`
+          INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price)
+          VALUES ('${encounterRows[0].patient_id}', '${s(req.params.id)}', 'PHARMACY', '${s(prescription[0].id)}', 'Medicine: ${s(item.name)}', ${qty}, ${price})
+        `);
+      }
     }
 
-    res.status(201).json({ message: "Prescription saved", id: prescription[0].id });
+    res.status(201).json({ message: "Prescription saved and queued for billing", id: prescription[0].id });
   } catch (error) { next(error); }
 });
 
@@ -812,13 +930,23 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
     if (!encounterRows.length) return res.status(404).json({ error: "Encounter not found" });
 
     for (const diagnosticId of req.body.diagnosticIds || []) {
-      await req.prisma.$executeRawUnsafe(`
+      const diag = await req.prisma.$queryRawUnsafe(`SELECT name, price FROM "${req.schemaName}".diagnostics WHERE id = '${s(diagnosticId)}'`);
+      const price = Number(diag[0]?.price || 0);
+
+      const labOrder = await req.prisma.$queryRawUnsafe(`
         INSERT INTO "${req.schemaName}".lab_orders (patient_id, encounter_id, doctor_id, diagnostic_id, status, priority)
         VALUES ('${encounterRows[0].patient_id}', '${s(req.params.id)}', '${encounterRows[0].doctor_id}', '${s(diagnosticId)}', 'Pending', 'Normal')
+        RETURNING id
+      `);
+
+      // Add to billing queue
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price)
+        VALUES ('${encounterRows[0].patient_id}', '${s(req.params.id)}', 'LAB', '${s(labOrder[0].id)}', 'Lab: ${s(diag[0]?.name)}', 1, ${price})
       `);
     }
 
-    res.status(201).json({ message: "Lab orders created" });
+    res.status(201).json({ message: "Lab orders created and queued for billing" });
   } catch (error) { next(error); }
 });
 

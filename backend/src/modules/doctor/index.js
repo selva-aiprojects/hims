@@ -21,26 +21,108 @@ router.get("/:doctorId/availability", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Set bulk doctor availability (Leave Management / Block Multiple)
+router.post("/:doctorId/bulk-availability", async (req, res, next) => {
+  try {
+    const { doctorId } = req.params;
+    const { dates, startTime, endTime, isAvailable } = req.body;
+    
+    if (!Array.isArray(dates) || dates.length === 0) {
+      return res.status(400).json({ error: "Dates array is required" });
+    }
+
+    // Schema Healing: Ensure the table and unique constraint exist
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".doctor_availability (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        doctor_id UUID NOT NULL,
+        date DATE NOT NULL,
+        start_time TIME NOT NULL,
+        end_time TIME NOT NULL,
+        is_available BOOLEAN DEFAULT true,
+        recurring_pattern VARCHAR(100),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // Ensure UNIQUE constraint for ON CONFLICT to work
+    try {
+      await req.prisma.$executeRawUnsafe(`
+        ALTER TABLE "${req.schemaName}".doctor_availability 
+        ADD CONSTRAINT doctor_avail_unique UNIQUE (doctor_id, date, start_time)
+      `);
+    } catch (e) {
+      // Ignore if constraint already exists
+    }
+
+    const values = [];
+    let curH = parseInt(startTime.split(':')[0]);
+    let curM = parseInt(startTime.split(':')[1]);
+    const endH = parseInt(endTime.split(':')[0]);
+    const endM = parseInt(endTime.split(':')[1]);
+
+    const timeSlots = [];
+    while (curH < endH || (curH === endH && curM < endM)) {
+      const slotStart = `${curH.toString().padStart(2, '0')}:${curM.toString().padStart(2, '0')}:00`;
+      curM += 30;
+      if (curM >= 60) { curM = 0; curH++; }
+      const slotEnd = `${curH.toString().padStart(2, '0')}:${curM.toString().padStart(2, '0')}:00`;
+      timeSlots.push({ start: slotStart, end: slotEnd });
+    }
+
+    for (const d of dates) {
+      for (const slot of timeSlots) {
+        values.push(`('${doctorId}', '${d}', '${slot.start}', '${slot.end}', ${isAvailable ? 'TRUE' : 'FALSE'})`);
+      }
+    }
+
+    if (values.length > 0) {
+      const query = `
+        INSERT INTO "${req.schemaName}".doctor_availability 
+        (doctor_id, date, start_time, end_time, is_available)
+        VALUES ${values.join(',')}
+        ON CONFLICT (doctor_id, date, start_time) 
+        DO UPDATE SET 
+          is_available = EXCLUDED.is_available,
+          end_time = EXCLUDED.end_time,
+          updated_at = NOW()
+      `;
+      await req.prisma.$executeRawUnsafe(query);
+    }
+    
+    res.json({ message: `Successfully updated availability for ${dates.length} days.` });
+  } catch (error) { 
+    console.error("[DOCTOR_AVAILABILITY] Bulk Update Failed:", error.message);
+    res.status(500).json({ error: "Database Sync Failed", details: error.message });
+  }
+});
+
 // Set doctor availability
 router.post("/:doctorId/availability", async (req, res, next) => {
   try {
     const { doctorId } = req.params;
     const { date, startTime, endTime, isAvailable, recurringPattern } = req.body;
     
+    // Use parameterized query for safety
     const result = await req.prisma.$queryRawUnsafe(`
       INSERT INTO "${req.schemaName}".doctor_availability 
       (doctor_id, date, start_time, end_time, is_available, recurring_pattern)
-      VALUES ('${doctorId}', '${date}', '${startTime}', '${endTime}', ${isAvailable}, ${recurringPattern || 'NULL'})
+      VALUES ($1::uuid, $2::date, $3::time, $4::time, $5::boolean, $6)
       ON CONFLICT (doctor_id, date, start_time) 
       DO UPDATE SET
-        end_time = '${endTime}',
-        is_available = ${isAvailable},
-        recurring_pattern = ${recurringPattern || 'NULL'}
+        end_time = EXCLUDED.end_time,
+        is_available = EXCLUDED.is_available,
+        recurring_pattern = EXCLUDED.recurring_pattern,
+        updated_at = NOW()
       RETURNING *
-    `);
+    `, doctorId, date, startTime, endTime, isAvailable, recurringPattern || null);
     
     res.status(201).json(result[0]);
-  } catch (error) { next(error); }
+  } catch (error) { 
+    console.error("[AVAILABILITY_ERROR]", error.message);
+    res.status(500).json({ error: "Failed to update availability", details: error.message });
+  }
 });
 
 // Update doctor availability

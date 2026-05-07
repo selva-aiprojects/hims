@@ -25,8 +25,17 @@ export default function StaffManagementPage() {
     qualifications: '',
     experience_years: '',
     specialization: '',
-    department: ''
+    department: '',
+    gender: 'Male',
+    dob: '',
+    doj: ''
   });
+
+  const SPECIALIZATIONS = [
+    'General Physician', 'Cardiology', 'Dermatology', 'ENT', 'Gastroenterology', 
+    'Gynecology', 'Nephrology', 'Neurology', 'Oncology', 'Ophthalmology', 
+    'Orthopedics', 'Pediatrics', 'Psychiatry', 'Radiology', 'Surgery', 'Urology'
+  ];
 
   // All valid system roles
   const ROLES = [
@@ -91,7 +100,10 @@ export default function StaffManagementPage() {
       qualifications: '',
       experience_years: '',
       specialization: '',
-      department: ''
+      department: '',
+      gender: 'Male',
+      dob: '',
+      doj: ''
     });
     setIsEditing(false);
     setShowModal(true);
@@ -108,11 +120,31 @@ export default function StaffManagementPage() {
       qualifications: member.qualifications || '',
       experience_years: member.experience_years || '',
       specialization: member.specialization || '',
-      department: member.department || ''
+      department: member.department || '',
+      gender: member.gender || 'Male',
+      dob: member.dob ? new Date(member.dob).toISOString().split('T')[0] : '',
+      doj: member.doj ? new Date(member.doj).toISOString().split('T')[0] : ''
     });
     setEditId(member.id);
     setIsEditing(true);
     setShowModal(true);
+  };
+
+  const handleDobChange = (val: string) => {
+    setFormData(prev => {
+      const newData = { ...prev, dob: val };
+      if (val) {
+        const birthDate = new Date(val);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+          age--;
+        }
+        newData.age = String(age);
+      }
+      return newData;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -246,7 +278,8 @@ export default function StaffManagementPage() {
                     <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>STAFF NAME</th>
                     <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>EMAIL / ROLE</th>
                     <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>DETAILS</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>JOINED</th>
+                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>GENDER / DOB</th>
+                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>JOINED (DOJ)</th>
                     <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ACTIONS</th>
                   </tr>
                 </thead>
@@ -286,8 +319,17 @@ export default function StaffManagementPage() {
                           </>
                         )}
                       </td>
-                      <td style={{ padding: '16px 24px', color: '#94a3b8', fontSize: '13px' }}>
-                        {member.created_at ? new Date(member.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600 }}>{member.gender || 'N/A'}</div>
+                        <div style={{ fontSize: '12px', color: '#64748b' }}>
+                          {member.dob ? new Date(member.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'DOB: N/A'}
+                        </div>
+                      </td>
+                      <td style={{ padding: '16px 24px' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                          {member.doj ? new Date(member.doj).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Created: {new Date(member.created_at).toLocaleDateString()}</div>
                       </td>
                       <td style={{ padding: '16px 24px' }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
@@ -355,7 +397,7 @@ export default function StaffManagementPage() {
 
         {showModal && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
               <h2 style={{ marginBottom: '24px', fontSize: '20px', fontWeight: 800 }}>{isEditing ? 'Edit Staff Member' : 'Add Staff Member'}</h2>
               <form onSubmit={handleSubmit}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -400,13 +442,37 @@ export default function StaffManagementPage() {
                 <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '24px 0' }} />
                 
                 <h3 style={{ fontSize: '14px', fontWeight: 800, marginBottom: '16px', color: '#1e293b' }}>Professional Details</h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Gender</label>
+                    <select 
+                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Date of Birth</label>
+                    <input 
+                      type="date" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.dob} onChange={e => handleDobChange(e.target.value)}
+                    />
+                  </div>
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Age</label>
                     <input 
                       type="number" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
                       value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Date of Joining</label>
+                    <input 
+                      type="date" style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
+                      value={formData.doj} onChange={e => setFormData({...formData, doj: e.target.value})}
                     />
                   </div>
                   <div>
@@ -437,11 +503,16 @@ export default function StaffManagementPage() {
                       />
                     </div>
                     <div>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Specialization (Dept)</label>
-                      <input 
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#64748b', marginBottom: '8px' }}>Specialization</label>
+                      <select 
                         style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} 
                         value={formData.specialization} onChange={e => setFormData({...formData, specialization: e.target.value})}
-                      />
+                      >
+                        <option value="">Select Specialization</option>
+                        {SPECIALIZATIONS.map(spec => (
+                          <option key={spec} value={spec}>{spec}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 ) : (

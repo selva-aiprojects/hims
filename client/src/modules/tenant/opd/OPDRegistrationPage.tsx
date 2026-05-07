@@ -49,8 +49,11 @@ export default function OPDRegistrationPage() {
         axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
         axios.get(`${API_BASE}/api/hospital/encounters?status=Draft`, { headers })
       ]);
-      setDoctors(docRes.data);
-      setRecentQueue(queueRes.data.slice(0, 5));
+      const allDocs = docRes.data || [];
+      // Trust the /doctors endpoint but keep a safety filter if role is present
+      const filteredDocs = allDocs.filter((s: any) => !s.role || s.role.toLowerCase() === 'doctor');
+      setDoctors(filteredDocs);
+      setRecentQueue((queueRes.data || []).slice(0, 5));
     } catch (err) { console.error(err); }
   };
 
@@ -63,9 +66,19 @@ export default function OPDRegistrationPage() {
     try {
       const res = await axios.get(`${API_BASE}/api/patients?search=${val}`, { headers });
       setSearchResults(res.data);
-      // Auto-expand registration if absolutely no matches
-      if (res.data.length === 0) setShowFullReg(true);
-      else setShowFullReg(false);
+      
+      // AUTO-FILL LOGIC: If no matches, help the user by pre-filling the registration fields
+      if (res.data.length === 0) {
+        setShowFullReg(true);
+        const isPhone = /^\d+$/.test(val);
+        if (isPhone) {
+          setRegData(prev => ({ ...prev, phone: val, name: prev.name }));
+        } else {
+          setRegData(prev => ({ ...prev, name: val, phone: prev.phone }));
+        }
+      } else {
+        setShowFullReg(false);
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -73,7 +86,22 @@ export default function OPDRegistrationPage() {
     setSelectedPatient(p);
     setSearchResults([]);
     setSearchTerm(p.name);
-    setShowFullReg(false);
+    // Load existing data into the form for verification
+    setRegData({
+      name: p.name || '',
+      phone: p.phone || '',
+      email: p.email || '',
+      dob: p.dob ? p.dob.split('T')[0] : '',
+      gender: p.gender || 'Male',
+      blood_group: p.blood_group || '',
+      occupation: p.occupation || '',
+      address: p.address || '',
+      guardian_name: p.guardian_name || '',
+      guardian_phone: p.guardian_phone || '',
+      medical_history: p.medical_history || '',
+      allergies: p.allergies || ''
+    });
+    setShowFullReg(true); // Keep visible so user can verify info
   };
 
   const registerAndQueue = async () => {
@@ -160,26 +188,31 @@ export default function OPDRegistrationPage() {
               {searchResults.length > 0 && (
                 <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '18px', overflow: 'hidden', marginBottom: '24px', boxShadow: '0 12px 20px -5px rgba(0,0,0,0.1)' }}>
                   {searchResults.map(p => (
-                    <div
+                    <button
                       key={p.id}
-                      role="button"
-                      tabIndex={0}
+                      type="button"
                       onClick={() => selectPatient(p)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          selectPatient(p);
-                        }
+                      style={{ 
+                        width: '100%',
+                        padding: '16px 24px', 
+                        borderBottom: '1px solid #f1f5f9', 
+                        cursor: 'pointer', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        background: 'none',
+                        borderLeft: 'none',
+                        borderRight: 'none',
+                        textAlign: 'left'
                       }}
-                      style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                       className="hover-light"
                     >
                        <div>
-                          <div style={{ fontWeight: 800, fontSize: '15px' }}>{p.name}</div>
+                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#1e293b' }}>{p.name}</div>
                           <div style={{ fontSize: '12px', color: '#64748b' }}>{p.mrn} • {p.phone} • {p.blood_group || 'N/A'}</div>
                        </div>
                        <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>SELECT</div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -280,21 +313,16 @@ export default function OPDRegistrationPage() {
                <label className="field-label" style={{ marginBottom: '16px' }}>SELECT CONSULTING DOCTOR</label>
                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                  {doctors.map(d => (
-                   <div 
+                   <button 
                     key={d.id} 
-                    role="button"
-                    tabIndex={0}
+                    type="button"
                     onClick={() => setSelectedDoctorId(d.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedDoctorId(d.id);
-                      }
-                    }}
                     style={{ 
+                      width: '100%',
                       padding: '20px', borderRadius: '20px', border: `2px solid ${selectedDoctorId === d.id ? '#3b82f6' : '#f1f5f9'}`, 
                       background: selectedDoctorId === d.id ? '#f0f9ff' : 'white', cursor: 'pointer', transition: '0.2s',
-                      display: 'flex', alignItems: 'center', gap: '16px'
+                      display: 'flex', alignItems: 'center', gap: '16px',
+                      textAlign: 'left'
                     }}
                   >
                      <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: selectedDoctorId === d.id ? '#3b82f6' : '#f8fafc', color: selectedDoctorId === d.id ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -305,7 +333,7 @@ export default function OPDRegistrationPage() {
                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{d.specialization || d.department || 'General Physician'}</div>
                      </div>
                      {selectedDoctorId === d.id && <CheckCircle2 size={20} style={{ color: '#3b82f6' }} />}
-                   </div>
+                   </button>
                  ))}
                </div>
             </div>

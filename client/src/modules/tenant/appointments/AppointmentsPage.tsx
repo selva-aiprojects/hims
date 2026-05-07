@@ -26,12 +26,14 @@ export default function AppointmentsPage() {
     try {
       const [apptRes, docRes, patRes] = await Promise.all([
         axios.get(`${API_BASE}/api/appointments`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/staff`, { headers }),
-        axios.get(`${API_BASE}/api/patients?limit=50`, { headers })
+        axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
+        axios.get(`${API_BASE}/api/patients?limit=100`, { headers })
       ]);
-      setAppointments(apptRes.data);
-      setDoctors(docRes.data.filter((s: any) => s.role === 'doctor' || s.role === 'DOCTOR'));
-      setPatients(patRes.data);
+      setAppointments(apptRes.data || []);
+      const allDocs = docRes.data || [];
+      // Trust the /doctors endpoint, but keep safety filter if role is present
+      setDoctors(allDocs.filter((s: any) => !s.role || s.role.toLowerCase() === 'doctor'));
+      setPatients(patRes.data || []);
     } catch (err) { 
       console.error(err); 
     } finally { 
@@ -347,6 +349,18 @@ export default function AppointmentsPage() {
                       <option value="">Search or select patient...</option>
                       {patients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
                     </select>
+                    {patients.length === 0 && (
+                      <div style={{ marginTop: '12px', padding: '12px', background: '#fef2f2', borderRadius: '12px', border: '1px solid #fee2e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 700 }}>No patients found.</span>
+                        <button 
+                          type="button"
+                          onClick={() => window.location.href = '/tenant/opd/registration'}
+                          style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}
+                        >
+                          + REGISTER
+                        </button>
+                      </div>
+                    )}
                     <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                       <Users size={18} color="#94a3b8" />
                     </div>

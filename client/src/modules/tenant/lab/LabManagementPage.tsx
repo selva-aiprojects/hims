@@ -199,9 +199,16 @@ export default function LabManagementPage() {
                           </td>
                           <td style={{ padding: '20px 32px' }}>
                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {o.priority === 'Urgent' && (
-                                   <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fee2e2', padding: '2px 8px', borderRadius: '6px', width: 'fit-content' }}>⚡ URGENT</span>
-                                )}
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                  {o.priority === 'Urgent' && (
+                                     <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fee2e2', padding: '2px 8px', borderRadius: '6px' }}>⚡ URGENT</span>
+                                  )}
+                                  {o.is_paid ? (
+                                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', background: '#f0fdf4', padding: '2px 8px', borderRadius: '6px', border: '1px solid #dcfce7' }}>✓ PAID</span>
+                                  ) : (
+                                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>UNPAID</span>
+                                  )}
+                                </div>
                                 <span style={{ 
                                   fontSize: '11px', fontWeight: 900, color: statusCfg.color, background: statusCfg.bg, 
                                   padding: '4px 12px', borderRadius: '20px', display: 'inline-flex', alignItems: 'center', gap: '6px', width: 'fit-content'
@@ -222,11 +229,24 @@ export default function LabManagementPage() {
                                <button disabled style={{ padding: '10px 20px', background: '#f1f5f9', color: '#94a3b8', border: 'none', borderRadius: '12px', fontWeight: 800, fontSize: '12px' }}>PUBLISHED</button>
                              ) : (
                                <button 
-                                 onClick={() => setActiveOrder(o)}
-                                 style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
-                               >
-                                 {curStatus === 'pending' ? 'START WORKFLOW' : 'MANAGE TEST'}
-                               </button>
+                                 onClick={() => {
+                                   if (!o.is_paid) {
+                                     navigate('/billing', { state: { 
+                                       billType: 'LAB', 
+                                       totalAmount: Number(o.price || 0),
+                                       patientName: o.patient_name,
+                                       patientId: o.patient_id,
+                                       encounterId: o.encounter_id,
+                                       labOrderId: o.id
+                                     } });
+                                   } else {
+                                     setActiveOrder(o);
+                                   }
+                                 }}
+                                 style={{ padding: '10px 20px', background: o.is_paid ? '#3b82f6' : '#0d9488', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, fontSize: '12px', cursor: 'pointer' }}
+                                >
+                                  {!o.is_paid ? 'COLLECT PAYMENT' : curStatus === 'pending' ? 'START WORKFLOW' : 'MANAGE TEST'}
+                                </button>
                              )}
                           </td>
                         </tr>

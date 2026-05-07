@@ -4,7 +4,10 @@ const upload = require("../../config/upload");
 const aiService = require("../../services/aiService");
 
 async function ensurePatientColumns(req) {
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS mrn VARCHAR(20)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS age INTEGER DEFAULT 0`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS dob DATE`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS occupation VARCHAR(100)`);
@@ -19,6 +22,7 @@ async function ensurePatientColumns(req) {
 
 router.get("/", async (req, res, next) => {
   try {
+    await ensurePatientColumns(req);
     const search = req.query.search || '';
     const query = search 
       ? `SELECT * FROM "${req.schemaName}".patients WHERE name ILIKE '%${search}%' OR phone ILIKE '%${search}%' OR mrn ILIKE '%${search}%' ORDER BY name ASC`

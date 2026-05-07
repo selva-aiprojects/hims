@@ -64,19 +64,6 @@ export default function PrescriptionQueue() {
       alert("Medication dispensed successfully!");
       setActivePrescription(null);
       fetchData();
-      
-      if (confirm("Would you like to generate the pharmacy bill now?")) {
-        const total = selectedItems.reduce((acc, i) => acc + (i.unitPrice * i.quantity), 0);
-        navigate('/billing', { 
-          state: { 
-            billType: 'PHARMACY', 
-            totalAmount: total,
-            patientName: activePrescription.patient_name,
-            patientId: activePrescription.patient_id,
-            encounterId: activePrescription.encounter_id
-          } 
-        });
-      }
     } catch (err) { alert("Dispensing failed. Check stock levels."); }
   };
 
@@ -114,14 +101,26 @@ export default function PrescriptionQueue() {
                         <div style={{ fontSize: '11px', color: '#94a3b8' }}>General Medicine</div>
                      </td>
                      <td style={{ padding: '20px 24px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 900, color: '#f59e0b', background: '#fffbeb', padding: '4px 12px', borderRadius: '20px' }}>PENDING</span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#f59e0b', background: '#fffbeb', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fef3c7' }}>PENDING</span>
+                          {p.is_paid ? (
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', background: '#f0fdf4', padding: '4px 10px', borderRadius: '20px', border: '1px solid #dcfce7' }}>✓ PAID</span>
+                          ) : (
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fef2f2', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fee2e2' }}>UNPAID</span>
+                          )}
+                        </div>
                      </td>
                      <td style={{ padding: '20px 24px', textAlign: 'right' }}>
                         <button 
                           onClick={() => startDispensing(p)}
-                          style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer' }}
+                          style={{ 
+                            padding: '10px 24px', 
+                            background: p.is_paid ? '#3b82f6' : '#94a3b8', 
+                            color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer',
+                            opacity: p.is_paid ? 1 : 0.7
+                          }}
                         >
-                           Dispense
+                           {p.is_paid ? 'Dispense' : 'View Order'}
                         </button>
                      </td>
                    </tr>

@@ -49,11 +49,12 @@ export default function DoctorAvailabilityPage() {
   const fetchInitialData = async () => {
     try {
       const [docRes, patRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/hospital/staff`, { headers }),
-        axios.get(`${API_BASE}/api/patients?limit=100`, { headers })
+        axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
+        axios.get(`${API_BASE}/api/patients?limit=200`, { headers })
       ]);
       
-      const doctorList = docRes.data.filter((s: any) => s.role === 'doctor' || s.role === 'DOCTOR');
+      const allDocs = docRes.data || [];
+      const doctorList = allDocs.filter((s: any) => !s.role || s.role.toLowerCase() === 'doctor');
       setDoctors(doctorList);
       setPatients(patRes.data || []);
       
@@ -81,26 +82,52 @@ export default function DoctorAvailabilityPage() {
       end.setDate(end.getDate() + 7);
 
       const response = await axios.get(
-        `${API_BASE}/api/doctors/${selectedDoctor.id}/schedule?startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`,
+        `${API_BASE}/api/doctors/${selectedDoctor.id}/schedule?startDate=${start.toLocaleDateString('en-CA')}&endDate=${end.toLocaleDateString('en-CA')}`,
         { headers }
       );
       setAppointments(response.data.appointments || []);
-      setAvailability(response.data.availability || []);
+      // Pre-process availability for faster matching
+      const rawAvail = response.data.availability || [];
+      console.log("RAW AVAILABILITY FROM DB:", rawAvail);
+
+      const processedAvail = rawAvail.map((a: any) => {
+        let ts = "00:00";
+        try {
+          const rawTime = String(a.start_time || "");
+          // Look for HH:MM anywhere in the string
+          const match = rawTime.match(/(\d{2}:\d{2})/);
+          ts = match ? match[1] : "00:00";
+        } catch (e) { console.error("Time Parse Error:", e); }
+
+        let ds = "1970-01-01";
+        try {
+          const rawDate = String(a.date || "");
+          const match = rawDate.match(/(\d{4}-\d{2}-\d{2})/);
+          ds = match ? match[1] : "1970-01-01";
+        } catch (e) { console.error("Date Parse Error:", e); }
+        
+        return { ...a, dateStr: ds, timeStr: ts };
+      });
+
+      console.log("PROCESSED AVAILABILITY:", processedAvail);
+      setAvailability(processedAvail);
     } catch (err) {
-      console.error(err);
+      console.error("Fetch Schedule Error:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
   const toggleBlockSlot = async (time: string, date: Date) => {
     try {
-      const dateStr = date.toISOString().split('T')[0];
-      const existing = availability.find(a => a.date.split('T')[0] === dateStr && a.start_time === time);
+      const dateStr = date.toLocaleDateString('en-CA');
+      const existing = availability.find(a => a.dateStr === dateStr && a.timeStr === time);
       
       const payload = {
         date: dateStr,
         startTime: time,
         endTime: calculateEndTime(time),
-        isAvailable: existing ? !existing.is_available : false // If doesn't exist, we are blocking it (false)
+        isAvailable: existing ? !existing.is_available : false 
       };
 
       await axios.post(`${API_BASE}/api/doctors/${selectedDoctor.id}/availability`, payload, { headers });
@@ -108,6 +135,85 @@ export default function DoctorAvailabilityPage() {
     } catch (err) {
       console.error(err);
       alert("Failed to update availability");
+    }
+  };
+
+  const blockBulk = async (type: 'day' | 'week') => {
+    if (!selectedDoctor) return;
+    const confirmMsg = type === 'day' 
+      ? "Are you sure you want to block the ENTIRE current day for appointments?" 
+      : "Are you sure you want to block the ENTIRE current week for appointments?";
+    
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const dates = [];
+      if (type === 'day') {
+        const selDate = currentDate.toLocaleDateString('en-CA');
+        if (selDate < todayStr) {
+          alert("Cannot block dates in the past.");
+          return;
+        }
+        dates.push(selDate);
+      } else {
+        const start = new Date(currentDate);
+        start.setDate(start.getDate() - start.getDay());
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(start);
+          d.setDate(d.getDate() + i);
+          const dStr = d.toLocaleDateString('en-CA');
+          if (dStr >= todayStr) {
+            dates.push(dStr);
+          }
+        }
+      }
+
+      if (dates.length === 0) {
+        alert("No valid future dates selected to block.");
+        return;
+      }
+
+      await axios.post(`${API_BASE}/api/doctors/${selectedDoctor.id}/bulk-availability`, {
+        dates,
+        startTime: "08:00",
+        endTime: "20:00",
+        isAvailable: false
+      }, { headers });
+
+      alert(`Successfully blocked the entire ${type}!`);
+      fetchSchedule();
+    } catch (err: any) {
+      console.error("Bulk Block Error:", err.response?.data || err.message);
+      alert(`Failed to block bulk slots: ${err.response?.data?.error || err.message}`);
+    }
+  };
+
+  const blockBulkHours = async (start: string, end: string) => {
+    if (!selectedDoctor) return;
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const selDate = currentDate.toLocaleDateString('en-CA');
+
+    if (selDate < todayStr) {
+      alert("Cannot block slots for past dates.");
+      return;
+    }
+
+    if (!window.confirm(`Block appointments from ${start} to ${end} on ${currentDate.toLocaleDateString()}?`)) return;
+
+    try {
+      await axios.post(`${API_BASE}/api/doctors/${selectedDoctor.id}/bulk-availability`, {
+        dates: [currentDate.toLocaleDateString('en-CA')],
+        startTime: start,
+        endTime: end,
+        isAvailable: false
+      }, { headers });
+
+      alert(`Successfully blocked hours: ${start} - ${end}`);
+      fetchSchedule();
+    } catch (err: any) {
+      console.error("Hour Block Error:", err.response?.data || err.message);
+      alert(`Failed to block hours: ${err.response?.data?.error || err.message}`);
     }
   };
 
@@ -227,7 +333,11 @@ export default function DoctorAvailabilityPage() {
                         cursor: 'pointer'
                       }}
                     >
-                      {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
+                      {doctors.map(d => (
+                          <option key={d.id} value={d.id}>
+                            {d.name.toLowerCase().startsWith('dr.') ? d.name : `Dr. ${d.name}`}
+                          </option>
+                        ))}
                     </select>
                     <ChevronDown size={14} style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#64748b' }} />
                   </div>
@@ -280,154 +390,249 @@ export default function DoctorAvailabilityPage() {
               animation: 'fadeIn 0.3s ease'
             }}>
               <AlertCircle size={20} color="#e11d48" />
-              <div style={{ fontSize: '14px', color: '#9f1239', fontWeight: 700 }}>
-                <strong>Unavailability Mode Active:</strong> Click any slot to toggle its availability. Blocked slots will appear red and cannot be booked.
+              <div style={{ fontSize: '14px', color: '#9f1239', fontWeight: 700, flex: 1 }}>
+                <strong>Unavailability Mode Active:</strong> Click any slot to toggle its availability.
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button 
+                  onClick={() => blockBulk('day')}
+                  style={{ background: '#be123c', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                >
+                  BLOCK FULL DAY
+                </button>
+                <button 
+                  onClick={() => blockBulk('week')}
+                  style={{ background: '#9f1239', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                >
+                  BLOCK FULL WEEK
+                </button>
+
+                <div style={{ marginLeft: '12px', paddingLeft: '12px', borderLeft: '1px solid #fda4af', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#9f1239' }}>HOURS:</span>
+                  <select id="bulk-start" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #fda4af', fontSize: '11px', fontWeight: 700, color: '#9f1239', background: 'white' }}>
+                    {Array.from({length: 25}, (_, i) => `${i.toString().padStart(2, '0')}:00`).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <span style={{ fontSize: '11px', color: '#9f1239' }}>TO</span>
+                  <select id="bulk-end" style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #fda4af', fontSize: '11px', fontWeight: 700, color: '#9f1239', background: 'white' }}>
+                    {Array.from({length: 25}, (_, i) => `${i.toString().padStart(2, '0')}:00`).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <button 
+                    onClick={() => {
+                      const s = (document.getElementById('bulk-start') as HTMLSelectElement).value;
+                      const e = (document.getElementById('bulk-end') as HTMLSelectElement).value;
+                      blockBulkHours(s, e);
+                    }}
+                    style={{ background: '#e11d48', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    BLOCK HOURS
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Calendar Grid */}
-          <div style={{ 
-            background: 'white', 
-            borderRadius: '32px', 
-            overflow: 'hidden', 
-            boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
-            border: '1px solid #eef2f6'
-          }}>
-            {/* Grid Header */}
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: '100px repeat(7, 1fr)', 
-              background: '#fcfdfe',
-              borderBottom: '1px solid #f1f5f9'
-            }}>
-              <div style={{ padding: '24px', borderRight: '1px solid #f1f5f9' }}></div>
-              {weekDates.map((date, i) => {
-                const isToday = date.toDateString() === new Date().toDateString();
-                return (
-                  <div key={i} style={{ 
-                    padding: '20px 12px', 
-                    textAlign: 'center', 
-                    borderRight: i < 6 ? '1px solid #f1f5f9' : 'none',
-                    background: isToday ? 'rgba(14, 165, 233, 0.04)' : 'transparent'
-                  }}>
-                    <span style={{ fontSize: '11px', fontWeight: 800, color: isToday ? '#0ea5e9' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
-                    </span>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: isToday ? '#0ea5e9' : '#1e293b', marginTop: '2px' }}>{date.getDate()}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Grid Body */}
-            <div style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
-              {timeSlots.map((time, slotIdx) => (
-                <div key={slotIdx} style={{ 
+          {/* Main Layout: Calendar + Sidebar */}
+          <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+            {/* Calendar Grid (70%) */}
+            <div style={{ flex: 1 }}>
+              <div style={{ 
+                background: 'white', 
+                borderRadius: '32px', 
+                overflow: 'hidden', 
+                boxShadow: '0 10px 30px rgba(0,0,0,0.04)',
+                border: '1px solid #eef2f6'
+              }}>
+                {/* Grid Header */}
+                <div style={{ 
                   display: 'grid', 
-                  gridTemplateColumns: '100px repeat(7, 1fr)',
-                  borderBottom: '1px solid #f8fafc'
+                  gridTemplateColumns: '100px repeat(7, 1fr)', 
+                  background: '#fcfdfe',
+                  borderBottom: '1px solid #f1f5f9'
                 }}>
-                  <div style={{ 
-                    padding: '12px 8px', 
-                    textAlign: 'center', 
-                    fontSize: '12px', 
-                    fontWeight: 700, 
-                    color: '#cbd5e1',
-                    background: '#fcfdfe',
-                    borderRight: '1px solid #f1f5f9',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>{time}</div>
-                  
-                  {weekDates.map((date, dayIdx) => {
-                    const dateStr = date.toISOString().split('T')[0];
+                  <div style={{ padding: '24px', borderRight: '1px solid #f1f5f9' }}></div>
+                  {weekDates.map((date, i) => {
                     const isToday = date.toDateString() === new Date().toDateString();
-                    
-                    const appt = appointments.find(a => 
-                      new Date(a.appointment_time).getHours() === parseInt(time.split(':')[0]) &&
-                      new Date(a.appointment_time).getMinutes() === parseInt(time.split(':')[1]) &&
-                      new Date(a.appointment_time).toDateString() === date.toDateString()
-                    );
-
-                    const block = availability.find(a => 
-                      a.date.split('T')[0] === dateStr && 
-                      a.start_time === time && 
-                      !a.is_available
-                    );
-                    
                     return (
-                      <div key={dayIdx} style={{ 
-                        padding: '4px', 
-                        borderRight: dayIdx < 6 ? '1px solid #f8fafc' : 'none',
-                        background: isToday ? 'rgba(14, 165, 233, 0.02)' : 'transparent'
+                      <div key={i} style={{ 
+                        padding: '20px 12px', 
+                        textAlign: 'center', 
+                        borderRight: i < 6 ? '1px solid #f1f5f9' : 'none',
+                        background: isToday ? 'rgba(14, 165, 233, 0.04)' : 'transparent'
                       }}>
-                        {appt ? (
-                          <div style={{
-                            background: 'linear-gradient(135deg, #0ea5e9, #3b82f6)',
-                            color: 'white',
-                            padding: '8px 12px',
-                            borderRadius: '10px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center'
-                          }}>
-                            {appt.patient_name}
-                          </div>
-                        ) : block ? (
-                          <div 
-                            onClick={() => blockMode && toggleBlockSlot(time, date)}
-                            style={{
-                              background: '#fee2e2',
-                              border: '1px solid #fca5a5',
-                              color: '#b91c1c',
-                              borderRadius: '10px',
-                              height: '100%',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: blockMode ? 'pointer' : 'default'
-                            }}
-                          >
-                            <X size={14} />
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={() => {
-                              if (blockMode) {
-                                toggleBlockSlot(time, date);
-                              } else {
-                                setSelectedTime(time);
-                                setSelectedDate(date);
-                                setShowBookingModal(true);
-                              }
-                            }}
-                            className="slot-btn"
-                            style={{
-                              width: '100%',
-                              height: '40px',
-                              borderRadius: '10px',
-                              border: '1px dashed #e2e8f0',
-                              background: 'transparent',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#cbd5e1',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <Plus size={16} />
-                          </button>
-                        )}
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: isToday ? '#0ea5e9' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
+                        </span>
+                        <div style={{ fontSize: '22px', fontWeight: 900, color: isToday ? '#0ea5e9' : '#1e293b', marginTop: '2px' }}>{date.getDate()}</div>
                       </div>
                     );
                   })}
                 </div>
-              ))}
+
+                {/* Grid Body */}
+                <div style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
+                  {timeSlots.map((time, slotIdx) => (
+                    <div key={slotIdx} style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: '100px repeat(7, 1fr)',
+                      borderBottom: '1px solid #f8fafc'
+                    }}>
+                      <div style={{ 
+                        padding: '12px 8px', 
+                        textAlign: 'center', 
+                        fontSize: '12px', 
+                        fontWeight: 700, 
+                        color: '#cbd5e1',
+                        background: '#fcfdfe',
+                        borderRight: '1px solid #f1f5f9',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>{time}</div>
+                      
+                      {weekDates.map((date, dayIdx) => {
+                        const dateStr = date.toLocaleDateString('en-CA');
+                        const isToday = date.toDateString() === new Date().toDateString();
+                        
+                        const appt = appointments.find(a => 
+                          new Date(a.appointment_time).getHours() === parseInt(time.split(':')[0]) &&
+                          new Date(a.appointment_time).getMinutes() === parseInt(time.split(':')[1]) &&
+                          new Date(a.appointment_time).toDateString() === date.toDateString()
+                        );
+
+                        const block = availability.find(a => 
+                          a.dateStr === dateStr && a.timeStr === time && !a.is_available
+                        );
+                        
+                        return (
+                          <div key={dayIdx} style={{ 
+                            padding: '4px', 
+                            borderRight: dayIdx < 6 ? '1px solid #f8fafc' : 'none',
+                            background: isToday ? 'rgba(14, 165, 233, 0.02)' : 'transparent',
+                            minHeight: '44px'
+                          }}>
+                            {appt ? (
+                              <div style={{
+                                background: 'linear-gradient(135deg, #0ea5e9, #3b82f6)',
+                                color: 'white',
+                                padding: '8px 12px',
+                                borderRadius: '10px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}>
+                                {appt.patient_name}
+                              </div>
+                            ) : block ? (
+                              <div 
+                                onClick={() => blockMode && toggleBlockSlot(time, date)}
+                                style={{
+                                  background: '#fef2f2',
+                                  color: '#ef4444',
+                                  height: '100%',
+                                  borderRadius: '8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  cursor: blockMode ? 'pointer' : 'default',
+                                  border: '1px solid #fee2e2',
+                                  textTransform: 'uppercase'
+                                }}
+                              >
+                                NOT AVAILABLE
+                              </div>
+                            ) : (
+                              <button 
+                                onClick={() => {
+                                  if (blockMode) {
+                                    toggleBlockSlot(time, date);
+                                  } else {
+                                    setSelectedTime(time);
+                                    setSelectedDate(date);
+                                    setShowBookingModal(true);
+                                  }
+                                }}
+                                className="slot-btn"
+                                style={{
+                                  width: '100%',
+                                  height: '40px',
+                                  borderRadius: '10px',
+                                  border: '1px dashed #e2e8f0',
+                                  background: 'transparent',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#cbd5e1',
+                                  transition: 'all 0.2s ease'
+                                }}
+                              >
+                                <Plus size={16} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar: Leave Summary (30%) */}
+            <div style={{ width: '320px', position: 'sticky', top: '24px' }}>
+              <div style={{ background: 'white', borderRadius: '24px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                  <div style={{ background: '#fef2f2', padding: '8px', borderRadius: '10px' }}>
+                    <Lock size={18} color="#ef4444" />
+                  </div>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>Weekly Leave Log</h4>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {availability.filter(a => !a.is_available).length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '13px', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #e2e8f0' }}>
+                      No hours blocked this week.
+                    </div>
+                  ) : (
+                    availability.filter(a => !a.is_available).sort((a,b) => a.dateStr.localeCompare(b.dateStr) || a.timeStr.localeCompare(b.timeStr)).map((a, idx) => (
+                      <div key={idx} style={{ 
+                        padding: '12px 14px', 
+                        background: '#fff1f2', 
+                        borderRadius: '12px', 
+                        border: '1px solid #fda4af',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '10px', fontWeight: 800, color: '#9f1239', textTransform: 'uppercase' }}>
+                            {a.dateStr}
+                          </div>
+                          <div style={{ fontSize: '14px', fontWeight: 700, color: '#e11d48' }}>{a.timeStr}</div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const d = new Date(a.dateStr);
+                            if (!isNaN(d.getTime())) {
+                              toggleBlockSlot(a.timeStr, d);
+                            } else {
+                              console.error("Invalid date for toggle:", a.dateStr);
+                              alert("Cannot toggle: Invalid date format.");
+                            }
+                          }}
+                          style={{ background: 'white', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -468,14 +673,26 @@ export default function DoctorAvailabilityPage() {
                 {/* Right Side: Form */}
                 <div style={{ width: '60%', padding: '40px' }}>
                   <label style={inputLabelStyle}>Select Patient</label>
-                  <select 
-                    value={selectedPatient}
-                    onChange={(e) => setSelectedPatient(e.target.value)}
-                    style={selectStyle}
-                  >
-                    <option value="">Select patient...</option>
-                    {patients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
-                  </select>
+                  {patients.length > 0 ? (
+                    <select 
+                      value={selectedPatient}
+                      onChange={(e) => setSelectedPatient(e.target.value)}
+                      style={selectStyle}
+                    >
+                      <option value="">Select patient...</option>
+                      {patients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
+                    </select>
+                  ) : (
+                    <div style={{ padding: '20px', background: '#fef2f2', borderRadius: '16px', border: '1px solid #fee2e2', textAlign: 'center' }}>
+                      <p style={{ margin: '0 0 12px', fontSize: '13px', color: '#b91c1c', fontWeight: 700 }}>No patients found.</p>
+                      <button 
+                        onClick={() => window.location.href = '/tenant/opd/registration'}
+                        style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+                      >
+                        + REGISTER NEW PATIENT
+                      </button>
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
                     <button onClick={() => setShowBookingModal(false)} style={cancelBtnStyle}>Discard</button>

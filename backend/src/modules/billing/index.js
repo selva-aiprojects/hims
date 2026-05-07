@@ -80,13 +80,19 @@ router.post("/", async (req, res, next) => {
         VALUES ('${invId}', '${item.description.replace(/'/g, "''")}', ${item.quantity}, ${item.unit_price}, ${item.tax_percent || 0}, ${item.amount}, ${item.discount_amount || 0}, ${item.id ? `'${item.id}'` : 'NULL'})
       `);
 
-      // 2. Mark queue item as BILLED if it originated from the clinical queue
+      // 2. Mark queue item as BILLED and sync with source modules
       if (item.id) {
-        await req.prisma.$executeRawUnsafe(`
-          UPDATE "${req.schemaName}".billing_queue 
-          SET status = 'BILLED' 
-          WHERE id = '${item.id}'
-        `);
+        await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".billing_queue SET status = 'BILLED' WHERE id = '${item.id}'`);
+        
+        const qItems = await req.prisma.$queryRawUnsafe(`SELECT source_module, source_id FROM "${req.schemaName}".billing_queue WHERE id = '${item.id}'`);
+        if (qItems.length > 0) {
+          const { source_module, source_id } = qItems[0];
+          if (source_module === 'LAB') {
+            await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".lab_orders SET is_paid = true WHERE diagnostic_id = '${source_id}' OR id = '${source_id}'`);
+          } else if (source_module === 'PHARMACY') {
+            await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".prescriptions SET is_paid = true WHERE id = '${source_id}'`);
+          }
+        }
       }
     }
 
