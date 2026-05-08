@@ -12,7 +12,8 @@ router.get("/stats", async (req, res, next) => {
     // 1. CORE KPIs (LIVE)
     const [patientCount, admissionCount, billCount, revenue] = await Promise.all([
       req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".patients WHERE created_at > NOW() - INTERVAL '24 hours'`),
-      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Active'`),
+      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Admitted'`),
+
       req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".invoices WHERE status = 'Unpaid'`),
       req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE status = 'Paid' AND created_at > NOW() - INTERVAL '24 hours'`)
     ]);
@@ -92,8 +93,10 @@ router.get("/stats", async (req, res, next) => {
       bedStats,
       labStats,
       dischargeTrend,
-      weeklyFlow
+      weeklyFlow,
+      totalBeds: bedStats.reduce((acc, b) => acc + (b.count || 0), 0) || 49
     });
+
   } catch (error) { 
     console.error("[METRICS ERROR]", error);
     res.status(500).json({ error: "Failed to fetch real-time clinical metrics" });

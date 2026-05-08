@@ -103,7 +103,12 @@ app.get("/api/nexus/fix-professional-menus", async (req, res) => {
           CREATE TABLE IF NOT EXISTS "${schema}".rbac_roles (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(50) UNIQUE NOT NULL, created_at TIMESTAMP DEFAULT NOW());
           CREATE TABLE IF NOT EXISTS "${schema}".rbac_menus (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), label VARCHAR(100) NOT NULL, path VARCHAR(100) NOT NULL, icon VARCHAR(50), required_plan VARCHAR(50) DEFAULT 'basic', sort_order INT DEFAULT 0);
           CREATE TABLE IF NOT EXISTS "${schema}".rbac_role_menus (role_id UUID REFERENCES "${schema}".rbac_roles(id), menu_id UUID REFERENCES "${schema}".rbac_menus(id), PRIMARY KEY (role_id, menu_id));
-          INSERT INTO "${schema}".rbac_roles (name) VALUES ('ADMIN'), ('DOCTOR'), ('SUPPORT') ON CONFLICT DO NOTHING;
+          INSERT INTO "${schema}".rbac_roles (name) 
+          SELECT 'ADMIN' WHERE NOT EXISTS (SELECT 1 FROM "${schema}".rbac_roles WHERE name = 'ADMIN')
+          UNION ALL
+          SELECT 'DOCTOR' WHERE NOT EXISTS (SELECT 1 FROM "${schema}".rbac_roles WHERE name = 'DOCTOR') 
+          UNION ALL
+          SELECT 'SUPPORT' WHERE NOT EXISTS (SELECT 1 FROM "${schema}".rbac_roles WHERE name = 'SUPPORT');
         `);
       } catch (e) { console.warn(`RBAC init failed for ${schema}:`, e.message); continue; }
 
@@ -378,7 +383,71 @@ app.get("/api/nexus/fix-billing-infrastructure", async (req, res) => {
   }
 });
 
+
+// Administrative Route to synchronize enterprise scheduling across all shards
+app.get("/api/nexus/fix-enterprise-scheduling", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants`);
+    let updated = 0;
+    
+    for (const t of tenants) {
+      const schema = t.db_name;
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schema}".doctor_schedules (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            doctor_id UUID NOT NULL REFERENCES "${schema}".users(id),
+            weekday INTEGER NOT NULL,
+            session_name VARCHAR(100),
+            start_time TIME NOT NULL,
+            end_time TIME NOT NULL,
+            slot_duration INTEGER DEFAULT 30,
+            consultation_type VARCHAR(50) DEFAULT 'OPD',
+            location VARCHAR(255),
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS "${schema}".doctor_leaves (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            doctor_id UUID NOT NULL REFERENCES "${schema}".users(id),
+            leave_type VARCHAR(50) NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            start_time TIME,
+            end_time TIME,
+            reason TEXT,
+            is_emergency BOOLEAN DEFAULT false,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS "${schema}".doctor_overrides (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            doctor_id UUID NOT NULL REFERENCES "${schema}".users(id),
+            override_date DATE NOT NULL,
+            start_time TIME NOT NULL,
+            end_time TIME NOT NULL,
+            is_available BOOLEAN DEFAULT true,
+            reason TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        updated++;
+      } catch (shardErr) {
+        console.error(`Failed to upgrade scheduling for shard ${schema}:`, shardErr.message);
+      }
+    }
+    res.json({ message: `Successfully synchronized Enterprise Scheduling infrastructure for ${updated} shards.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Dedicated Seeding Endpoint (to prevent startup timeouts)
+
 app.get("/api/nexus/seed-database", async (req, res) => {
   if (process.env.NODE_ENV === 'production' && process.env.AUTO_SEED !== 'true') {
     return res.status(403).json({ error: "Seeding is disabled in production" });

@@ -11,12 +11,15 @@ export default function AppointmentsPage() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBookModal, setShowBookModal] = useState(false);
+
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [bookingForm, setBookingForm] = useState({ 
     patient_id: '', 
     doctor_id: '', 
     appointment_time: '', 
     status: 'Scheduled' 
   });
+
 
   const fetchAppointments = async () => {
     const headers = { 
@@ -101,22 +104,48 @@ export default function AppointmentsPage() {
               padding: '32px',
               boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Calendar size={20} color="#3b82f6" />
                   Upcoming Appointments
                 </h3>
-                <span style={{ fontSize: '12px', background: '#eff6ff', color: '#3b82f6', padding: '4px 12px', borderRadius: '100px', fontWeight: 700 }}>
-                  {appointments.length} Total
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <select 
+                    value={selectedDoctorId} 
+                    onChange={(e) => setSelectedDoctorId(e.target.value)}
+                    style={{ 
+                      padding: '8px 16px', 
+                      borderRadius: '12px', 
+                      border: '1px solid #e2e8f0', 
+                      background: '#f8fafc', 
+                      fontSize: '13px', 
+                      fontWeight: 700, 
+                      color: '#1e293b',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">All Doctors</option>
+                    {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
+                  </select>
+                  <span style={{ fontSize: '12px', background: '#eff6ff', color: '#3b82f6', padding: '4px 12px', borderRadius: '100px', fontWeight: 700 }}>
+                    {appointments.filter(a => !selectedDoctorId || a.doctor_id === selectedDoctorId).length} Total
+                  </span>
+                </div>
               </div>
+
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}>
                     <div style={{ fontSize: '14px', color: '#94a3b8' }}>Loading schedules...</div>
                   </div>
-                ) : appointments.map((appt: any, i: number) => (
+
+                ) : appointments
+                  .filter(appt => !selectedDoctorId || appt.doctor_id === selectedDoctorId)
+                  .map((appt: any, i: number) => (
+
                   <div key={i} style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -173,8 +202,10 @@ export default function AppointmentsPage() {
                       </div>
                     </div>
                   </div>
+
                 ))}
-                {!loading && appointments.length === 0 && (
+                {!loading && appointments.filter(a => !selectedDoctorId || a.doctor_id === selectedDoctorId).length === 0 && (
+
                   <div style={{ textAlign: 'center', padding: '60px', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
                     <Calendar size={40} color="#cbd5e1" style={{ marginBottom: '16px' }} />
                     <p style={{ color: '#94a3b8', margin: 0, fontWeight: 600 }}>No appointments scheduled yet.</p>

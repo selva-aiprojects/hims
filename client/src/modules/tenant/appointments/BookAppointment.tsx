@@ -1,0 +1,685 @@
+import { useState, useEffect } from 'react';
+import { API_BASE_URL as API_BASE } from '../../../config/api';
+import axios from 'axios';
+import { User, Calendar, Clock, CheckCircle, ArrowLeft, Search, Plus, Phone } from 'lucide-react';
+import Header from '../../../components/Header';
+import Sidebar from '../../../components/Sidebar';
+import { Doctor, Patient, TimeSlot, BookingStep } from '../../../types/appointment';
+import { generateTimeSlots, formatTime, isToday, isPastDate, getScheduleForDay } from '../../../utils/appointmentUtils';
+
+export default function BookAppointment() {
+  const [currentStep, setCurrentStep] = useState<BookingStep>('select-doctor');
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const headers = {
+    Authorization: `Bearer ${localStorage.getItem("token") || "eyJJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoidGVzdEBleGFtcGxlLmNvbSIsInRlbmFudElkIjoiNzE4MjBkYjMtZjhmMS00Mjk0LThjMTEtMWRjNjZhYjEwNTZlIiwidHlwZSI6InRlbmFudCIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3ODIzMjM5MSwiZXhwIjoxNzc0MjYxMTkxfQ.v_fteZvcOrWXeuDC_uwfQU6liZTToZ5meXrs09JZdM8"}`,
+    "x-tenant-id": localStorage.getItem("tenant") || "71820db3-f8f1-4294-8c11-1dc66ab1056e"
+  };
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  const fetchInitialData = async () => {
+    try {
+      const [docRes, patRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
+        axios.get(`${API_BASE}/api/patients?limit=200`, { headers })
+      ]);
+      setDoctors(docRes.data || []);
+      setPatients(patRes.data || []);
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+    }
+  };
+
+  const fetchDoctorAvailability = async (doctor: Doctor, date: Date) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE}/api/doctors/${doctor.id}/availability-rules?startDate=${date.toISOString().split('T')[0]}&endDate=${date.toISOString().split('T')[0]}`,
+        { headers }
+      );
+      
+      const weekday = date.getDay();
+      const daySchedule = getScheduleForDay(response.data.schedules || [], weekday);
+      
+      if (daySchedule.length > 0) {
+        const dayAppointments = response.data.appointments || [];
+        const allSlots: TimeSlot[] = [];
+        
+        daySchedule.forEach((schedule: any) => {
+          const slots = generateTimeSlots(
+            schedule.start_time,
+            schedule.end_time,
+            schedule.slot_duration,
+            dayAppointments
+          );
+          allSlots.push(...slots);
+        });
+        
+        const uniqueSlots = allSlots.filter((slot, index, self) =>
+          index === self.findIndex((s) => s.time === slot.time)
+        ).sort((a, b) => a.time.localeCompare(b.time));
+        
+        setAvailableSlots(uniqueSlots.filter(slot => slot.available));
+      } else {
+        setAvailableSlots([]);
+      }
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+      setAvailableSlots([]);
+    }
+  };
+
+  const handleDoctorSelect = (doctor: Doctor) => {
+    setSelectedDoctor(doctor);
+    setCurrentStep('select-patient' as BookingStep);
+  };
+
+  const handlePatientSelect = (patient: Patient) => {
+    setSelectedPatient(patient);
+    setCurrentStep('select-date');
+  };
+
+  const handleDateSelect = (date: Date) => {
+    if (isPastDate(date)) return;
+    
+    setSelectedDate(date);
+    if (selectedDoctor) {
+      fetchDoctorAvailability(selectedDoctor, date);
+    }
+    setCurrentStep('select-time');
+  };
+
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
+    setCurrentStep('confirm');
+  };
+
+  const confirmBooking = async () => {
+    if (!selectedDoctor || !selectedPatient || !selectedDate || !selectedTime) return;
+
+    setLoading(true);
+    try {
+      const appointmentDateTime = new Date(`${selectedDate.toISOString().split('T')[0]} ${selectedTime}`);
+      
+      await axios.post(`${API_BASE}/api/appointments`, {
+        patient_id: selectedPatient.id,
+        doctor_id: selectedDoctor.id,
+        appointment_time: appointmentDateTime.toISOString(),
+        status: 'Scheduled'
+      }, { headers });
+
+      setCurrentStep('success');
+    } catch (error) {
+      console.error('Error booking appointment:', error);
+      alert('Failed to book appointment. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetBooking = () => {
+    setCurrentStep('select-doctor');
+    setSelectedDoctor(null);
+    setSelectedPatient(null);
+    setSelectedDate(null);
+    setSelectedTime('');
+    setAvailableSlots([]);
+    setSearchQuery('');
+  };
+
+  const filteredPatients = patients.filter(patient =>
+    patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    patient.mrn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (patient.phone && patient.phone.includes(searchQuery))
+  );
+
+  const renderStepIndicator = () => {
+    const steps = [
+      { key: 'select-doctor', label: 'Select Doctor' },
+      { key: 'select-patient', label: 'Select Patient' },
+      { key: 'select-date', label: 'Choose Date' },
+      { key: 'select-time', label: 'Choose Time' },
+      { key: 'confirm', label: 'Confirm' }
+    ];
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
+        {steps.map((step, index) => (
+          <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: currentStep === step.key ? '#4f46e5' : 
+                        steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? '#10b981' : '#e2e8f0',
+              color: currentStep === step.key || steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? 'white' : '#64748b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: 600
+            }}>
+              {steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? '✓' : index + 1}
+            </div>
+            {index < steps.length - 1 && (
+              <div style={{
+                width: '40px',
+                height: '2px',
+                background: steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? '#10b981' : '#e2e8f0',
+                margin: '0 8px'
+              }}></div>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderDoctorSelection = () => (
+    <div>
+      <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+        Select a Doctor
+      </h2>
+      <p style={{ color: '#64748b', marginBottom: '24px' }}>
+        Choose the doctor you want to book an appointment with
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+        {doctors.map(doctor => (
+          <div
+            key={doctor.id}
+            onClick={() => handleDoctorSelect(doctor)}
+            style={{
+              padding: '20px',
+              border: '2px solid #e2e8f0',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: 'white'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#4f46e5';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '50%',
+                background: '#4f46e5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white'
+              }}>
+                <User size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b' }}>
+                  Dr. {doctor.name}
+                </div>
+                {doctor.specialization && (
+                  <div style={{ fontSize: '14px', color: '#64748b' }}>
+                    {doctor.specialization}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderPatientSelection = () => (
+    <div>
+      <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+        Select Patient
+      </h2>
+      <p style={{ color: '#64748b', marginBottom: '24px' }}>
+        Search and select the patient for this appointment
+      </p>
+
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ position: 'relative' }}>
+          <Search size={20} style={{ position: 'absolute', left: '16px', top: '12px', color: '#64748b' }} />
+          <input
+            type="text"
+            placeholder="Search by name, MRN, or phone..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 16px 12px 48px',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              fontSize: '14px'
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '16px' }}>
+        {filteredPatients.map(patient => (
+          <div
+            key={patient.id}
+            onClick={() => handlePatientSelect(patient)}
+            style={{
+              padding: '20px',
+              border: '2px solid #e2e8f0',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: 'white'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#4f46e5';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#e2e8f0';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+              <div>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b', marginBottom: '8px' }}>
+                  {patient.name}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748b' }}>
+                    <span style={{ fontWeight: 600 }}>MRN:</span> {patient.mrn}
+                  </div>
+                  {patient.age && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748b' }}>
+                      <span style={{ fontWeight: 600 }}>Age:</span> {patient.age} {patient.gender && `(${patient.gender})`}
+                    </div>
+                  )}
+                  {patient.phone && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748b' }}>
+                      <Phone size={14} />
+                      {patient.phone}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {filteredPatients.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <div style={{ fontSize: '16px', color: '#64748b', marginBottom: '16px' }}>
+            No patients found matching your search.
+          </div>
+          <button
+                        style={{
+              padding: '12px 24px',
+              background: '#4f46e5',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              margin: '0 auto'
+            }}
+          >
+            <Plus size={16} />
+            Register New Patient
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderDateSelection = () => {
+    const today = new Date();
+    const dates = [];
+    
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i);
+      dates.push(date);
+    }
+
+    return (
+      <div>
+        <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+          Select Date
+        </h2>
+        <p style={{ color: '#64748b', marginBottom: '24px' }}>
+          Choose a date for the appointment with Dr. {selectedDoctor?.name}
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
+          {dates.map(date => {
+            const isPast = isPastDate(date);
+            const isSelected = selectedDate?.toDateString() === date.toDateString();
+            
+            return (
+              <button
+                key={date.toISOString()}
+                onClick={() => !isPast && handleDateSelect(date)}
+                disabled={isPast}
+                style={{
+                  padding: '16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '12px',
+                  background: isSelected ? '#4f46e5' : (isPast ? '#f8fafc' : 'white'),
+                  color: isSelected ? 'white' : (isPast ? '#94a3b8' : '#1e293b'),
+                  cursor: isPast ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                  textAlign: 'center'
+                }}
+              >
+                <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                  {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                </div>
+                <div style={{ fontSize: '20px', fontWeight: 700 }}>
+                  {date.getDate()}
+                </div>
+                <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                  {date.toLocaleDateString('en-US', { month: 'short' })}
+                </div>
+                {isToday(date) && (
+                  <div style={{ fontSize: '10px', marginTop: '4px', fontStyle: 'italic' }}>
+                    Today
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTimeSelection = () => (
+    <div>
+      <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+        Select Time
+      </h2>
+      <p style={{ color: '#64748b', marginBottom: '24px' }}>
+        Available time slots for {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+      </p>
+
+      {availableSlots.length > 0 ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
+          {availableSlots.map(slot => (
+            <button
+              key={slot.time}
+              onClick={() => handleTimeSelect(slot.time)}
+              style={{
+                padding: '16px',
+                border: '2px solid #e2e8f0',
+                borderRadius: '12px',
+                background: selectedTime === slot.time ? '#4f46e5' : 'white',
+                color: selectedTime === slot.time ? 'white' : '#1e293b',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                textAlign: 'center',
+                fontSize: '16px',
+                fontWeight: 600
+              }}
+            >
+              {formatTime(slot.time)}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Clock size={48} style={{ color: '#94a3b8', margin: '0 auto 16px' }} />
+          <div style={{ fontSize: '16px', color: '#64748b' }}>
+            No available time slots for this date.
+          </div>
+          <button
+            onClick={() => setCurrentStep('select-date')}
+            style={{
+              padding: '12px 24px',
+              background: '#4f46e5',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginTop: '16px'
+            }}
+          >
+            Choose Different Date
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderConfirmation = () => (
+    <div>
+      <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+        Confirm Appointment
+      </h2>
+      <p style={{ color: '#64748b', marginBottom: '32px' }}>
+        Please review the appointment details before confirming
+      </p>
+
+      <div style={{
+        background: '#f8fafc',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '32px'
+      }}>
+        <div style={{ display: 'grid', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <User size={20} style={{ color: '#4f46e5' }} />
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Doctor</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b' }}>
+                Dr. {selectedDoctor?.name}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <User size={20} style={{ color: '#4f46e5' }} />
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Patient</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b' }}>
+                {selectedPatient?.name} ({selectedPatient?.mrn})
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Calendar size={20} style={{ color: '#4f46e5' }} />
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Date</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b' }}>
+                {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Clock size={20} style={{ color: '#4f46e5' }} />
+            <div>
+              <div style={{ fontSize: '14px', color: '#64748b' }}>Time</div>
+              <div style={{ fontSize: '16px', fontWeight: 600, color: '#1e293b' }}>
+                {formatTime(selectedTime)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => setCurrentStep('select-time')}
+          style={{
+            padding: '12px 24px',
+            border: '2px solid #e2e8f0',
+            background: 'white',
+            color: '#64748b',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+        
+        <button
+          onClick={confirmBooking}
+          disabled={loading}
+          style={{
+            padding: '12px 24px',
+            background: '#4f46e5',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            opacity: loading ? 0.7 : 1
+          }}
+        >
+          {loading ? 'Booking...' : (
+            <>
+              <CheckCircle size={16} />
+              Confirm Booking
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderSuccess = () => (
+    <div style={{ textAlign: 'center', padding: '40px' }}>
+      <div style={{
+        width: '80px',
+        height: '80px',
+        borderRadius: '50%',
+        background: '#10b981',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 24px'
+      }}>
+        <CheckCircle size={40} style={{ color: 'white' }} />
+      </div>
+      
+      <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>
+        Appointment Booked Successfully!
+      </h2>
+      
+      <p style={{ color: '#64748b', marginBottom: '32px', fontSize: '16px' }}>
+        Appointment confirmed for {selectedPatient?.name} with Dr. {selectedDoctor?.name} on {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {formatTime(selectedTime)}.
+      </p>
+
+      <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+        <button
+          onClick={resetBooking}
+          style={{
+            padding: '12px 24px',
+            background: '#4f46e5',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Plus size={16} />
+          Book Another Appointment
+        </button>
+        
+        <button
+          onClick={() => window.location.href = '/tenant/appointments'}
+          style={{
+            padding: '12px 24px',
+            border: '2px solid #e2e8f0',
+            background: 'white',
+            color: '#64748b',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          View All Appointments
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 'select-doctor':
+        return renderDoctorSelection();
+      case 'select-patient' as BookingStep:
+        return renderPatientSelection();
+      case 'select-date':
+        return renderDateSelection();
+      case 'select-time':
+        return renderTimeSelection();
+      case 'confirm':
+        return renderConfirmation();
+      case 'success':
+        return renderSuccess();
+      default:
+        return renderDoctorSelection();
+    }
+  };
+
+  return (
+    <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex' }}>
+      <Sidebar />
+      <main style={{ flex: 1, padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+        <Header title="Book Appointment" />
+        
+        {renderStepIndicator()}
+        
+        <div style={{
+          background: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          {renderCurrentStep()}
+        </div>
+      </main>
+    </div>
+  );
+}

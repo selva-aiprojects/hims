@@ -10,7 +10,7 @@
     "client"
   ],
   "scripts": {
-    "dev": "node index.js",
+    "dev": "nodemon index.js",
     "start": "node index.js",
     "serve": "node index.js",
     "build": "npx prisma generate && npm run build -w client",

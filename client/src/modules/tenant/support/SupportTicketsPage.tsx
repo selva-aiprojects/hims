@@ -12,7 +12,6 @@ export default function SupportTicketsPage() {
   const [showForm, setShowForm] = useState(false);
   
   const tenantId = localStorage.getItem("tenant") || ""; 
-  const hospitalId = localStorage.getItem("tenant");
 
   const [form, setForm] = useState({
     subject: "",
@@ -21,10 +20,10 @@ export default function SupportTicketsPage() {
     message: ""
   });
 
-  const headers = {
+  const getHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "x-tenant-id": hospitalId || ""
-  };
+    "x-tenant-id": localStorage.getItem("tenant") || ""
+  });
 
   useEffect(() => {
     fetchTickets();
@@ -32,10 +31,9 @@ export default function SupportTicketsPage() {
 
   const fetchTickets = async () => {
     try {
-      // For now, if tenant_id_nexus isn't available, we might need to fetch it or use hospital code
-      const res = await axios.get(`${API_BASE}/api/nexus/tickets?tenantId=${tenantId}`, { headers });
-      setTickets(res.data);
-    } catch (err) { console.error(err); }
+      const res = await axios.get(`${API_BASE}/api/nexus/tickets?tenantId=${tenantId}`, { headers: getHeaders() });
+      setTickets(Array.isArray(res.data) ? res.data : []);
+    } catch (err) { console.error("Ticketing fetch failed:", err); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,7 +43,7 @@ export default function SupportTicketsPage() {
       await axios.post(`${API_BASE}/api/nexus/tickets`, {
         ...form,
         tenantId
-      }, { headers });
+      }, { headers: getHeaders() });
       alert("Ticket submitted successfully! Our support team will respond shortly.");
       setShowForm(false);
       fetchTickets();
@@ -132,11 +130,11 @@ export default function SupportTicketsPage() {
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {tickets.map((ticket, i) => (
+            {Array.isArray(tickets) && tickets.map((ticket, i) => (
               <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                   <div>
-                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase' }}>Ticket #{ticket.id.substring(0,8)}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase' }}>Ticket #{ticket.id?.substring(0,8) || i}</span>
                     <h3 style={{ margin: '4px 0', fontSize: '18px', fontWeight: 800 }}>{ticket.subject}</h3>
                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                        <span style={{ fontSize: '10px', background: '#f1f5f9', padding: '4px 8px', borderRadius: '6px', fontWeight: 700 }}>{ticket.category}</span>
@@ -147,12 +145,12 @@ export default function SupportTicketsPage() {
                          padding: '4px 8px', 
                          borderRadius: '6px', 
                          fontWeight: 900 
-                       }}>{ticket.status.toUpperCase()}</span>
+                       }}>{(ticket.status || 'Open').toUpperCase()}</span>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>Raised on</p>
-                    <p style={{ fontSize: '14px', fontWeight: 700, margin: 0 }}>{new Date(ticket.created_at).toLocaleDateString()}</p>
+                    <p style={{ fontSize: '14px', fontWeight: 700, margin: 0 }}>{new Date(ticket.created_at || Date.now()).toLocaleDateString()}</p>
                   </div>
                 </div>
                 
@@ -169,7 +167,7 @@ export default function SupportTicketsPage() {
               </div>
             ))}
 
-            {tickets.length === 0 && !showForm && (
+            {(!Array.isArray(tickets) || tickets.length === 0) && !showForm && (
               <div style={{ textAlign: 'center', padding: '60px', background: 'white', borderRadius: '32px', border: '1px dashed #e2e8f0' }}>
                  <p style={{ color: '#94a3b8', fontWeight: 600 }}>No active support requests. Need help with an upgrade or a bug?</p>
                  <button onClick={() => setShowForm(true)} style={{ marginTop: '16px', background: 'none', border: 'none', color: '#0f172a', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline' }}>Raise your first ticket</button>

@@ -54,6 +54,58 @@ async function ensureNexusColumns(prisma) {
   }
 }
 
+// --- NEW PROVISIONING: CLINICAL MASTER DATA COPY ---
+async function seedTenantMasterData(prisma, schema) {
+  try {
+    console.log(`[PROVISIONING] Seeding Clinical Masters for ${schema}...`);
+    
+    // 1. Ensure Staff & Clinical Structure
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS specialization VARCHAR(100);
+      ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+      ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS gender VARCHAR(20);
+      ALTER TABLE "${schema}".users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+      
+      CREATE TABLE IF NOT EXISTS "${schema}".encounters (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        patient_id UUID NOT NULL,
+        doctor_id UUID NOT NULL,
+        type VARCHAR(20) DEFAULT 'OPD',
+        status VARCHAR(20) DEFAULT 'Active',
+        vitals JSONB DEFAULT '{}'::jsonb,
+        complaints TEXT,
+        diagnosis TEXT,
+        notes TEXT,
+        token_number SERIAL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS "${schema}".wards (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100) UNIQUE, type VARCHAR(50));
+      CREATE TABLE IF NOT EXISTS "${schema}".beds (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), ward_id UUID REFERENCES "${schema}".wards(id), bed_number VARCHAR(20), status VARCHAR(20) DEFAULT 'Vacant');
+    `);
+
+    // 2. Seed Default Clinical Staff
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".users (id, name, email, role, specialization, is_active)
+      VALUES 
+      (gen_random_uuid(), 'Dr. Aravind Kumar', 'aravind@${schema}.com', 'DOCTOR', 'General Physician', true),
+      (gen_random_uuid(), 'Dr. Santhanakrishnan', 'santhan@${schema}.com', 'DOCTOR', 'General Physician', true)
+      ON CONFLICT DO NOTHING
+    `);
+
+    // 3. Seed Default Wards
+    await prisma.$executeRawUnsafe(`
+      INSERT INTO "${schema}".wards (name, type) VALUES 
+      ('General Ward A', 'General'), ('ICU - Block 1', 'Critical'), ('Emergency Daycare', 'OPD')
+      ON CONFLICT DO NOTHING
+    `);
+
+    console.log(`[PROVISIONING] Clinical Masters seeded for ${schema}.`);
+  } catch (err) {
+    console.error(`[PROVISIONING] Seeding FAILED for ${schema}:`, err.message);
+  }
+}
+
 // Only run self-healing in development or if forced
 router.use(async (req, res, next) => {
   if (process.env.NODE_ENV !== 'production' || process.env.FORCE_SYNC === 'true') {
@@ -227,6 +279,30 @@ router.post("/tenants", async (req, res, next) => {
         VALUES ('${loginEmail}', '${hashedAdminPassword}', 'admin', '${contactName}')
       `);
       console.log(`[PROVISIONING] Admin user ${loginEmail} created in shard.`);
+
+      // 3. SEED CLINICAL MASTER DATA (The "Hybrid-to-Copy" Move)
+      await seedTenantMasterData(req.prisma, schemaName);
+      
+      // 4. SYNC RBAC & MENUS
+      // Reuse logic from debug/rbac-sync for clean setup
+      try {
+        await req.prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schemaName}".rbac_roles (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(50) UNIQUE NOT NULL);
+          CREATE TABLE IF NOT EXISTS "${schemaName}".rbac_menus (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), label VARCHAR(100) NOT NULL, path VARCHAR(100) NOT NULL, icon VARCHAR(50), required_plan VARCHAR(50) DEFAULT 'basic', sort_order INT DEFAULT 0);
+          CREATE TABLE IF NOT EXISTS "${schemaName}".rbac_role_menus (role_id UUID REFERENCES "${schemaName}".rbac_roles(id), menu_id UUID REFERENCES "${schemaName}".rbac_menus(id), PRIMARY KEY (role_id, menu_id));
+          CREATE TABLE IF NOT EXISTS "${schemaName}".rbac_user_roles (user_id UUID REFERENCES "${schemaName}".users(id), role_id UUID REFERENCES "${schemaName}".rbac_roles(id), PRIMARY KEY (user_id, role_id));
+        `);
+        
+        await req.prisma.$executeRawUnsafe(`
+          INSERT INTO "${schemaName}".rbac_roles (name) VALUES ('ADMIN'), ('DOCTOR'), ('SUPPORT') ON CONFLICT DO NOTHING;
+          INSERT INTO "${schemaName}".rbac_menus (label, path, icon, sort_order) VALUES
+          ('Dashboard', '/tenant/dashboard', 'Dashboard', 1),
+          ('OPD Registration', '/tenant/opd/registration', 'OPD', 2),
+          ('Doctor''s Queue', '/tenant/opd/queue', 'Doctor', 3),
+          ('Invoicing & Billing', '/billing', 'Billing', 10)
+          ON CONFLICT DO NOTHING;
+        `);
+      } catch (rbacErr) { console.warn("[PROVISIONING] RBAC Setup skipped:", rbacErr.message); }
 
       if (process.env.RESEND_API_KEY) {
         const fromEmail = process.env.RESEND_FROM || "HIMS Onboarding <onboarding@cognivectra.com>";

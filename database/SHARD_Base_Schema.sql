@@ -348,8 +348,56 @@ CREATE TABLE doctor_availability (
   recurring_pattern VARCHAR(100), -- daily, weekly, monthly
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
+
   UNIQUE(doctor_id, date, start_time)
 );
+
+-- ================= ENTERPRISE SCHEDULING =================
+
+DROP TABLE IF EXISTS doctor_schedules CASCADE;
+CREATE TABLE doctor_schedules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  doctor_id UUID NOT NULL REFERENCES users(id),
+  weekday INTEGER NOT NULL, -- 0-6 (Sun-Sat)
+  session_name VARCHAR(100),
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  slot_duration INTEGER DEFAULT 30,
+  consultation_type VARCHAR(50) DEFAULT 'OPD', -- OPD, VIDEO, SURGERY
+  location VARCHAR(255),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS doctor_leaves CASCADE;
+CREATE TABLE doctor_leaves (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  doctor_id UUID NOT NULL REFERENCES users(id),
+  leave_type VARCHAR(50) NOT NULL, -- VACATION, SICK, EMERGENCY, etc.
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  start_time TIME,
+  end_time TIME,
+  reason TEXT,
+  is_emergency BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS doctor_overrides CASCADE;
+CREATE TABLE doctor_overrides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  doctor_id UUID NOT NULL REFERENCES users(id),
+  override_date DATE NOT NULL,
+  start_time TIME NOT NULL,
+  end_time TIME NOT NULL,
+  is_available BOOLEAN DEFAULT true,
+  reason TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 
 -- ================= PHARMACY =================
 DROP TABLE IF EXISTS drug_brands CASCADE;
@@ -537,48 +585,94 @@ CREATE TABLE journal_lines (
 );
 
 -- ================= SEED DATA (PRODUCTION MASTERS) =================
-
+-- 1. Departments
 INSERT INTO departments (name, description, hod, specialty, status) VALUES
-('General Medicine', 'Primary care and internal medicine', 'Dr. Smith', 'Internal Medicine', 'Active'),
-('Cardiology', 'Heart and vascular care', 'Dr. Johnson', 'Cardiologist', 'Active'),
-('Pediatrics', 'Child health and development', 'Dr. Lee', 'Pediatrician', 'Active'),
-('Orthopedics', 'Bone and joint care', 'Dr. Brown', 'Orthopedic Surgeon', 'Active');
+('General Medicine', 'Primary care and internal medicine', 'Dr. Sankaran R', 'Internal Medicine', 'Active'),
+('Cardiology', 'Heart and vascular care', 'Dr. Maheswaran R', 'Cardiologist', 'Active'),
+('Pediatrics', 'Child health and development', 'Dr. Aravind Kumar', 'Pediatrician', 'Active'),
+('Orthopedics', 'Bone and joint care', 'Dr. Brown', 'Orthopedic Surgeon', 'Active'),
+('Emergency & Trauma', '24/7 Critical care', 'Dr. Wilson', 'Emergency Medicine', 'Active'),
+('Laboratory', 'Diagnostic testing and pathology', 'Alice LabTech', 'Pathology', 'Active'),
+('Pharmacy', 'Medicine dispensing', 'John Pharmacist', 'Pharmacology', 'Active');
 
+-- 2. Staff (Doctors, Nurses, Techs) - password123 (hashed)
+-- Note: In production, these should be created via the Register Staff UI
+INSERT INTO users (name, email, password_hash, role, specialization, department, is_active) VALUES
+('Dr. Sankaran R', 'sankaran@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'DOCTOR', 'Cardiology', 'Cardiology', true),
+('Dr. Maheswaran R', 'maheswaran@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'DOCTOR', 'Orthopedics', 'Orthopedics', true),
+('Dr. Aravind Kumar', 'aravind@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'DOCTOR', 'Pediatrics', 'Pediatrics', true),
+('Nurse Clara Barton', 'clara@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'NURSE', NULL, 'General Ward', true),
+('Nurse Florence N', 'florence@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'NURSE', NULL, 'ICU', true),
+('John Pharmacist', 'pharmacy@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'PHARMACIST', NULL, 'Pharmacy', true),
+('Alice LabTech', 'lab@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'LAB_TECH', NULL, 'Laboratory', true),
+('Receptionist Sarah', 'reception@apollo.com', '$2a$10$w0M9u9PqR.y.h7p.vO0S.e6O9Yq.O9Yq.O9Yq.O9Yq.O9Yq.O9Yq', 'RECEPTIONIST', NULL, 'Front Desk', true);
+
+-- 3. Specialities
 INSERT INTO specialities (name, base_consultation_fee, description) VALUES
 ('General Physician', 500, 'Primary consultation for all ailments'),
 ('Senior Cardiologist', 1500, 'Expert cardiac care and consultation'),
 ('Pediatric Surgeon', 1200, 'Surgical care for children'),
 ('Orthopedic Consultant', 1000, 'Bone and joint specialist');
 
+-- 4. Sample Patients
+INSERT INTO patients (name, mrn, gender, age, phone, email, blood_group) VALUES
+('Sankaran R', 'MRN-2405-000001', 'Male', 45, '9840012345', 'sankaran@demo.com', 'O+'),
+('Maheswaran R', 'MRN-2405-000002', 'Male', 52, '9840054321', 'mahesh@demo.com', 'A+'),
+('Priyanka Sharma', 'MRN-2405-000003', 'Female', 29, '9840099887', 'priyanka@demo.com', 'B+'),
+('Rahul Dravid', 'MRN-2405-000004', 'Male', 48, '9840011223', 'rahul@demo.com', 'O-'),
+('Anjali Menon', 'MRN-2405-000005', 'Female', 34, '9840044556', 'anjali@demo.com', 'AB+');
+
+-- 5. Wards & Beds (Full Infrastructure)
+-- General Ward
+INSERT INTO wards (id, name, type, capacity, base_charge, floor) 
+VALUES ('w-gen-1', 'General Ward - A', 'Regular Care', 20, 1500, '2nd Floor');
+
+INSERT INTO beds (ward_id, bed_number, status)
+SELECT 'w-gen-1', 'GW-A-' || lpad(s::text, 2, '0'), 'Vacant'
+FROM generate_series(1, 20) s;
+
+-- ICU
+INSERT INTO wards (id, name, type, capacity, base_charge, floor) 
+VALUES ('w-icu-1', 'Critical Care Unit (ICU)', 'ICU', 10, 7500, '1st Floor');
+
+INSERT INTO beds (ward_id, bed_number, status)
+SELECT 'w-icu-1', 'ICU-' || lpad(s::text, 2, '0'), 'Vacant'
+FROM generate_series(1, 10) s;
+
+-- Private
+INSERT INTO wards (id, name, type, capacity, base_charge, floor) 
+VALUES ('w-pri-1', 'Premium Private Wing', 'Special Care', 15, 4500, '3rd Floor');
+
+INSERT INTO beds (ward_id, bed_number, status)
+SELECT 'w-pri-1', 'PVT-' || lpad(s::text, 2, '0'), 'Vacant'
+FROM generate_series(1, 15) s;
+
+-- 6. Services & Masters
 INSERT INTO consultation_modes (name, surcharge_percent, is_virtual) VALUES
 ('In-Person', 0, FALSE),
 ('Video Call', 10, TRUE),
 ('Emergency Home Visit', 50, FALSE);
 
-INSERT INTO diseases (name, category, icd_code, severity_level) VALUES
-('Hypertension', 'Cardiovascular', 'I10', 'Moderate'),
-('Diabetes Mellitus Type 2', 'Endocrine', 'E11', 'Moderate'),
-('Acute Bronchitis', 'Respiratory', 'J20', 'Mild'),
-('Osteoarthritis', 'Musculoskeletal', 'M19', 'Moderate');
+INSERT INTO diagnostics (name, price) VALUES 
+('Complete Blood Count (CBC)', 450),
+('Chest X-Ray', 800),
+('Lipid Profile', 1200),
+('MRI Brain (Plain)', 8500),
+('ECG (Resting)', 350),
+('Blood Sugar (Fasting)', 150);
 
-INSERT INTO treatments (name, price, description, cpt_code, estimated_duration) VALUES
-('Wound Dressing', 200, 'Cleaning and dressing of minor wounds', '99211', 15),
-('ECG Interpretation', 500, 'Electrocardiogram recording and analysis', '93000', 10),
-('Physiotherapy Session', 800, '30-minute physical therapy session', '97110', 30);
+INSERT INTO treatments (name, price, category, description, estimated_duration) VALUES
+('Wound Dressing', 200, 'Minor Procedure', 'Cleaning and dressing of minor wounds', 15),
+('Physiotherapy Session', 800, 'Therapy', '30-minute physical therapy session', 30),
+('IV Infusion Charge', 1200, 'Nursing', 'Administration of IV fluids', 60);
 
-INSERT INTO services (name, price, category, service_code, tax_percent) VALUES
-('Consultation Fee', 500, 'Consultation', 'SRV001', 0),
-('Blood Sugar Test', 150, 'Laboratory', 'LAB001', 0),
-('X-Ray Chest', 600, 'Radiology', 'RAD001', 5);
-
-INSERT INTO medicines (name, category, composition, dosage_adult, dosage_pediatric, instructions) VALUES
-('Paracetamol 500mg', 'Analgesic', 'Paracetamol', '1 tablet twice daily', 'Half tablet twice daily', 'Take after food'),
-('Amoxicillin 250mg', 'Antibiotic', 'Amoxicillin', '1 capsule thrice daily', 'Not recommended', 'Finish the full course'),
-('Metformin 500mg', 'Antidiabetic', 'Metformin Hydrochloride', '1 tablet daily', 'Not recommended', 'Take with meals');
-
-INSERT INTO diagnostic_types (name) VALUES ('Lab'), ('Radiology'), ('Pathology');
-INSERT INTO diagnostics (name, price, type_id) VALUES ('CBC', 300, (SELECT id FROM diagnostic_types LIMIT 1));
-INSERT INTO designations (name) VALUES ('Consultant'), ('Senior Resident'), ('Staff Nurse');
+INSERT INTO medicines (name, category, stock_quantity, unit_price, is_active) VALUES
+('Paracetamol 500mg', 'Tablet', 500, 5, true),
+('Amoxicillin 250mg', 'Antibiotic', 200, 15, true),
+('Insulin Glargine', 'Injectable', 45, 850, true),
+('Ibuprofen 400mg', 'NSAID', 350, 8, true),
+('Cetirizine 10mg', 'Antihistamine', 150, 4, true),
+('Pantoprazole 40mg', 'Antacid', 400, 12, true);
 
 -- RBAC BOOTSTRAP SEEDING - HIPAA Compliant Roles
 INSERT INTO rbac_roles (name, description) VALUES 

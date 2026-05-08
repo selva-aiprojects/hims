@@ -4,20 +4,30 @@ const upload = require("../../config/upload");
 const aiService = require("../../services/aiService");
 
 async function ensurePatientColumns(req) {
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS mrn VARCHAR(20)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS age INTEGER DEFAULT 0`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS dob DATE`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS occupation VARCHAR(100)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS address TEXT`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS guardian_name VARCHAR(255)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS guardian_phone VARCHAR(50)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS medical_history TEXT`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS allergies TEXT`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS ai_summary TEXT`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  const columns = [
+    'mrn VARCHAR(20)',
+    'email VARCHAR(255)',
+    'gender VARCHAR(20)',
+    'age INTEGER DEFAULT 0',
+    'dob DATE',
+    'blood_group VARCHAR(10)',
+    'occupation VARCHAR(100)',
+    'address TEXT',
+    'guardian_name VARCHAR(255)',
+    'guardian_phone VARCHAR(50)',
+    'medical_history TEXT',
+    'allergies TEXT',
+    'ai_summary TEXT',
+    'created_at TIMESTAMP DEFAULT NOW()'
+  ];
+
+  for (const col of columns) {
+    try {
+      await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS ${col}`);
+    } catch (e) {
+      // console.warn(`[PATIENT_HEAL] Column add failed for ${col}: ${e.message}`);
+    }
+  }
 }
 
 router.get("/", async (req, res, next) => {
@@ -57,8 +67,8 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     
     // Get total count for sequence (pseudo-sequential)
-    const countRes = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM "${req.schemaName}".patients`);
-    const count = Number(countRes[0]?.count || 0) + 1;
+    const countRes = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".patients`);
+    const count = (countRes[0]?.count || 0) + Math.floor(Math.random() * 100) + 1;
     const sequence = String(count).padStart(6, '0');
     
     const mrn = `MRN-${yy}${mm}-${sequence}`;

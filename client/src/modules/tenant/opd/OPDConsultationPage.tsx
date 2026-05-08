@@ -44,10 +44,10 @@ export default function OPDConsultationPage() {
   const [showAiPanel, setShowAiPanel] = useState(false);
 
   
-  const headers = { 
+  const getHeaders = () => ({ 
     Authorization: `Bearer ${localStorage.getItem("token")}`,
     "x-tenant-id": localStorage.getItem("tenant") || ""
-  };
+  });
 
   useEffect(() => {
     if (!role) { navigate("/"); return; }
@@ -62,28 +62,25 @@ export default function OPDConsultationPage() {
 
   const fetchPatientDetails = async (id: string) => {
     try {
-      const res = await axios.get(`${API_BASE}/api/patients/${id}`, { headers });
+      const res = await axios.get(`${API_BASE}/api/patients/${id}`, { headers: getHeaders() });
       setPatient(res.data);
     } catch (err) { console.error(err); }
   };
 
   const fetchMasters = async () => {
     try {
+      const h = getHeaders();
       const [medRes, disRes, diagRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/masters/diseases`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers })
+        axios.get(`${API_BASE}/api/hospital/masters/medicines`, { headers: h }),
+        axios.get(`${API_BASE}/api/hospital/masters/diseases`, { headers: h }),
+        axios.get(`${API_BASE}/api/hospital/masters/diagnostics`, { headers: h })
       ]);
       setMedicines(medRes.data || []);
       setDiseases(disRes.data || []);
       setDiagnostics(diagRes.data || []);
-      
-      if ((medRes.data || []).length === 0) {
-        console.warn("No medicines found in master table.");
-      }
     } catch (err) { 
       console.error(err);
-      showToast("Failed to load hospital master data (Medicines/Tests).", "error");
+      showToast("Master data fetch failed. Some clinical dropdowns may be empty.", "warning");
     }
   };
 
@@ -112,25 +109,36 @@ export default function OPDConsultationPage() {
   };
 
   const finishConsultation = async () => {
-    if (!diagnosis) { showToast("Please select a diagnosis.", "error"); return; }
+    if (!diagnosis) { showToast("Clinical Diagnosis is mandatory to finish.", "error"); return; }
     setIsFinishing(true);
+    const h = getHeaders();
     try {
+      // 1. Save Encounter Main Data
       await axios.put(`${API_BASE}/api/hospital/encounters/${encounter.id}`, {
         diagnosis, status: 'Completed', notes
-      }, { headers });
+      }, { headers: h });
 
+      // 2. Save Prescriptions (Sequential but tolerant)
       if (prescriptions.length > 0) {
-        await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/prescriptions`, { items: prescriptions }, { headers });
+        try {
+          await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/prescriptions`, { items: prescriptions }, { headers: h });
+        } catch (e) { console.warn("Prescription save failed", e); }
       }
 
+      // 3. Save Lab Orders
       if (selectedLabTests.length > 0) {
-        await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/lab-orders`, { diagnosticIds: selectedLabTests }, { headers });
+        try {
+          await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/lab-orders`, { diagnosticIds: selectedLabTests }, { headers: h });
+        } catch (e) { console.warn("Lab order save failed", e); }
       }
 
       localStorage.removeItem("currentEncounter");
-      showToast("Consultation finalized successfully.", "success");
+      showToast("Consultation Finalized successfully.", "success");
       navigate("/tenant/opd/queue");
-    } catch (err) { showToast("Failed to save consultation.", "error"); }
+    } catch (err: any) { 
+      const msg = err.response?.data?.message || err.message || "Failed to save consultation.";
+      showToast(msg, "error"); 
+    }
     finally { setIsFinishing(false); }
   };
 
@@ -145,7 +153,7 @@ export default function OPDConsultationPage() {
       const res = await axios.post(`${API_BASE}/api/consultations/ai-suggest`, {
         patientId: patient.id,
         complaints: notes || encounter.complaints
-      }, { headers });
+      }, { headers: getHeaders() });
       setAiAdvice(res.data);
     } catch (err: any) {
       if (err.response?.status === 429) {

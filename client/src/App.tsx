@@ -7,7 +7,12 @@ import OPDRegistrationPage from './modules/tenant/opd/OPDRegistrationPage';
 import OPDQueuePage from './modules/tenant/opd/OPDQueuePage';
 import OPDConsultationPage from './modules/tenant/opd/OPDConsultationPage';
 import TenantAppointmentsPage from './modules/tenant/appointments/AppointmentsPage';
-import DoctorAvailabilityPage from './modules/tenant/appointments/SimpleDoctorCalendarPage';
+
+import DoctorAvailabilityPage from './modules/tenant/appointments/DoctorAvailabilityPage';
+import AdvancedDoctorAvailabilityPage from './modules/tenant/appointments/AdvancedDoctorAvailabilityPage';
+import DoctorAvailabilitySchedule from './modules/tenant/appointments/DoctorAvailabilitySchedule';
+import BookAppointment from './modules/tenant/appointments/BookAppointment';
+
 import IPDBedMap from './modules/tenant/ipd/IPDBedMap';
 import IPDAdmissionsList from './modules/tenant/ipd/IPDAdmissionsList';
 import IPDPatientView from './modules/tenant/ipd/IPDPatientView';
@@ -60,7 +65,12 @@ function App() {
         <Route path="/tenant/opd/queue" element={<OPDQueuePage />} />
         <Route path="/tenant/opd/consultation" element={<OPDConsultationPage />} />
         <Route path="/tenant/appointments" element={<TenantAppointmentsPage />} />
+
         <Route path="/tenant/appointments/doctor-calendar" element={<DoctorAvailabilityPage />} />
+        <Route path="/tenant/appointments/advanced-calendar" element={<AdvancedDoctorAvailabilityPage />} />
+        <Route path="/tenant/appointments/schedule" element={<DoctorAvailabilitySchedule />} />
+        <Route path="/tenant/appointments/book" element={<BookAppointment />} />
+
         <Route path="/tenant/ipd/beds" element={<IPDBedMap />} />
         <Route path="/tenant/ipd/admissions" element={<IPDAdmissionsList />} />
         <Route path="/tenant/ipd/admissions/:id" element={<IPDPatientView />} />
