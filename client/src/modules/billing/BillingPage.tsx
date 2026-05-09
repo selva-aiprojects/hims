@@ -143,10 +143,11 @@ export default function BillingPage() {
       const res = await axios.get(`${API_BASE}/api/billing/queue/${patient.id}`, { headers });
       const filtered = res.data.filter((item: any) => {
         const mod = item.source_module?.toUpperCase();
-        if (activeTab === 'OPD') return mod === 'CONSULTATION' || mod === 'REGISTRATION';
+        if (activeTab === 'OPD') return mod === 'OPD' || mod === 'CONSULTATION' || mod === 'REGISTRATION';
         if (activeTab === 'PHARMACY') return mod === 'PHARMACY';
         if (activeTab === 'LAB') return mod === 'LAB' || mod === 'DIAGNOSTIC';
-        return true; // All for Discharge
+        if (activeTab === 'DISCHARGE') return mod.startsWith('IPD');
+        return true; 
       });
 
       setItems(filtered.map((item: any) => ({

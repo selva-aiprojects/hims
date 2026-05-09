@@ -25,40 +25,30 @@
 - [x] **Revenue Linkage**: Hard linkage between clinical results and automated billing.
 - [x] **Secure AI Chatbot**: Tenant-isolated assistant with real-time hospital metric awareness.
 
-### 4. Clinical AI Evolution (Latest)
-- [x] **AI Clinical Advisor**: OPD Consultation assistant providing real-time diagnosis, test, and medicine suggestions based on patient history.
-- [x] **AI Discharge Summary**: Automated clinical course synthesis for IPD admissions with doctor-in-the-loop authentication and PDF generation.
-- [x] **Integrated IPD Ordering**: Direct Lab/Pharmacy requisitions from the bedside patient view with atomic encounter linkage.
+### 4. Clinical AI Evolution
+- [x] **AI Clinical Advisor**: OPD Consultation assistant providing real-time diagnosis, test, and medicine suggestions.
+- [x] **AI Discharge Summary**: Automated clinical course synthesis for IPD admissions.
+- [x] **Integrated IPD Ordering**: Direct Lab/Pharmacy requisitions from the bedside with atomic encounter linkage.
+
+### 5. Operational Hardening (Finalized)
+- [x] **OPD E2E Journey**: Registration -> AI Consultation -> Prescriptions -> Automated Billing.
+- [x] **IPD E2E Journey**: Admission -> Bed Mgmt -> Service Posting -> AI Discharge -> Final Settlement.
+- [x] **Consolidated Billing**: Unified revenue center consuming clinical queues from all modules.
 
 ---
 
-### 4. UI Modernization & Doctor Scheduling (Latest)
+### 4. UI Modernization & Doctor Scheduling
 - [x] **Premium Sidebar**: Rebuilt with Accordion logic, zero-jump stability, and global path deduplication.
 - [x] **Doctor Availability**: Implemented "Manage Unavailability" mode in shard with persistent blocking and upsert logic.
-- [x] **Dynamic Branding**: Real-time theme customization (colors, logos) using CSS variables and shard persistence.
+- [x] **Dynamic Branding**: Real-time theme customization using CSS variables.
 - [x] **Navigation Intelligence**: Auto-expanding categories and active-aware scroll-into-view logic.
 
 ---
 
-## 🛠️ In Progress: Clinical & Operational Hardening
-### 1. Hospital Dashboard (Metric Driven)
-- [x] Real-time revenue and patient flow metrics (Live API).
-- [x] Dynamic Sidebar Integration with role-based visibility.
-- [ ] Implement Recharts-based visualization for OPD/IPD trends.
-
-### 2. Shard Master Tables
-- [x] Consultation Modes & Services Master (Live with Fallbacks).
-- [x] Doctors & Staff management UI.
-- [x] Branding & UI Settings module.
-- [ ] Departments & Wards configuration.
-
----
-
 ## 📋 Future Roadmap
-- [x] **OPD Module**: Registration, Consultation, and Digital Prescription (Live).
-- [x] **IPD Module**: Admission, Bed Management, and AI Discharge Summary.
-- [ ] **Billing & Pharmacy**: Inventory sync and automated billing.
+- [ ] **Pharmacy Inventory**: Real-time stock sync with clinical dispensing.
 - [ ] **Internationalization**: Multi-currency and multi-language support.
+- [ ] **Mobile Clinical App**: Tablet-optimized interface for bedside rounds.
 
 ---
-*Last Updated: 2026-05-06*
+*Last Updated: 2026-05-09*

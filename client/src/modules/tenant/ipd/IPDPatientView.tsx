@@ -28,6 +28,8 @@ export default function IPDPatientView() {
   // Quick Order Modals
   const [showLabModal, setShowLabModal] = useState(false);
   const [showPharmacyModal, setShowPharmacyModal] = useState(false);
+  const [showServiceModal, setShowServiceModal] = useState(false);
+  const [serviceForm, setServiceForm] = useState({ description: "", amount: "", quantity: "1" });
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
   const [selectedTests, setSelectedTests] = useState<string[]>([]);
@@ -78,21 +80,27 @@ export default function IPDPatientView() {
     } catch (err) { showToast("Failed to save note.", "error"); }
   };
 
+  const submitServiceCharge = async () => {
+    try {
+      await axios.post(`${API_BASE}/api/hospital/ipd/admissions/${id}/service-charges`, serviceForm, { headers });
+      showToast("Service charge posted to bill.", "success");
+      setShowServiceModal(false);
+      setServiceForm({ description: "", amount: "", quantity: "1" });
+    } catch (err) { showToast("Failed to post charge.", "error"); }
+  };
+
   const handleDischarge = async () => {
     try {
-      const res = await axios.put(`${API_BASE}/api/hospital/ipd/admissions/${id}/discharge`, {}, { headers });
-      const bill = res.data.billingSummary;
+      await axios.post(`${API_BASE}/api/hospital/ipd/admissions/${id}/discharge`, {
+        summary: data?.admission.ai_summary || "Routine recovery and discharge.",
+        dischargeType: "STANDARD"
+      }, { headers });
+      
       setShowDischargeConfirm(false);
       showToast("Patient discharged successfully.", "success");
-      if (confirm(`Patient discharged!\n\n${bill.daysAdmitted} days × ₹${bill.dailyCharge} = ₹${bill.bedCharges} bed charges.\n\nProceed to generate the final IPD bill?`)) {
-        navigate('/billing', {
-          state: {
-            billType: 'IPD',
-            totalAmount: bill.bedCharges,
-            patientName: bill.patientName,
-            encounterId: bill.encounterId
-          }
-        });
+      
+      if (confirm(`Patient discharged! Bed is now vacant.\n\nProceed to the Billing Center to finalize the discharge invoice?`)) {
+        navigate(`/billing?type=DISCHARGE&patientId=${data?.admission.patient_id}`);
       } else {
         navigate('/tenant/ipd/admissions');
       }
@@ -334,12 +342,72 @@ export default function IPDPatientView() {
                   <button onClick={() => setShowPharmacyModal(true)} style={{ padding: '12px', background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Pill size={18} /> Pharmacy Order
                   </button>
+                  <button onClick={() => setShowServiceModal(true)} style={{ padding: '12px', background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: '12px', fontWeight: 700, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Zap size={18} /> Post Service Charge
+                  </button>
                   <button onClick={generateAISummary} disabled={isGeneratingSummary} style={{ padding: '12px', background: '#fdf4ff', color: '#86198f', border: '1px solid #fae8ff', borderRadius: '12px', fontWeight: 700, cursor: isGeneratingSummary ? 'not-allowed' : 'pointer', opacity: isGeneratingSummary ? 0.7 : 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Sparkles size={18} /> {isGeneratingSummary ? 'Generating...' : 'Generate AI Summary'}
                   </button>
                 </div>
               </div>
             </aside>
+          </div>
+        )}
+
+        {/* Service Posting Modal */}
+        {showServiceModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+            <div style={{ background: 'white', width: '100%', maxWidth: '440px', borderRadius: '28px', padding: '32px', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontWeight: 900, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Zap style={{ color: '#f59e0b' }} /> Service Posting
+                </h2>
+                <button onClick={() => setShowServiceModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}><X /></button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>SERVICE DESCRIPTION</label>
+                  <input 
+                    placeholder="e.g. Special Nursing Fee, Oxygen..."
+                    className="input-field" 
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                    value={serviceForm.description}
+                    onChange={e => setServiceForm({...serviceForm, description: e.target.value})}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '12px' }}>
+                   <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>UNIT PRICE (₹)</label>
+                    <input 
+                      type="number"
+                      className="input-field" 
+                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                      value={serviceForm.amount}
+                      onChange={e => setServiceForm({...serviceForm, amount: e.target.value})}
+                    />
+                   </div>
+                   <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>QTY</label>
+                    <input 
+                      type="number"
+                      className="input-field" 
+                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                      value={serviceForm.quantity}
+                      onChange={e => setServiceForm({...serviceForm, quantity: e.target.value})}
+                    />
+                   </div>
+                </div>
+                
+                <button 
+                  onClick={submitServiceCharge} 
+                  disabled={!serviceForm.description || !serviceForm.amount}
+                  style={{ width: '100%', marginTop: '12px', padding: '16px', background: '#0f172a', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer' }}
+                >
+                  POST TO BILL
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
