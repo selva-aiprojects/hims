@@ -193,11 +193,11 @@ export default function StaffManagementPage() {
       <main className="main-content">
         <Header title="Staff & RBAC" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div style={{ position: 'relative', width: '350px' }}>
+        <div className="flex-responsive" style={{ marginBottom: '24px' }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: '350px' }}>
              <input 
                type="text"
-               placeholder="Search by name, role or department..."
+               placeholder="Search staff members..."
                style={{ 
                  width: '100%', 
                  padding: '12px 16px 12px 40px', 
@@ -217,29 +217,30 @@ export default function StaffManagementPage() {
           
           <button 
             onClick={handleOpenAddModal}
-            style={{ padding: '12px 24px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}
+            className="button-primary"
+            style={{ width: 'auto', whiteSpace: 'nowrap' }}
           >
             + Add Staff Member
           </button>
         </div>
 
         {/* Staff Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Total Staff</p>
-            <h3 style={{ fontSize: '28px', fontWeight: 900, margin: 0 }}>{staff.length}</h3>
+        <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '32px' }}>
+          <div className="stat-card">
+            <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Total Staff</p>
+            <h3 style={{ fontSize: '24px', fontWeight: 900, margin: 0 }}>{staff.length}</h3>
           </div>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Doctors</p>
-            <h3 style={{ fontSize: '28px', fontWeight: 900, margin: 0 }}>{staff.filter(s => s.role === 'doctor').length}</h3>
+          <div className="stat-card">
+            <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Doctors</p>
+            <h3 style={{ fontSize: '24px', fontWeight: 900, margin: 0 }}>{staff.filter(s => s.role === 'doctor').length}</h3>
           </div>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Nurses</p>
-            <h3 style={{ fontSize: '28px', fontWeight: 900, margin: 0 }}>{staff.filter(s => s.role === 'nurse').length}</h3>
+          <div className="stat-card">
+            <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>Nurses</p>
+            <h3 style={{ fontSize: '24px', fontWeight: 900, margin: 0 }}>{staff.filter(s => s.role === 'nurse').length}</h3>
           </div>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-            <p style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>System Status</p>
-            <h3 style={{ fontSize: '20px', fontWeight: 800, margin: 0, color: '#10b981' }}>● ONLINE</h3>
+          <div className="stat-card hide-mobile">
+            <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>System Status</p>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: '#10b981' }}>● ONLINE</h3>
           </div>
         </div>
 
@@ -268,94 +269,128 @@ export default function StaffManagementPage() {
         </div>
 
         {activeTab === 'list' ? (
-          <div className="manage-card" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            {loading && staff.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center' }}>Loading staff records...</div>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>STAFF NAME</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>EMAIL / ROLE</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>DETAILS</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>GENDER / DOB</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>JOINED (DOJ)</th>
-                    <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map((member: any, i: number) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ fontWeight: 600 }}>{member.name}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>ID: {member.id.substring(0,8)}</div>
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ color: '#64748b', fontSize: '13px' }}>{member.email}</div>
-                        <span style={{ 
-                          padding: '2px 8px', 
-                          borderRadius: '12px', 
-                          fontSize: '10px', 
-                          fontWeight: 700,
-                          textTransform: 'uppercase',
-                          background: member.role === 'admin' ? '#fee2e2' : '#f0f9ff',
-                          color: member.role === 'admin' ? '#ef4444' : '#3b82f6',
-                          display: 'inline-block',
-                          marginTop: '4px'
-                        }}>
-                          {member.role}
-                        </span>
-                      </td>
-                      <td style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b' }}>
-                        {member.role === 'doctor' ? (
-                          <>
-                            <div>Lic: {member.license_number || 'N/A'}</div>
-                            <div>Spec: {member.specialization || 'N/A'}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div>Dept: {member.department || 'N/A'}</div>
-                            <div>Exp: {member.experience_years || '0'} yrs</div>
-                          </>
-                        )}
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 600 }}>{member.gender || 'N/A'}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>
-                          {member.dob ? new Date(member.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'DOB: N/A'}
-                        </div>
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
-                          {member.doj ? new Date(member.doj).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>Created: {new Date(member.created_at).toLocaleDateString()}</div>
-                      </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button 
-                            onClick={() => handleOpenEditModal(member)}
-                            style={{ padding: '6px 12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                          >
-                            Edit
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(member.id)}
-                            style={{ padding: '6px 12px', borderRadius: '8px', background: '#fee2e2', color: '#ef4444', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+          <>
+            {/* Desktop Table View */}
+            <div className="manage-card hide-mobile" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+              {loading && staff.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center' }}>Loading staff records...</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                      <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>STAFF NAME</th>
+                      <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>EMAIL / ROLE</th>
+                      <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>DETAILS</th>
+                      <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>GENDER / DOB</th>
+                      <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>JOINED (DOJ)</th>
+                      <th style={{ padding: '16px 24px', fontSize: '13px', color: '#64748b' }}>ACTIONS</th>
                     </tr>
-                  ))}
-                  {staff.length === 0 && !loading && (
-                      <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No staff found matching "{searchTerm}"</td></tr>
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
+                  </thead>
+                  <tbody>
+                    {staff.map((member: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ fontWeight: 600 }}>{member.name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>ID: {member.id.substring(0,8)}</div>
+                        </td>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ color: '#64748b', fontSize: '13px' }}>{member.email}</div>
+                          <span style={{ 
+                            padding: '2px 8px', 
+                            borderRadius: '12px', 
+                            fontSize: '10px', 
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            background: member.role === 'admin' ? '#fee2e2' : '#f0f9ff',
+                            color: member.role === 'admin' ? '#ef4444' : '#3b82f6',
+                            display: 'inline-block',
+                            marginTop: '4px'
+                          }}>
+                            {member.role}
+                          </span>
+                        </td>
+                        <td style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b' }}>
+                          {member.role === 'doctor' ? (
+                            <>
+                              <div>Lic: {member.license_number || 'N/A'}</div>
+                              <div>Spec: {member.specialization || 'N/A'}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div>Dept: {member.department || 'N/A'}</div>
+                              <div>Exp: {member.experience_years || '0'} yrs</div>
+                            </>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 600 }}>{member.gender || 'N/A'}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>
+                            {member.dob ? new Date(member.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'DOB: N/A'}
+                          </div>
+                        </td>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>
+                            {member.doj ? new Date(member.doj).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Created: {new Date(member.created_at).toLocaleDateString()}</div>
+                        </td>
+                        <td style={{ padding: '16px 24px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              onClick={() => handleOpenEditModal(member)}
+                              style={{ padding: '6px 12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Edit
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(member.id)}
+                              style={{ padding: '6px 12px', borderRadius: '8px', background: '#fee2e2', color: '#ef4444', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {staff.length === 0 && !loading && (
+                        <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No staff found matching "{searchTerm}"</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Mobile Card List View */}
+            <div className="mobile-card-list show-mobile" style={{ display: 'none' }}>
+               {staff.map((member, i) => (
+                 <div key={i} className="mobile-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                       <div>
+                          <div style={{ fontWeight: 800, fontSize: '16px' }}>{member.name}</div>
+                          <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase' }}>{member.role}</div>
+                       </div>
+                       <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => handleOpenEditModal(member)} style={{ padding: '8px', borderRadius: '8px', background: '#f1f5f9', border: 'none' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
+                          <button onClick={() => handleDelete(member.id)} style={{ padding: '8px', borderRadius: '8px', background: '#fee2e2', border: 'none', color: '#ef4444' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+                       </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                       <div>
+                          <label style={{ display: 'block', fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>EMAIL</label>
+                          <div style={{ fontWeight: 600, color: '#64748b' }}>{member.email}</div>
+                       </div>
+                       <div>
+                          <label style={{ display: 'block', fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>JOINED</label>
+                          <div style={{ fontWeight: 600, color: '#64748b' }}>{member.doj ? new Date(member.doj).toLocaleDateString() : 'N/A'}</div>
+                       </div>
+                    </div>
+                 </div>
+               ))}
+               {staff.length === 0 && !loading && (
+                 <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No staff found matching "{searchTerm}"</div>
+               )}
+            </div>
+          </>
         ) : (
           <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>

@@ -68,9 +68,12 @@ export default function DischargeSummariesPage() {
       <main className="main-content">
         <Header title="Discharge Summaries Hub" />
         
-        <div style={{ marginBottom: '32px' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>Clinical Discharge Registry</h2>
-          <p style={{ color: '#64748b' }}>Review and finalize patient discharge documentation</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#fef2f2', color: '#dc2626', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(220, 38, 38, 0.1)' }}>
+            <FileEdit size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical Documentation Center</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Review, authenticate, and finalize centralized patient clinical discharge records and summaries.</p>
         </div>
 
         <div style={{ background: 'white', borderRadius: '28px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>

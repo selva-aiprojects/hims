@@ -98,10 +98,13 @@ export default function UserManagementPage() {
       <main style={{ flex: 1, padding: '32px' }}>
         <Header title="User Management & RBAC" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#ecfdf5', display: 'grid', placeItems: 'center', color: '#059669', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.1)' }}>
+            <Shield size={24} />
+          </div>
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: 0 }}>User Management</h1>
-            <p style={{ color: '#64748b', marginTop: '4px' }}>Complete user lifecycle and role management</p>
+            <p style={{ margin: '0 0 4px', color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Access Control Plane</p>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Comprehensive lifecycle and role-based access management for clinical staff.</p>
           </div>
         </div>
 

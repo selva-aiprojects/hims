@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
+import { Activity } from 'lucide-react';
 
 
 export default function IPDAdmissionsList() {
@@ -30,17 +31,19 @@ export default function IPDAdmissionsList() {
   return (
     <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: '32px' }}>
+      <main className="main-content">
         <Header title="IPD Active Census" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: 0 }}>Active Admissions</h1>
-            <p style={{ color: '#64748b', marginTop: '4px' }}>All currently admitted in-patients across all wards</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#ecfdf5', color: '#10b981', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.1)' }}>
+              <Activity size={24} />
+            </div>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Live census monitoring of currently admitted in-patients across all clinical wards.</p>
           </div>
           <button
             onClick={() => navigate('/tenant/ipd/beds')}
-            style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer' }}
+            style={{ padding: '12px 32px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.2)' }}
           >
             🛏️ Open Bed Map
           </button>

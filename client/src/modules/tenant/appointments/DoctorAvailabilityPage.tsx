@@ -134,10 +134,17 @@ export default function DoctorAvailabilityPage() {
   if (loading) return <div className="loading-state">Initializing Clinical Engine...</div>;
 
   return (
-    <div className="dashboard-layout" style={{ background: '#f8fafc', height: '100vh', display: 'flex', overflow: 'hidden' }}>
+    <div className="dashboard-layout">
       <Sidebar />
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <main className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 32px 32px' }}>
         <Header title="Clinical Scheduling Command" />
+        
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', margin: '32px 0 8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eef2ff', color: '#4f46e5', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(79, 70, 233, 0.1)' }}>
+            <CalendarIcon size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Unified command center for physician availability, appointment scheduling, and clinical resource optimization.</p>
+        </div>
         
         <div style={{ flex: 1, display: 'flex', padding: '24px', gap: '24px', overflow: 'hidden' }}>
           

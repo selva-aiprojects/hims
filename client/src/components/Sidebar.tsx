@@ -22,55 +22,49 @@ import { API_BASE_URL as API_BASE } from "../config/api";
 
 const Icons: Record<string, any> = {
   Dashboard: LayoutDashboard,
-  OPD: Users,
-  Doctor: Stethoscope,
-  Lab: FlaskConical,
-  Pharmacy: Pill,
-  Billing: Receipt,
-  Settings: Settings,
-  Bed: Bed,
-  Clipboard: ClipboardList,
-  Calendar: Calendar,
-  Help: LifeBuoy
+  "OPD Center": Users,
+  "OPD Queue": RefreshCw,
+  "Consultation Desk": Stethoscope,
+  "IPD Admission Hub": Bed,
+  "Bed Management": ClipboardList,
+  "Diagnostic Center": FlaskConical,
+  Laboratory: FlaskConical,
+  "Pharmacy Hub": Pill,
+  "Central Billing": Receipt,
+  "Insurance & TPA": ShieldCheck,
+  "Hospital Settings": Settings,
+  "Staff & Access": Users,
+  "Support & Tickets": LifeBuoy,
+  Calendar: Calendar
 };
 
 const normalizePath = (label: string, originalPath: string) => {
   const l = label.toLowerCase();
   const overrides: Record<string, string> = {
-    "consultation desk": "/tenant/opd/consultation",
+    "opd center": "/tenant/opd/registration",
     "opd queue": "/tenant/opd/queue",
-    "doctor's queue": "/tenant/opd/queue",
-    "ipd admission desk": "/tenant/ipd/admission-desk",
-    "admission desk": "/tenant/ipd/admission-desk",
-    "user management": "/tenant/staff/user-management",
+    "consultation desk": "/tenant/opd/consultation",
+    "ipd admission hub": "/tenant/ipd/admission-desk",
+    "bed management": "/tenant/ipd/beds",
+    "discharge summaries": "/tenant/ipd/discharge",
+    "doctor's schedule": "/tenant/appointments/doctor-calendar?tab=Booking+%26+Operations",
     "appointment list": "/tenant/appointments",
-    "doctor availability and book appointments": "/tenant/appointments/doctor-calendar?tab=Booking+%26+Operations",
-    "operational scheduler": "/tenant/appointments/doctor-calendar?tab=Booking+%26+Operations",
-    "advanced scheduling console": "/tenant/appointments/doctor-calendar?tab=Weekly+Schedule",
-    "enterprise scheduling console": "/tenant/appointments/doctor-calendar?tab=Weekly+Schedule",
+    "diagnostic center": "/tenant/lab",
     "laboratory": "/tenant/lab",
-    "laboratory / diagnostics": "/tenant/lab",
-    "diagnostics": "/tenant/lab",
-    "lab": "/tenant/lab",
     "ai lab assistant": "/tenant/lab/ai",
-    "help & support": "/tenant/support",
-    "ticketing management system": "/tenant/support/tickets",
-    "pharmacy": "/tenant/pharmacy",
-    "staff & rbac": "/tenant/staff",
-    "staff management": "/tenant/staff",
+    "pharmacy hub": "/tenant/pharmacy",
     "pharmacy dashboard": "/tenant/pharmacy/dashboard",
     "stock inventory": "/tenant/pharmacy/inventory",
-    "prescription queue": "/tenant/pharmacy/queue",
-    "consultation billing": "/billing?type=OPD",
-    "opd billing": "/billing?type=OPD",
-    "pharmacy billing": "/billing?type=PHARMACY",
-    "laboratory billing": "/billing?type=LAB",
-    "lab billing": "/billing?type=LAB",
-    "ipd billing": "/billing?type=DISCHARGE",
-    "discharge billing": "/billing?type=DISCHARGE",
+    "central billing": "/billing",
     "invoicing & billing": "/billing",
-    "insurance management": "/billing?type=OPD",
-    "mail management": "/tenant/mail"
+    "insurance & tpa": "/tenant/billing/insurance",
+    "insurance management": "/tenant/billing/insurance",
+    "hospital settings": "/tenant/masters",
+    "staff & access": "/tenant/staff",
+    "message board": "/tenant/communication",
+    "mail & communications": "/tenant/mail",
+    "support & tickets": "/tenant/support",
+    "ticketing management system": "/tenant/support/tickets"
   };
   return overrides[l] || originalPath;
 };
@@ -93,27 +87,86 @@ export default function Sidebar() {
       dm.push({ label: "Advanced Scheduling Console", path: "/tenant/appointments/doctor-calendar?tab=Weekly+Schedule", icon: "CalendarDays", sort_order: 9 });
     }
 
+    const labelMap: Record<string, string> = {
+      "opd registration": "OPD Center",
+      "opd registration desk": "OPD Center",
+      "opd queue": "OPD Queue",
+      "doctor's queue": "OPD Queue",
+      "consultation desk": "Consultation Desk",
+      "admission desk": "IPD Admission Hub",
+      "ipd admission desk": "IPD Admission Hub",
+      "ipd bed map": "Bed Management",
+      "bed management": "Bed Management",
+      "discharge summaries": "Discharge Summaries",
+      "advanced scheduling console": "Doctor's Schedule",
+      "enterprise scheduling console": "Doctor's Schedule",
+      "laboratory": "Laboratory",
+      "laboratory / diagnostics": "Laboratory",
+      "lab": "Laboratory",
+      "ai lab assistant": "AI Lab Assistant",
+      "pharmacy dashboard": "Pharmacy Hub",
+      "stock inventory": "Pharmacy Hub",
+      "prescription queue": "Pharmacy Hub",
+      "ipd census & daycare": "Bed Management",
+      "ipd census": "Bed Management",
+      "laboratory billing": "Central Billing",
+      "pharmacy billing": "Central Billing",
+      "opd billing": "Central Billing",
+      "consultation billing": "Central Billing",
+      "discharge billing": "Central Billing",
+      "invoicing & billing": "Central Billing",
+      "opd billing & revenue center": "Central Billing",
+      "ipd & discharge billing": "Central Billing",
+      "insurance & tpa claims": "Insurance & TPA",
+      "insurance management": "Insurance & TPA",
+      "branding & ui settings": "Hospital Settings",
+      "hospital settings (masters)": "Hospital Settings",
+      "hospital settings": "Hospital Settings",
+      "operational analytics": "Hospital Settings",
+      "staff & rbac": "Staff & Access",
+      "user management": "Staff & Access",
+      "staff management": "Staff & Access",
+      "message board": "Message Board",
+      "mail management": "Mail & Communications",
+      "ticketing management system": "Support & Tickets",
+      "help & support": "Support & Tickets"
+    };
+
     const uniqueMap = new Map();
     dm.forEach(m => {
-      const nPath = normalizePath(m.label, m.path);
-      if (!uniqueMap.has(nPath)) uniqueMap.set(nPath, { ...m, path: nPath });
+      const mappedLabel = labelMap[m.label.toLowerCase()] || m.label;
+      const nPath = normalizePath(mappedLabel, m.path);
+      if (!uniqueMap.has(nPath)) uniqueMap.set(nPath, { ...m, label: mappedLabel, path: nPath });
     });
     const pm = Array.from(uniqueMap.values());
 
-    const clinicalFlow = ["OPD Registration", "OPD Queue", "Doctor's Queue", "Consultation Desk", "Appointment List", "Advanced Scheduling Console", "Admission Desk", "IPD Bed Map", "IPD Census & Daycare", "Discharge Summaries"];
-    const serviceFlow = ["Laboratory", "AI Lab Assistant", "Pharmacy Dashboard", "Stock Inventory", "Prescription Queue"];
-    const billingFlow = ["Invoicing & Billing", "OPD Billing & Revenue Center", "IPD & Discharge Billing", "Consultation Billing", "Pharmacy Billing", "Laboratory Billing", "Discharge Billing", "Insurance & TPA Claims", "Insurance Management"];
-    const adminFlow = ["Staff & RBAC", "Hospital Settings (Masters)", "Hospital Settings", "Branding & UI Settings", "Message Board", "Mail Management", "Ticketing Management System", "Help & Support"];
+    const clinicalFlow = [
+      "Doctor's Schedule", "Appointment List", 
+      "OPD Center", "OPD Queue", "Consultation Desk", 
+      "IPD Admission Hub", "Bed Management", "Discharge Summaries"
+    ];
+    const serviceFlow = [
+      "Laboratory", "AI Lab Assistant", 
+      "Pharmacy Hub", "Pharmacy Dashboard", "Stock Inventory"
+    ];
+    const billingFlow = [
+      "Central Billing", "Invoicing & Billing", 
+      "Insurance & TPA", "Insurance Management"
+    ];
+    const adminFlow = [
+      "Staff & Access", "Hospital Settings", 
+      "Message Board", "Mail & Communications", "Support & Tickets"
+    ];
 
     const getItems = (labels: string[]) => pm
       .filter(m => labels.some(l => l.toLowerCase() === m.label.toLowerCase()))
       .sort((a, b) => labels.findIndex(l => l.toLowerCase() === a.label.toLowerCase()) - labels.findIndex(l => l.toLowerCase() === b.label.toLowerCase()));
 
     const gs = [
-      { id: 'clinical', title: "Clinical Workflow", items: getItems(clinicalFlow), icon: Stethoscope },
-      { id: 'services', title: "Services & Pharmacy", items: getItems(serviceFlow), icon: FlaskConical },
-      { id: 'billing', title: "Billing & Finance", items: getItems(billingFlow), icon: Receipt },
-      { id: 'admin', title: "Administration", items: getItems(adminFlow), icon: Settings }
+      { id: 'clinical', title: "Clinical Operations", items: getItems(clinicalFlow), icon: Stethoscope },
+      { id: 'services', title: "Diagnostic Services", items: getItems(serviceFlow), icon: FlaskConical },
+      { id: 'billing', title: "Finance & Revenue", items: getItems(billingFlow), icon: Receipt },
+      { id: 'admin', title: "System Administration", items: getItems(adminFlow), icon: Settings }
     ];
 
     const gLabels = new Set();
@@ -145,7 +198,18 @@ export default function Sidebar() {
       }}></div>
       
       <div className="sidebar" style={{ width: '280px', background: 'var(--primary-dark, #0f172a)', height: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
-        <div style={{ padding: '0 8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+        <button 
+          className="sidebar-close" 
+          onClick={() => {
+            document.querySelector('.sidebar')?.classList.remove('mobile-open');
+            document.querySelector('.mobile-overlay')?.classList.remove('active');
+          }}
+          style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', padding: '8px', borderRadius: '50%', cursor: 'pointer', zIndex: 1002 }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+
+        <div style={{ padding: '0 8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', marginTop: '40px' }}>
           <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
             <img 
               src={localStorage.getItem('theme_logo_url') || "/logo.png"} 

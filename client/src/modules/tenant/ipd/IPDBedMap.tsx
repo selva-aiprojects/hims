@@ -103,6 +103,16 @@ export default function IPDBedMap() {
       <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
         <Header title="IPD Census & Bed Management" />
 
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eff6ff', color: '#3b82f6', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.1)' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/>
+            </svg>
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Inpatient Census Command</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Real-time bed availability tracking, patient admission logistics, and ward utilization surveillance.</p>
+        </div>
+
         {/* KPI Strip */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
           {[

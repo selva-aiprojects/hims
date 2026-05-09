@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
+import { Activity } from 'lucide-react';
 
 
 export default function PharmacyManagementPage() {
@@ -90,21 +91,23 @@ export default function PharmacyManagementPage() {
       <main className="main-content" style={{ padding: '32px' }}>
         <Header title="Pharmacy & PIMS Hub" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '32px' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: 0 }}>Pharmacy Operations</h1>
-            <p style={{ color: '#64748b', marginTop: '4px' }}>Inventory management & prescription fulfillment</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px', gap: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#dcfce7', color: '#059669', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.1)' }}>
+              <Activity size={24} />
+            </div>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Comprehensive inventory control, automated dispensing, and medication fulfillment engine.</p>
           </div>
-          <div style={{ background: 'white', padding: '6px', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', gap: '4px' }}>
+          <div style={{ background: 'white', padding: '6px', borderRadius: '18px', border: '1px solid #e2e8f0', display: 'flex', gap: '4px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
              <button 
                onClick={() => setActiveTab("inventory")}
-               style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: activeTab === 'inventory' ? '#3b82f6' : 'transparent', color: activeTab === 'inventory' ? 'white' : '#64748b', fontWeight: 700, cursor: 'pointer' }}
+               style={{ padding: '10px 24px', borderRadius: '14px', border: 'none', background: activeTab === 'inventory' ? '#3b82f6' : 'transparent', color: activeTab === 'inventory' ? 'white' : '#64748b', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}
              >
                 Stock Inventory
              </button>
              <button 
                onClick={() => setActiveTab("prescriptions")}
-               style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: activeTab === 'prescriptions' ? '#3b82f6' : 'transparent', color: activeTab === 'prescriptions' ? 'white' : '#64748b', fontWeight: 700, cursor: 'pointer' }}
+               style={{ padding: '10px 24px', borderRadius: '14px', border: 'none', background: activeTab === 'prescriptions' ? '#3b82f6' : 'transparent', color: activeTab === 'prescriptions' ? 'white' : '#64748b', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}
              >
                 Prescription Queue
              </button>

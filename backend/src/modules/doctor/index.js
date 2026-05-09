@@ -275,9 +275,8 @@ const ensureEnterpriseTables = async (req) => {
   }
 
   try {
-    // Ensure Extensions
-    await req.prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
-    await req.prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
+    // Extensions are managed at the database level, avoiding per-request DDL race conditions
+    // Removed redundant CREATE EXTENSION calls that cause pg_type unique violations
 
     // 1. Doctor Weekly Schedule
     await req.prisma.$executeRawUnsafe(`

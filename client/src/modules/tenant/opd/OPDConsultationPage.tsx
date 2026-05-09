@@ -42,6 +42,12 @@ export default function OPDConsultationPage() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<any>(null);
   const [showAiPanel, setShowAiPanel] = useState(false);
+  
+  // Clinical History Data
+  const [pastLabs, setPastLabs] = useState<any[]>([]);
+  const [pastMeds, setPastMeds] = useState<any[]>([]);
+  const [isAdmissionPrescribed, setIsAdmissionPrescribed] = useState(false);
+  const [admissionReason, setAdmissionReason] = useState("");
 
   
   const getHeaders = () => ({ 
@@ -64,6 +70,14 @@ export default function OPDConsultationPage() {
     try {
       const res = await axios.get(`${API_BASE}/api/patients/${id}`, { headers: getHeaders() });
       setPatient(res.data);
+      
+      // Fetch Past History
+      const [labRes, medRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/hospital/lab/orders?patientId=${id}`, { headers: getHeaders() }),
+        axios.get(`${API_BASE}/api/hospital/encounters?patientId=${id}&status=Completed`, { headers: getHeaders() })
+      ]);
+      setPastLabs(labRes.data || []);
+      setPastMeds(medRes.data || []);
     } catch (err) { console.error(err); }
   };
 
@@ -130,6 +144,16 @@ export default function OPDConsultationPage() {
         try {
           await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/lab-orders`, { diagnosticIds: selectedLabTests }, { headers: h });
         } catch (e) { console.warn("Lab order save failed", e); }
+      }
+
+      // 4. Save Admission Recommendation
+      if (isAdmissionPrescribed) {
+        try {
+          // Formal admission recommendation to Admission Desk
+          await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/admission-recommendation`, { 
+            reason: admissionReason || notes 
+          }, { headers: h });
+        } catch (e) { console.warn("Admission rec failed", e); }
       }
 
       localStorage.removeItem("currentEncounter");
@@ -236,6 +260,14 @@ export default function OPDConsultationPage() {
       <Sidebar />
       <main className="main-content" style={{ padding: '32px' }}>
         <Header title="Clinical Consultation War-Room" />
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '32px', marginTop: '8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eff6ff', color: '#3b82f6', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.1)' }}>
+            <Stethoscope size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical Decision Hub</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Unified command interface for clinical diagnosis, AI-assisted prescription, and diagnostic orders.</p>
+        </div>
 
         {/* COMPREHENSIVE PATIENT HUD */}
         <div className="page-card" style={{ padding: '28px', borderRadius: '28px', marginBottom: '28px', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.04)' }}>
@@ -371,10 +403,36 @@ export default function OPDConsultationPage() {
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                />
-               <div style={{ marginTop: '20px', display: 'flex', gap: '12px' }}>
-                  <button onClick={() => setNotes(notes + " [ADMISSION_RECOMMENDED]")} style={{ padding: '10px 20px', borderRadius: '12px', background: '#fff7ed', border: '1px solid #ffedd5', color: '#c2410c', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>+ Recommend Admission</button>
+               <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button 
+                    onClick={() => {
+                      setIsAdmissionPrescribed(true);
+                      setAdmissionReason("Acute clinical condition requiring IPD monitoring");
+                      setNotes(notes + " [IPD_ADMISSION_ORDERED]");
+                    }} 
+                    style={{ 
+                      padding: '10px 20px', borderRadius: '12px', 
+                      background: isAdmissionPrescribed ? '#fbbf24' : '#fff7ed', 
+                      border: '1px solid #ffedd5', color: isAdmissionPrescribed ? 'white' : '#c2410c', 
+                      fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                      boxShadow: isAdmissionPrescribed ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
+                    }}
+                  >
+                    {isAdmissionPrescribed ? '✅ Admission Prescribed' : '+ Prescribe IPD Admission'}
+                  </button>
                   <button onClick={() => setNotes(notes + " [FOLLOW_UP_7D]")} style={{ padding: '10px 20px', borderRadius: '12px', background: '#eff6ff', border: '1px solid #dbeafe', color: '#3b82f6', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>+ Follow-up (7D)</button>
                </div>
+               {isAdmissionPrescribed && (
+                 <div style={{ marginTop: '16px', padding: '16px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#854d0e', marginBottom: '8px' }}>ADMISSION REASON (FOR ADMISSION DESK)</label>
+                    <input 
+                      className="input-field" 
+                      value={admissionReason} 
+                      onChange={e => setAdmissionReason(e.target.value)}
+                      placeholder="e.g. Severe Dehydration, Post-Op Care..." 
+                    />
+                 </div>
+               )}
             </div>
 
             {/* TABBED CLINICAL INTERFACE */}
@@ -499,7 +557,11 @@ export default function OPDConsultationPage() {
               )}
               
               {activeTab === 'history' && (
-                <ClinicalHistoryTab patient={patient} />
+                <ClinicalHistoryTab 
+                  patient={patient} 
+                  pastLabs={pastLabs}
+                  pastMeds={pastMeds}
+                />
               )}
             </div>
           </div>

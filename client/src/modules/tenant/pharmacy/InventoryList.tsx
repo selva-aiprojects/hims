@@ -47,17 +47,74 @@ export default function InventoryList() {
       <main style={{ flex: 1, padding: '32px' }}>
         <Header title="Pharmacy Inventory Management" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: 0 }}>Stock Inventory</h1>
-            <p style={{ color: '#64748b', marginTop: '4px' }}>Complete drug catalog with batch and expiry tracking</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#fef3c7', color: '#d97706', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(217, 119, 6, 0.1)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+            </div>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '500px' }}>Comprehensive drug catalog with automated batch surveillance and real-time expiry tracking.</p>
           </div>
-          <button 
-            onClick={() => setShowModal(true)}
-            style={{ padding: '12px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
-          >
-             + Add New Stock
-          </button>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <button 
+              onClick={() => {
+                const csvContent = "name,category,stock,price,expiry\nParacetamol 500mg,Tablet,500,10.00,2025-12-31\nAmoxicillin 250mg,Antibiotic,200,45.50,2025-06-30";
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.setAttribute('href', url);
+                a.setAttribute('download', 'pharmacy_stock_template.csv');
+                a.click();
+              }}
+              style={{ padding: '12px 24px', background: 'white', border: '1px solid #e2e8f0', color: '#0f172a', borderRadius: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Template
+            </button>
+            <button 
+              onClick={() => setShowModal(true)}
+              style={{ padding: '12px 32px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.2)' }}
+            >
+               + Add New Stock
+            </button>
+            <label style={{ padding: '12px 24px', background: 'white', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: '14px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input 
+                type="file" 
+                accept=".csv" 
+                style={{ display: 'none' }} 
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const text = await file.text();
+                  const lines = text.split('\n').filter(l => l.trim());
+                  const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                  const items = lines.slice(1).map(line => {
+                    const values = line.split(',').map(v => v.trim());
+                    return {
+                      name: values[headers.indexOf('name')],
+                      category: values[headers.indexOf('category')] || 'Other',
+                      stock_quantity: parseInt(values[headers.indexOf('stock')] || values[headers.indexOf('quantity')] || '0'),
+                      unit_price: parseFloat(values[headers.indexOf('price')] || '0'),
+                      expiry_date: values[headers.indexOf('expiry')] || values[headers.indexOf('expiry_date')]
+                    };
+                  }).filter(i => i.name);
+
+                  const authHeaders = { 
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    "x-tenant-id": localStorage.getItem("tenant") || ""
+                  };
+                  try {
+                    await axios.post(`${API_BASE}/api/hospital/masters/medicines/bulk`, items, { headers: authHeaders });
+                    alert(`Successfully imported ${items.length} items!`);
+                    fetchInventory();
+                  } catch (err) {
+                    alert("Import failed. Check CSV format (Required: name, category, stock, price, expiry)");
+                  }
+                }}
+              />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Import CSV
+            </label>
+          </div>
         </div>
 
         {showModal && (
@@ -130,7 +187,7 @@ export default function InventoryList() {
               {inventory.map((item, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }}>
                   <td style={{ padding: '20px 24px' }}>
-                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.drug_name}</div>
+                    <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.name || item.drug_name}</div>
                     <div style={{ fontSize: '11px', color: '#94a3b8' }}>ID: {item.id.substring(0,8)}</div>
                   </td>
                   <td style={{ padding: '20px 24px' }}>
@@ -139,9 +196,11 @@ export default function InventoryList() {
                   <td style={{ padding: '20px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                        <div style={{ width: '100px', height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${Math.min(Number(item.stock_quantity) / 2, 100)}%`, height: '100%', background: Number(item.stock_quantity) < 50 ? '#ef4444' : '#10b981' }}></div>
+                          <div style={{ width: `${Math.min(Number(item.stock_quantity) / 2, 100)}%`, height: '100%', background: Number(item.stock_quantity) < 20 ? '#ef4444' : Number(item.stock_quantity) < 50 ? '#f59e0b' : '#10b981' }}></div>
                        </div>
-                       <span style={{ fontWeight: 800, color: Number(item.stock_quantity) < 50 ? '#ef4444' : '#10b981' }}>{item.stock_quantity}</span>
+                       <span style={{ fontWeight: 800, color: Number(item.stock_quantity) < 20 ? '#ef4444' : Number(item.stock_quantity) < 50 ? '#f59e0b' : '#10b981' }}>{item.stock_quantity}</span>
+                       {Number(item.stock_quantity) < 20 && <span style={{ fontSize: '10px', background: '#fee2e2', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', fontWeight: 900 }}>CRITICAL</span>}
+                       {Number(item.stock_quantity) >= 20 && Number(item.stock_quantity) < 50 && <span style={{ fontSize: '10px', background: '#fef3c7', color: '#d97706', padding: '2px 6px', borderRadius: '4px', fontWeight: 900 }}>LOW</span>}
                     </div>
                   </td>
                   <td style={{ padding: '20px 24px', fontWeight: 800 }}>₹{Number(item.unit_price).toFixed(2)}</td>

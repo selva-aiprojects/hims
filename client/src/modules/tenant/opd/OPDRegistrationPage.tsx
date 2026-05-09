@@ -171,6 +171,14 @@ export default function OPDRegistrationPage() {
       <main className="main-content" style={{ padding: '32px' }}>
         <Header title="OPD Professional Intake Desk" />
 
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#4338ca', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.1)' }}>
+            <UserPlus size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>High-Velocity Registration</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Streamlined clinical intake and token management for efficient outpatient operations.</p>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '28px' }}>
           
           {/* LEFT: UNIFIED INTAKE CONSOLE */}

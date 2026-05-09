@@ -225,29 +225,26 @@ export default function MastersPage() {
       <main style={{ flex: 1, padding: '32px' }}>
         <Header title="Master Data Management" />
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px', marginBottom: '32px' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '24px', marginBottom: '40px' }}>
+          <div style={{ maxWidth: '800px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{ width: '42px', height: '42px', borderRadius: '14px', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#4338ca' }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg>
               </div>
-              <div>
-                <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical configuration</p>
-                <h1 style={{ margin: '8px 0 0', fontSize: '32px', fontWeight: 900, color: '#0f172a' }}>Hospital master catalog</h1>
-              </div>
+              <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical Catalog Context</p>
             </div>
-            <p style={{ margin: 0, maxWidth: '680px', color: '#64748b', lineHeight: 1.8 }}>Keep the hospital operational masters aligned with the clinical workflow. Use this centralized screen to review services, specialties, classifications, and care protocols.</p>
+            <p style={{ margin: 0, color: '#64748b', lineHeight: 1.7, fontSize: '15px' }}>Review and manage the centralized clinical operational masters aligned with the active hospital workflow.</p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '16px' }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '22px', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.05)' }}>
+          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', width: '100%', maxWidth: '600px' }}>
+            <div style={{ flex: 1, background: 'white', borderRadius: '20px', padding: '22px', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.05)', border: '1px solid #e2e8f0' }}>
               <p style={{ margin: 0, fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Master rows</p>
               <p style={{ margin: '14px 0 0', fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>{totalMasters}</p>
             </div>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '22px', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.05)' }}>
+            <div style={{ flex: 1, background: 'white', borderRadius: '20px', padding: '22px', boxShadow: '0 20px 40px rgba(15, 23, 42, 0.05)', border: '1px solid #e2e8f0' }}>
               <p style={{ margin: 0, fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>Active section</p>
               <p style={{ margin: '14px 0 0', fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>{activeConfig.label}</p>
-              <p style={{ margin: '10px 0 0', color: '#475569', fontWeight: 700 }}>{activeData.length} records</p>
+              <p style={{ margin: '10px 0 0', color: '#4338ca', fontWeight: 800 }}>{activeData.length} records</p>
             </div>
           </div>
         </div>

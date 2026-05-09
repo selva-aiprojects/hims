@@ -124,6 +124,52 @@ async function ensureIPDMasters(req) {
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".beds (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), ward_id UUID REFERENCES "${req.schemaName}".wards(id), bed_number VARCHAR(50), status VARCHAR(50) DEFAULT 'Vacant')`);
 }
 
+async function ensureInsuranceInfrastructure(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_providers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) UNIQUE NOT NULL,
+      tpa_name VARCHAR(255),
+      contact_person VARCHAR(100),
+      email VARCHAR(255),
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  // Ensure columns exist for older table versions
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS tpa_name VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS contact_person VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
+
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_plans (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      provider_id UUID REFERENCES "${req.schemaName}".insurance_providers(id),
+      plan_name VARCHAR(255) NOT NULL,
+      description TEXT,
+      base_coverage NUMERIC DEFAULT 0,
+      copay_percent NUMERIC DEFAULT 0,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".patient_insurance (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID REFERENCES "${req.schemaName}".patients(id),
+      provider_id UUID REFERENCES "${req.schemaName}".insurance_providers(id),
+      plan_id UUID REFERENCES "${req.schemaName}".insurance_plans(id),
+      policy_number VARCHAR(100),
+      total_limit NUMERIC DEFAULT 0,
+      remaining_limit NUMERIC DEFAULT 0,
+      copay_percent NUMERIC DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'Active',
+      valid_till DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
 async function ensureBillingQueue(req) {
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".billing_queue (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), patient_id UUID NOT NULL, encounter_id UUID, source_module VARCHAR(50), source_id UUID, description TEXT, quantity NUMERIC DEFAULT 1, unit_price NUMERIC NOT NULL, tax_percent NUMERIC DEFAULT 0, is_discountable BOOLEAN DEFAULT TRUE, status VARCHAR(20) DEFAULT 'PENDING', created_at TIMESTAMP DEFAULT NOW())`);
 }
@@ -141,6 +187,7 @@ router.get("/heal-all-masters", async (req, res, next) => {
     await ensureOrderColumns(req);
     await ensureDischargeTable(req);
     await ensureBillingQueue(req);
+    await ensureInsuranceInfrastructure(req);
     res.json({ success: true, message: "Clinical environment provisioned." });
   } catch (error) { next(error); }
 });
@@ -186,11 +233,27 @@ masterTables.forEach(({ path, table }) => {
   router.post(`/masters/${path}`, async (req, res, next) => {
     try {
       await ensureTableColumns(req, table);
-      const fields = Object.keys(req.body).filter(f => ['name','description','category','price','hod','specialty','status'].includes(f));
+      const fields = Object.keys(req.body).filter(f => ['name','description','category','price','unit_price','stock_quantity','expiry_date','hod','specialty','status'].includes(f));
       const values = fields.map(f => typeof req.body[f] === 'string' ? `'${req.body[f].replace(/'/g, "''")}'` : req.body[f]);
       const query = `INSERT INTO "${req.schemaName}"."${table}" (${fields.join(',')}) VALUES (${values.join(',')}) RETURNING *`;
       const result = await req.prisma.$queryRawUnsafe(query);
       res.status(201).json(result[0]);
+    } catch (error) { next(error); }
+  });
+
+  router.post(`/masters/${path}/bulk`, async (req, res, next) => {
+    try {
+      await ensureTableColumns(req, table);
+      const items = Array.isArray(req.body) ? req.body : [req.body];
+      const results = [];
+      for (const item of items) {
+        const fields = Object.keys(item).filter(f => ['name','description','category','price','unit_price','stock_quantity','expiry_date','hod','specialty','status'].includes(f));
+        const values = fields.map(f => typeof item[f] === 'string' ? `'${item[f].replace(/'/g, "''")}'` : item[f]);
+        const query = `INSERT INTO "${req.schemaName}"."${table}" (${fields.join(',')}) VALUES (${values.join(',')}) RETURNING *`;
+        const result = await req.prisma.$queryRawUnsafe(query);
+        results.push(result[0]);
+      }
+      res.status(201).json(results);
     } catch (error) { next(error); }
   });
 });
@@ -380,7 +443,56 @@ router.get("/ipd/admissions", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// --- CLINICAL ORDERS (LAB & PHARMACY) ---
+async function ensureAdmissionRecommendations(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".admission_recommendations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      encounter_id UUID NOT NULL,
+      patient_id UUID NOT NULL,
+      doctor_id UUID NOT NULL,
+      reason TEXT,
+      status VARCHAR(50) DEFAULT 'Pending',
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+// --- CLINICAL ORDERS (LAB & PHARMACY & ADMISSION) ---
+router.post("/encounters/:id/admission-recommendation", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    await ensureAdmissionRecommendations(req);
+
+    const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id, doctor_id FROM "${req.schemaName}".encounters WHERE id = '${id}'`);
+    if (encounter.length === 0) return res.status(404).json({ error: "Encounter not found" });
+    
+    const { patient_id, doctor_id } = encounter[0];
+
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".admission_recommendations (encounter_id, patient_id, doctor_id, reason, status)
+      VALUES ('${id}', '${patient_id}', '${doctor_id}', '${s(reason)}', 'Pending')
+    `);
+
+    res.json({ message: "Admission recommendation registered." });
+  } catch (error) { next(error); }
+});
+
+router.get("/ipd/recommendations", async (req, res, next) => {
+  try {
+    await ensureAdmissionRecommendations(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT r.*, p.name as patient_name, p.mrn, u.name as doctor_name
+      FROM "${req.schemaName}".admission_recommendations r
+      JOIN "${req.schemaName}".patients p ON r.patient_id = p.id
+      JOIN "${req.schemaName}".users u ON r.doctor_id = u.id
+      WHERE r.status = 'Pending'
+      ORDER BY r.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 router.post("/encounters/:id/prescriptions", async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -525,6 +637,190 @@ router.get("/ipd/discharges", async (req, res, next) => {
       JOIN "${req.schemaName}".patients p ON ds.patient_id = p.id
       LEFT JOIN "${req.schemaName}".users u ON ds.doctor_id = u.id
       ORDER BY ds.discharge_date DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// --- PHARMACY MANAGEMENT ---
+router.get("/pharmacy/inventory", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".medicines ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/pharmacy/inventory", async (req, res, next) => {
+  try {
+    const { name, category, quantity, price, expiryDate } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".medicines (name, category, stock_quantity, unit_price, expiry_date, is_active)
+      VALUES ('${s(name)}', '${s(category)}', ${parseInt(quantity) || 0}, ${parseFloat(price) || 0}, ${sqlValue(expiryDate)}, true)
+    `);
+    res.status(201).json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/prescriptions", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT p.*, pat.name as patient_name, pat.mrn, u.name as doctor_name
+      FROM "${req.schemaName}".prescriptions p
+      JOIN "${req.schemaName}".encounters e ON p.encounter_id = e.id
+      JOIN "${req.schemaName}".patients pat ON e.patient_id = pat.id
+      JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      ORDER BY p.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/prescriptions/:id/items", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    // For now, return a mock item if prescriptions table doesn't have a split items table yet
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".prescriptions WHERE id = '${id}'`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/pharmacy/dispense", async (req, res, next) => {
+  try {
+    const { prescriptionId, items, encounterId } = req.body;
+    
+    for (const item of items) {
+      // 1. Decrement Stock
+      await req.prisma.$executeRawUnsafe(`
+        UPDATE "${req.schemaName}".medicines 
+        SET stock_quantity = stock_quantity - ${item.quantity} 
+        WHERE id = '${item.drugId}' OR name = '${item.drugName}'
+      `);
+
+      // 2. Add to Billing Queue
+      const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${encounterId}'`);
+      const patientId = encounter[0]?.patient_id;
+      
+      if (patientId) {
+        await req.prisma.$executeRawUnsafe(`
+          INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price)
+          VALUES ('${patientId}', '${encounterId}', 'PHARMACY', '${prescriptionId || crypto.randomUUID()}', 'Medicine: ${s(item.drugName)}', ${item.quantity}, ${item.unitPrice})
+        `);
+      }
+    }
+
+    // 3. Mark Prescription as Completed
+    if (prescriptionId) {
+      await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".prescriptions SET status = 'Completed' WHERE id = '${prescriptionId}'`);
+    }
+
+    res.json({ success: true, message: "Medicines dispensed and billing updated." });
+  } catch (error) { next(error); }
+});
+
+router.get("/pharmacy/stats", async (req, res, next) => {
+  try {
+    const todaysSalesRes = await req.prisma.$queryRawUnsafe(`
+      SELECT COALESCE(SUM(total), 0)::float as total 
+      FROM "${req.schemaName}".invoices 
+      WHERE bill_type = 'PHARMACY' AND created_at > NOW() - INTERVAL '24 hours'
+    `);
+    
+    const recentDispenses = await req.prisma.$queryRawUnsafe(`
+      SELECT p.*, pat.name as patient_name 
+      FROM "${req.schemaName}".prescriptions p
+      JOIN "${req.schemaName}".encounters e ON p.encounter_id = e.id
+      JOIN "${req.schemaName}".patients pat ON e.patient_id = pat.id
+      WHERE p.status = 'Completed'
+      ORDER BY p.created_at DESC LIMIT 5
+    `);
+
+    res.json({
+      todaysSales: todaysSalesRes[0]?.total || 0,
+      recentDispenses
+    });
+  } catch (error) { next(error); }
+});
+
+// --- INSURANCE & TPA MANAGEMENT ---
+router.get("/insurance/providers", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".insurance_providers ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/insurance/providers", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const { name, tpa_name, contact_person, email } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".insurance_providers (name, tpa_name, contact_person, email)
+      VALUES ('${s(name)}', '${s(tpa_name)}', ${sqlValue(contact_person)}, ${sqlValue(email)})
+    `);
+    res.status(201).json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.get("/insurance/plans", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT p.*, ip.name as provider_name 
+      FROM "${req.schemaName}".insurance_plans p
+      JOIN "${req.schemaName}".insurance_providers ip ON p.provider_id = ip.id
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/insurance/plans", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const { provider_id, plan_name, description, base_coverage, copay_percent } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".insurance_plans (provider_id, plan_name, description, base_coverage, copay_percent)
+      VALUES ('${provider_id}', '${s(plan_name)}', ${sqlValue(description)}, ${base_coverage || 0}, ${copay_percent || 0})
+    `);
+    res.status(201).json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.get("/insurance/patient-mapping", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT pi.*, p.name as patient_name, p.mrn, ip.name as provider_name, ipl.plan_name
+      FROM "${req.schemaName}".patient_insurance pi
+      JOIN "${req.schemaName}".patients p ON pi.patient_id = p.id
+      JOIN "${req.schemaName}".insurance_providers ip ON pi.provider_id = ip.id
+      JOIN "${req.schemaName}".insurance_plans ipl ON pi.plan_id = ipl.id
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/insurance/patient-mapping", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const { patient_id, provider_id, plan_id, policy_number, total_limit, copay_percent, valid_till } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".patient_insurance (patient_id, provider_id, plan_id, policy_number, total_limit, remaining_limit, copay_percent, valid_till)
+      VALUES ('${patient_id}', '${provider_id}', '${plan_id}', '${s(policy_number)}', ${total_limit}, ${total_limit}, ${copay_percent || 0}, ${sqlValue(valid_till)})
+    `);
+    res.status(201).json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.get("/insurance/claims", async (req, res, next) => {
+  try {
+    await ensureInsuranceInfrastructure(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT ic.*, p.name as patient_name, p.mrn, ip.name as provider_name
+      FROM "${req.schemaName}".insurance_claims ic
+      JOIN "${req.schemaName}".patients p ON ic.patient_id = p.id
+      JOIN "${req.schemaName}".insurance_providers ip ON ic.provider_id = ip.id
+      ORDER BY ic.created_at DESC
     `);
     res.json(data);
   } catch (error) { next(error); }

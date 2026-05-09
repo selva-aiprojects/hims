@@ -19,7 +19,8 @@ export default function Header({ title }: HeaderProps) {
 
   return (
     <header className="dashboard-header">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+      {/* Navigation Controls - Absolute Left */}
+      <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '16px' }}>
         <button 
           className="hamburger-menu"
           onClick={() => {
@@ -33,46 +34,54 @@ export default function Header({ title }: HeaderProps) {
             <line x1="4" y1="17" x2="20" y2="17"></line>
           </svg>
         </button>
-        <div className="welcome-msg">
-          <h1>{title}</h1>
-          <p className="help-text">Logged in as <span style={{ fontWeight: 700, color: '#0d9488' }}>{userName}</span></p>
-        </div>
-        
-        <div style={{ 
-          background: 'rgba(13, 148, 136, 0.1)', 
-          border: '1px solid rgba(13, 148, 136, 0.2)', 
-          padding: '6px 16px', 
-          borderRadius: '100px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <div style={{ width: '8px', height: '8px', background: '#0d9488', borderRadius: '50%' }}></div>
-          <span style={{ fontSize: '12px', fontWeight: 800, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tenantName}</span>
+      </div>
+
+      {/* Primary Command Center - Centered */}
+      <div className="welcome-msg">
+        <h1>{title}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '8px' }}>
+          <p className="help-text" style={{ margin: 0 }}>Authorized Session: <span style={{ fontWeight: 800, color: '#10b981' }}>{userName}</span></p>
+          <div style={{ width: '1px', height: '14px', background: '#e2e8f0' }}></div>
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%' }}></div>
+            <span style={{ fontSize: '11px', fontWeight: 800, color: '#0d9488', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{tenantName}</span>
+          </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-        <div style={{ 
-          transform: 'scale(0.55)', 
-          transformOrigin: 'right center',
-          opacity: 0.6,
-          marginTop: '-10px'
-        }}>
-          <BrandLogo size="sm" />
+      {/* Profile & Identity - Absolute Right */}
+      <div style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ textAlign: 'right', display: 'none' }}> {/* Hide on desktop to keep it super clean */}
+          <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{userName}</p>
+          <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>Clinical Staff</p>
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', margin: 0 }}>{userName}</p>
-            <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>Staff Account</p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+          <div style={{ 
+            transform: 'scale(0.55)', 
+            transformOrigin: 'right center',
+            opacity: 0.5,
+            marginBottom: '-4px'
+          }}>
+            <BrandLogo size="sm" />
           </div>
           <button 
             onClick={handleLogout}
             className="button-secondary"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: 800
+            }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             LOGOUT
           </button>
         </div>

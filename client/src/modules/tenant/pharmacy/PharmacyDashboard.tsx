@@ -3,6 +3,7 @@ import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
+import { Activity } from 'lucide-react';
 
 
 export default function PharmacyDashboard() {
@@ -40,9 +41,11 @@ export default function PharmacyDashboard() {
       <main style={{ flex: 1, padding: '32px' }}>
         <Header title="Pharmacy Intelligence Dashboard" />
         
-        <div style={{ marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', margin: 0 }}>Pharmacy Overview</h1>
-          <p style={{ color: '#64748b', marginTop: '8px' }}>Real-time inventory metrics and dispensing throughput</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eff6ff', color: '#2563eb', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.1)' }}>
+            <Activity size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Real-time inventory metrics, low-stock surveillance, and medication dispensing throughput intelligence.</p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '40px' }}>

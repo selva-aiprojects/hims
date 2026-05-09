@@ -104,6 +104,14 @@ export default function DashboardPage() {
       <main className="main-content" style={{ padding: '40px', backgroundColor: '#f8fafc' }}>
         <Header title={`Welcome, ${userName}`} />
 
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px', marginTop: '8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#ecfdf5', display: 'grid', placeItems: 'center', color: '#059669', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.1)' }}>
+            <HeartPulse size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Clinical Command Overview</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Real-time surveillance of patient inflow, clinical utilization, and revenue performance across all hospital departments.</p>
+        </div>
+
         {/* TOP ROW: REAL-TIME KPIs */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '32px' }}>
           {[

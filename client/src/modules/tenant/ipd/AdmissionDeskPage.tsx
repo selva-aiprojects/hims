@@ -33,19 +33,16 @@ export default function AdmissionDeskPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [patRes, wardRes, staffRes, encRes] = await Promise.all([
+        const [patRes, wardRes, staffRes, recRes] = await Promise.all([
           axios.get(`${API_BASE}/api/patients?limit=100`, { headers }),
           axios.get(`${API_BASE}/api/hospital/masters/wards`, { headers }),
           axios.get(`${API_BASE}/api/hospital/staff`, { headers }),
-          axios.get(`${API_BASE}/api/hospital/encounters?status=Completed`, { headers })
+          axios.get(`${API_BASE}/api/hospital/ipd/recommendations`, { headers })
         ]);
         setPatients(patRes.data);
         setWards(wardRes.data);
         setDoctors(staffRes.data.filter((s: any) => s.role === 'doctor' || s.role === 'admin'));
-        
-        // Filter recommendations from encounter notes
-        const admittedEncounters = encRes.data.filter((e: any) => e.notes?.includes("[ADMISSION_RECOMMENDED]"));
-        setRecommendations(admittedEncounters);
+        setRecommendations(recRes.data || []);
       } catch (err) { console.error(err); }
     };
     fetchData();
@@ -166,7 +163,7 @@ export default function AdmissionDeskPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                    {recommendations.length > 0 ? recommendations.map((r, i) => (
                      <div key={i} style={{ background: 'rgba(255,255,255,0.05)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}
-                        onClick={() => setForm({...form, patientId: r.patient_id, admissionReason: r.diagnosis || ""})}
+                        onClick={() => setForm({...form, patientId: r.patient_id, admissionReason: r.reason || r.diagnosis || ""})}
                      >
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                            <span style={{ fontWeight: 800, fontSize: '14px' }}>{r.patient_name}</span>

@@ -249,12 +249,19 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ background: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', minHeight: '100vh' }}>
       <Sidebar />
-      <main style={{ flex: 1, overflowY: 'auto' }}>
+      <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
         <Header title="Consolidated Billing & Revenue Center" />
 
-        <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+        <div style={{ padding: '24px 40px', maxWidth: '1600px', margin: '0 auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#4338ca', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.1)' }}>
+              <Wallet size={24} />
+            </div>
+            <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Revenue & Settlement Hub</p>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '700px' }}>Unified financial operations for OPD, Laboratory, Pharmacy, and IPD services with real-time TPA & Insurance integration.</p>
+          </div>
           
           {/* TOP STATS */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
@@ -277,7 +284,7 @@ export default function BillingPage() {
           </div>
 
           {/* CONTEXT TABS */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '32px', padding: '6px', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', width: 'fit-content' }}>
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '32px', padding: '8px', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', width: 'fit-content', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
             {BILLING_TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -285,14 +292,16 @@ export default function BillingPage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 20px', borderRadius: '12px',
-                    border: 'none', cursor: 'pointer', transition: 'all 0.2s',
+                    display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 24px', borderRadius: '16px',
+                    border: 'none', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     background: isActive ? tab.color : 'transparent',
                     color: isActive ? 'white' : '#64748b',
-                    fontWeight: 700, fontSize: '14px'
+                    fontWeight: 800, fontSize: '14px',
+                    boxShadow: isActive ? `0 10px 15px -3px ${tab.color}40` : 'none',
+                    transform: isActive ? 'translateY(-1px)' : 'none'
                   }}
                 >
-                  <tab.icon size={18} />
+                  <tab.icon size={20} style={{ opacity: isActive ? 1 : 0.6 }} />
                   {tab.label}
                 </button>
               );
@@ -456,27 +465,34 @@ export default function BillingPage() {
             {/* RIGHT: SUMMARY & PAYMENT */}
             <aside style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
               
-              <div style={{ background: '#0f172a', padding: '32px', borderRadius: '28px', color: 'white', boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.2)' }}>
+              <div style={{ 
+                background: 'linear-gradient(165deg, #1e293b 0%, #0f172a 100%)', 
+                padding: '32px', 
+                borderRadius: '28px', 
+                color: 'white', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Wallet size={18} />
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Wallet size={20} />
                   </div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Payment Summary</h3>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>Settlement Summary</h3>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '32px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>Invoice Subtotal</span>
-                    <span style={{ fontWeight: 700 }}>₹ {totals.subtotal.toLocaleString()}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>Total Service Value</span>
+                    <span style={{ fontWeight: 700, fontSize: '16px' }}>₹ {totals.subtotal.toLocaleString()}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>Taxes & Levies</span>
-                    <span style={{ fontWeight: 700 }}>₹ {totals.tax.toLocaleString()}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: 600 }}>Statutory Taxes</span>
+                    <span style={{ fontWeight: 700, fontSize: '16px' }}>₹ {totals.tax.toLocaleString()}</span>
                   </div>
-                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '24px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '24px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                     <div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>Net Payable Amount</div>
-                      <div style={{ fontSize: '32px', fontWeight: 900, color: '#10b981' }}>₹ {totals.net.toLocaleString()}</div>
+                      <div style={{ color: '#10b981', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Net Payable Amount</div>
+                      <div style={{ fontSize: '36px', fontWeight: 900, color: '#10b981', letterSpacing: '-0.03em' }}>₹ {totals.net.toLocaleString()}</div>
                     </div>
                   </div>
                 </div>

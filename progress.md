@@ -20,35 +20,41 @@
 - [x] **Welcome Automation**: Integration with Resend for admin credential delivery.
 
 ### 3. Laboratory & Diagnostic Command Center
-- [x] **Workflow Orchestration**: Status-driven queue (Order -> Process -> Authorize -> Publish).
-- [x] **AI Lab Assistant**: Isolated module for OCR report parsing and diagnostic analytics.
+- [x] **Diagnostic Wizard**: Professional 5-step clinical workflow (Accessioning -> Collection -> Analysis -> Authorization -> Published).
+- [x] **Milestone Tracking**: Visual stepper for real-time tracking of investigation lifecycles.
+- [x] **High-Precision Entry**: Parameter-grid results with automated normal range validation.
 - [x] **Revenue Linkage**: Hard linkage between clinical results and automated billing.
-- [x] **Secure AI Chatbot**: Tenant-isolated assistant with real-time hospital metric awareness.
 
-### 4. Clinical AI Evolution
-- [x] **AI Clinical Advisor**: OPD Consultation assistant providing real-time diagnosis, test, and medicine suggestions.
-- [x] **AI Discharge Summary**: Automated clinical course synthesis for IPD admissions.
-- [x] **Integrated IPD Ordering**: Direct Lab/Pharmacy requisitions from the bedside with atomic encounter linkage.
+### 4. Clinical Workflow Integration
+- [x] **E2E Clinical Loop**: Connected Lab, Pharmacy, and Admission flows within the OPD Consultation War-Room.
+- [x] **Clinical Decision Support**: Integrated visibility of past laboratory history and medication regimen for doctors.
+- [x] **Formal Admissions**: Structured IPD recommendation system flowing from OPD to Admission Desk.
 
-### 5. Operational Hardening (Finalized)
-- [x] **OPD E2E Journey**: Registration -> AI Consultation -> Prescriptions -> Automated Billing.
-- [x] **IPD E2E Journey**: Admission -> Bed Mgmt -> Service Posting -> AI Discharge -> Final Settlement.
-- [x] **Consolidated Billing**: Unified revenue center consuming clinical queues from all modules.
+### 5. UI Modernization & Responsiveness
+- [x] **Elite Mobile UI**: Full application optimization for handheld devices and clinical tablets.
+- [x] **Table-to-Card Transformation**: Automated UI adaptation for dense data grids on small screens.
+- [x] **Responsive Navigation**: Drawer-based sidebar with mobile close logic and overlay management.
+- [x] **Dynamic Branding**: Real-time theme customization using CSS variables and Nexus sync.
 
 ---
 
-### 4. UI Modernization & Doctor Scheduling
-- [x] **Premium Sidebar**: Rebuilt with Accordion logic, zero-jump stability, and global path deduplication.
-- [x] **Doctor Availability**: Implemented "Manage Unavailability" mode in shard with persistent blocking and upsert logic.
-- [x] **Dynamic Branding**: Real-time theme customization using CSS variables.
-- [x] **Navigation Intelligence**: Auto-expanding categories and active-aware scroll-into-view logic.
+### 5. Pharmacy & Inventory Intelligence
+- [x] **Real-time Surveillance**: Visual stock alerts (Critical/Low) integrated into the inventory grid.
+- [x] **Bulk Data Processing**: Streamlined CSV import/export framework for medicine catalogs.
+- [x] **Atomic Dispensing**: Stock decrements synchronized with clinical billing events.
+- [x] **Analytics Dashboard**: Real-time sales and stock health visualization for pharmacy administrators.
+
+### 6. Insurance & TPA Integration
+- [x] **Provider Orchestration**: Central registry for insurance partners and TPAs.
+- [x] **Multi-Tiered Plans**: Support for complex coverage tiers with custom copay and base limits.
+- [x] **Policy Mapping**: Patient-specific policy lifecycle management with live utilization tracking.
+- [x] **Eligibility Guardrails**: Automated checks for policy validity and remaining limits during billing.
 
 ---
 
 ## 📋 Future Roadmap
-- [ ] **Pharmacy Inventory**: Real-time stock sync with clinical dispensing.
 - [ ] **Internationalization**: Multi-currency and multi-language support.
-- [ ] **Mobile Clinical App**: Tablet-optimized interface for bedside rounds.
+- [ ] **Predictive Diagnostics**: ML-based risk forecasting using historical patient trends.
 
 ---
-*Last Updated: 2026-05-09*
+*Last Updated: 2026-05-10 20:40*

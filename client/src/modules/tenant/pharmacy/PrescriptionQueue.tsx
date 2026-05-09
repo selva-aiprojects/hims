@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
+import { Pill } from 'lucide-react';
 
 
 export default function PrescriptionQueue() {
@@ -70,12 +71,15 @@ export default function PrescriptionQueue() {
   return (
     <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
       <Sidebar />
-      <main style={{ flex: 1, padding: '32px' }}>
+      <main className="main-content">
         <Header title="Clinical Prescription Queue" />
 
-        <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', margin: 0 }}>Pending Prescriptions</h1>
-          <p style={{ color: '#64748b', marginTop: '4px' }}>Medication orders from OPD consultations</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
+          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#fffbeb', color: '#f59e0b', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(245, 158, 11, 0.1)' }}>
+            <Pill size={24} />
+          </div>
+          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Medication Fulfillment Command</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Real-time surveillance of clinical prescriptions, dispensing logistics, and inventory synchronization.</p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: activePrescription ? '1fr 450px' : '1fr', gap: '32px', alignItems: 'start' }}>
