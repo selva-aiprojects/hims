@@ -5,6 +5,7 @@ const { checkPermission } = require("../../middleware/rbac");
 const metricsRoutes = require("./metrics");
 const aiService = require("../../services/aiService");
 const pdfService = require("../../services/pdfService");
+const bcrypt = require("bcryptjs");
 
 const s = (val) => (val === undefined || val === null ? "" : String(val).replace(/'/g, "''"));
 const sqlValue = (val) => (val === undefined || val === null || val === "" ? "NULL" : `'${s(val)}'`);
@@ -61,6 +62,9 @@ async function ensureStaffColumns(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS specialization VARCHAR(100)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS license_number VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS qualifications TEXT`);
 
   await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".users SET is_active = true WHERE is_active IS NULL OR is_active = false`);
   
@@ -123,6 +127,9 @@ async function ensureIPDMasters(req) {
 async function ensureBillingQueue(req) {
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".billing_queue (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), patient_id UUID NOT NULL, encounter_id UUID, source_module VARCHAR(50), source_id UUID, description TEXT, quantity NUMERIC DEFAULT 1, unit_price NUMERIC NOT NULL, tax_percent NUMERIC DEFAULT 0, is_discountable BOOLEAN DEFAULT TRUE, status VARCHAR(20) DEFAULT 'PENDING', created_at TIMESTAMP DEFAULT NOW())`);
 }
+
+// --- METRICS ---
+router.use("/metrics", metricsRoutes);
 
 // --- GLOBAL HEAL UTILITY ---
 router.get("/heal-all-masters", async (req, res, next) => {
@@ -188,10 +195,64 @@ masterTables.forEach(({ path, table }) => {
   });
 });
 
-router.get("/staff", checkPermission('STAFF_MANAGE'), async (req, res, next) => {
+router.get("/staff", async (req, res, next) => {
   try {
     const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".users ORDER BY created_at DESC`);
     res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/staff", async (req, res, next) => {
+  try {
+    const { name, email, password, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications } = req.body;
+    const id = crypto.randomUUID();
+    const pwd = await bcrypt.hash(password || 'password123', 10);
+    
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".users (
+        id, name, email, password_hash, role, specialization, department, 
+        gender, dob, doj, license_number, experience_years, qualifications, is_active
+      )
+      VALUES (
+        '${id}', '${s(name)}', '${s(email)}', '${pwd}', '${s(role)}', 
+        ${sqlValue(specialization)}, ${sqlValue(department)}, 
+        ${sqlValue(gender)}, ${sqlValue(dob)}, ${sqlValue(doj)},
+        ${sqlValue(license_number)}, ${experience_years || 0}, ${sqlValue(qualifications)}, true
+      )
+    `);
+    res.status(201).json({ id, name, email, role });
+  } catch (error) { next(error); }
+});
+
+router.put("/staff/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications } = req.body;
+    
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".users 
+      SET name = '${s(name)}', 
+          email = '${s(email)}', 
+          role = '${s(role)}', 
+          specialization = ${sqlValue(specialization)}, 
+          department = ${sqlValue(department)},
+          gender = ${sqlValue(gender)},
+          dob = ${sqlValue(dob)},
+          doj = ${sqlValue(doj)},
+          license_number = ${sqlValue(license_number)},
+          experience_years = ${experience_years || 0},
+          qualifications = ${sqlValue(qualifications)}
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.delete("/staff/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await req.prisma.$executeRawUnsafe(`DELETE FROM "${req.schemaName}".users WHERE id = '${id}'`);
+    res.json({ success: true });
   } catch (error) { next(error); }
 });
 

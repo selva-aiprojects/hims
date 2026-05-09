@@ -176,6 +176,12 @@ router.put("/tenants/:id/branding", async (req, res, next) => {
     const { id } = req.params;
     const settings = req.body;
     
+    // Proactive self-healing: ensure branding columns exist
+    try {
+      await req.prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS ui_settings JSONB DEFAULT '{}'::jsonb`);
+      await req.prisma.$executeRawUnsafe(`ALTER TABLE nexus.tenants ADD COLUMN IF NOT EXISTS admin_email VARCHAR(255)`);
+    } catch (e) { console.warn("[NEXUS] Branding healing warning:", e.message); }
+
     // Fallback safe strings
     const safeName = (settings.hospitalName || "Healthezee Hospital").replace(/'/g, "''");
     

@@ -51,7 +51,7 @@ export default function StaffManagementPage() {
   const fetchStaff = async (search: string = "") => {
     const currentRole = (localStorage.getItem("role") || "").toLowerCase();
 
-    if (currentRole !== 'admin' && currentRole !== 'nexus') {
+    if (currentRole !== 'admin' && currentRole !== 'nexus' && currentRole !== 'doctor') {
       navigate("/tenant/dashboard");
       return;
     }
