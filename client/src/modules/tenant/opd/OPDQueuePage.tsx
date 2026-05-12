@@ -11,6 +11,14 @@ export default function OPDQueuePage() {
   const [encounters, setEncounters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     fetchEncounters();
     const interval = setInterval(fetchEncounters, 10000); // Auto-refresh every 10s
@@ -40,9 +48,9 @@ export default function OPDQueuePage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Sidebar />
-      <main className="main-content" style={{ padding: '32px' }}>
+      <main className="main-content" style={{ padding: isMobile ? '16px' : '32px', flex: 1, width: '100%' }}>
         <Header title="Live OPD Patient Queue" />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
@@ -53,26 +61,26 @@ export default function OPDQueuePage() {
           <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Real-time monitoring of patient wait times, triage status, and consultation throughput across all OPD clinics.</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
-           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #3b82f6' }}>
-              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>TOTAL WAITING</p>
-              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>{encounters.length}</h2>
-              <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>LIVE CENSUS</div>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? '12px' : '20px', marginBottom: '32px' }}>
+           <div className="page-card" style={{ padding: isMobile ? '16px' : '20px', borderLeft: '4px solid #3b82f6' }}>
+              <p style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', margin: 0 }}>TOTAL WAITING</p>
+              <h2 style={{ fontSize: isMobile ? '20px' : '28px', fontWeight: 900, margin: '4px 0' }}>{encounters.length}</h2>
+              {!isMobile && <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>LIVE CENSUS</div>}
            </div>
-           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #10b981' }}>
-              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>AVG WAIT TIME</p>
-              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>12m</h2>
-              <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>OPTIMIZED FLOW</div>
+           <div className="page-card" style={{ padding: isMobile ? '16px' : '20px', borderLeft: '4px solid #10b981' }}>
+              <p style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', margin: 0 }}>AVG WAIT TIME</p>
+              <h2 style={{ fontSize: isMobile ? '20px' : '28px', fontWeight: 900, margin: '4px 0' }}>12m</h2>
+              {!isMobile && <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 700 }}>OPTIMIZED FLOW</div>}
            </div>
-           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #f59e0b' }}>
-              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>URGENT CASES</p>
-              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>0</h2>
-              <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>TRIAGE ACTIVE</div>
+           <div className="page-card" style={{ padding: isMobile ? '16px' : '20px', borderLeft: '4px solid #f59e0b' }}>
+              <p style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', margin: 0 }}>URGENT CASES</p>
+              <h2 style={{ fontSize: isMobile ? '20px' : '28px', fontWeight: 900, margin: '4px 0' }}>0</h2>
+              {!isMobile && <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700 }}>TRIAGE ACTIVE</div>}
            </div>
-           <div className="page-card" style={{ padding: '20px', borderLeft: '4px solid #8b5cf6' }}>
-              <p style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', margin: 0 }}>ACTIVE DOCTORS</p>
-              <h2 style={{ fontSize: '28px', fontWeight: 900, margin: '8px 0' }}>{new Set(encounters.map(e => e.doctor_id)).size}</h2>
-              <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: 700 }}>ON-DUTY STAFF</div>
+           <div className="page-card" style={{ padding: isMobile ? '16px' : '20px', borderLeft: '4px solid #8b5cf6' }}>
+              <p style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', margin: 0 }}>ACTIVE DOCTORS</p>
+              <h2 style={{ fontSize: isMobile ? '20px' : '28px', fontWeight: 900, margin: '4px 0' }}>{new Set(encounters.map(e => e.doctor_id)).size}</h2>
+              {!isMobile && <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: 700 }}>ON-DUTY STAFF</div>}
            </div>
         </div>
 
@@ -84,6 +92,63 @@ export default function OPDQueuePage() {
 
           {loading ? (
             <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>Initializing real-time queue...</div>
+          ) : isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px' }}>
+               {encounters.map((enc: any, i: number) => (
+                 <div key={i} style={{ 
+                   background: '#f8fafc', 
+                   borderRadius: '20px', 
+                   padding: '20px', 
+                   border: '1px solid #f1f5f9',
+                   display: 'flex',
+                   flexDirection: 'column',
+                   gap: '12px'
+                 }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                     <div>
+                       <div style={{ fontSize: '10px', fontWeight: 800, color: '#3b82f6', marginBottom: '4px' }}>TOKEN #{enc.token || (i + 1)}</div>
+                       <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '16px' }}>{enc.patient_name}</div>
+                       <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>{enc.mrn} • {enc.gender}, {enc.age} yrs</div>
+                     </div>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '12px', fontWeight: 700 }}>
+                        <Clock size={12} /> {calculateWaitTime(enc.created_at)}
+                     </div>
+                   </div>
+                   
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                     <div style={{ fontWeight: 700, color: '#475569', fontSize: '12px' }}>Dr. {enc.doctor_name}</div>
+                     <div style={{ display: 'flex', gap: '6px' }}>
+                        {enc.vitals?.bp ? (
+                          <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>VITALS OK</span>
+                        ) : (
+                          <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>PENDING VITALS</span>
+                        )}
+                     </div>
+                   </div>
+
+                   <button 
+                    onClick={() => {
+                      localStorage.setItem("currentEncounter", JSON.stringify(enc));
+                      navigate(`/tenant/opd/consultation`);
+                    }}
+                    style={{ 
+                      width: '100%',
+                      padding: '12px', background: '#0f172a', color: 'white', border: 'none', 
+                      borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                    }}
+                  >
+                    Start Consult <ArrowRight size={14} />
+                  </button>
+                 </div>
+               ))}
+               {encounters.length === 0 && (
+                 <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+                    <CheckCircle2 size={32} style={{ margin: '0 auto 12px', opacity: 0.2 }} />
+                    <p style={{ fontWeight: 700, fontSize: '14px' }}>Queue is empty.</p>
+                 </div>
+               )}
+            </div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>

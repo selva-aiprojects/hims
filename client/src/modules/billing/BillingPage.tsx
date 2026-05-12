@@ -50,6 +50,14 @@ export default function BillingPage() {
   const [activeTab, setActiveTab] = useState<BillType>(initialType);
   const [loading, setLoading] = useState(false);
   
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   // Patient Context
   const [patient, setPatient] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -249,12 +257,12 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', minHeight: '100vh' }}>
+    <div className="dashboard-layout" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Sidebar />
-      <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+      <main style={{ flex: 1, overflowY: 'auto', position: 'relative', width: '100%' }}>
         <Header title="Consolidated Billing & Revenue Center" />
 
-        <div style={{ padding: '24px 40px', maxWidth: '1600px', margin: '0 auto' }}>
+        <div style={{ padding: isMobile ? '16px' : '24px 40px', maxWidth: '1600px', margin: '0 auto' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#4338ca', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.1)' }}>
               <Wallet size={24} />
@@ -264,27 +272,39 @@ export default function BillingPage() {
           </div>
           
           {/* TOP STATS */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
             {[
               { label: 'Today\'s Collection', value: totals.net.toLocaleString(), icon: TrendingUp, color: '#10b981', sub: `${stats.invoiceCount} Invoices` },
               { label: 'Insurance Pending', value: stats.pendingInsurance.toLocaleString(), icon: ShieldCheck, color: '#3b82f6', sub: 'Awaiting Settlement' },
               { label: 'Outstanding Dues', value: '45,200', icon: History, color: '#f59e0b', sub: 'Past 30 Days' }
             ].map((s, i) => (
-              <div key={i} style={{ background: 'white', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: `${s.color}10`, color: s.color, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center' }}>
-                  <s.icon size={28} />
+              <div key={i} style={{ background: 'white', padding: isMobile ? '16px' : '24px', borderRadius: '20px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px' }}>
+                <div style={{ width: isMobile ? '40px' : '56px', height: isMobile ? '40px' : '56px', borderRadius: '16px', background: `${s.color}10`, color: s.color, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center' }}>
+                  <s.icon size={isMobile ? 20 : 28} />
                 </div>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>{s.label}</div>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>₹ {s.value}</div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>{s.sub}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>{s.label}</div>
+                  <div style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 900, color: '#0f172a' }}>₹ {s.value}</div>
+                  {!isMobile && <div style={{ fontSize: '11px', color: '#94a3b8' }}>{s.sub}</div>}
                 </div>
               </div>
             ))}
           </div>
 
           {/* CONTEXT TABS */}
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '32px', padding: '8px', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', width: 'fit-content', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ 
+            display: 'flex', 
+            gap: '8px', 
+            marginBottom: '32px', 
+            padding: '6px', 
+            background: 'white', 
+            borderRadius: '20px', 
+            border: '1px solid #e2e8f0', 
+            width: isMobile ? '100%' : 'fit-content', 
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+            overflowX: 'auto',
+            scrollbarWidth: 'none'
+          }}>
             {BILLING_TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -292,23 +312,24 @@ export default function BillingPage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 24px', borderRadius: '16px',
+                    display: 'flex', alignItems: 'center', gap: '8px', padding: isMobile ? '10px 16px' : '14px 24px', borderRadius: '16px',
                     border: 'none', cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     background: isActive ? tab.color : 'transparent',
                     color: isActive ? 'white' : '#64748b',
-                    fontWeight: 800, fontSize: '14px',
+                    fontWeight: 800, fontSize: isMobile ? '12px' : '14px',
                     boxShadow: isActive ? `0 10px 15px -3px ${tab.color}40` : 'none',
-                    transform: isActive ? 'translateY(-1px)' : 'none'
+                    transform: isActive ? 'translateY(-1px)' : 'none',
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  <tab.icon size={20} style={{ opacity: isActive ? 1 : 0.6 }} />
+                  <tab.icon size={isMobile ? 16 : 20} style={{ opacity: isActive ? 1 : 0.6 }} />
                   {tab.label}
                 </button>
               );
             })}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '32px', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 400px', gap: '32px', alignItems: 'start' }}>
             
             {/* LEFT: PATIENT & ITEMS */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -319,11 +340,11 @@ export default function BillingPage() {
                   <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#4f46e5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Search size={18} />
                   </div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Patient Identity Lookup</h3>
+                  <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 800, margin: 0 }}>Patient Identity Lookup</h3>
                 </div>
 
                 {!patient ? (
-                  <div style={{ position: 'relative', display: 'flex', gap: '12px' }}>
+                  <div style={{ position: 'relative', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
                       <input 
                         placeholder="Search by MRN, Name or Phone..."
@@ -350,7 +371,7 @@ export default function BillingPage() {
                     </div>
                     <button 
                       onClick={setWalkInPatient}
-                      style={{ padding: '0 24px', borderRadius: '16px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 700, cursor: 'pointer' }}
+                      style={{ padding: '14px 24px', borderRadius: '16px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 700, cursor: 'pointer' }}
                     >
                       WALK-IN
                     </button>
@@ -376,16 +397,16 @@ export default function BillingPage() {
 
               {/* BILLING ITEMS */}
               <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '32px', gap: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Receipt size={18} />
                     </div>
-                    <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Invoice Particulars</h3>
+                    <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 800, margin: 0 }}>Invoice Particulars</h3>
                   </div>
-                  <div style={{ display: 'flex', gap: '12px', flex: 1, justifyContent: 'flex-end' }}>
+                  <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px', width: isMobile ? '100%' : 'auto', justifyContent: 'flex-end' }}>
                     <select 
-                      style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontWeight: 600, background: '#f8fafc', maxWidth: '250px' }}
+                      style={{ padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontWeight: 600, background: '#f8fafc', width: isMobile ? '100%' : '250px' }}
                       onChange={(e) => {
                         const srv = services.find(s => s.compositeId === e.target.value);
                         if (srv) addItem(srv);
@@ -402,63 +423,101 @@ export default function BillingPage() {
                     </select>
                     <button 
                       onClick={addManualItem}
-                      style={{ padding: '10px 16px', borderRadius: '12px', background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+                      style={{ padding: '10px 16px', borderRadius: '12px', background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569', fontWeight: 700, fontSize: '12px', cursor: 'pointer', width: isMobile ? '100%' : 'auto' }}
                     >
                       + MANUAL ITEM
                     </button>
                   </div>
                 </div>
 
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9' }}>
-                      <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DESCRIPTION</th>
-                      <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>UNIT PRICE</th>
-                      <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>QTY</th>
-                      <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>TOTAL (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.length > 0 ? items.map((item, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '20px 16px' }}>
-                          <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>{item.description}</div>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>TAX: {item.tax}% • {item.source_module || 'MANUAL'}</div>
-                        </td>
-                        <td style={{ padding: '20px 16px', fontWeight: 600, color: '#475569' }}>₹ {item.price.toLocaleString()}</td>
-                        <td style={{ padding: '20px 16px' }}>
-                          <input 
-                            type="number" min="1" 
-                            style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700 }}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const next = [...items];
-                              next[idx].quantity = Number(e.target.value);
-                              setItems(next);
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: '20px 16px', textAlign: 'right' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px' }}>
-                            <span style={{ fontWeight: 800, color: '#0f172a' }}>{(item.price * item.quantity).toLocaleString()}</span>
-                            <button 
-                              onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                              style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                {isMobile ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {items.map((item, idx) => (
+                      <div key={idx} style={{ padding: '16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>{item.description}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>TAX: {item.tax}% • {item.source_module || 'MANUAL'}</div>
                           </div>
-                        </td>
+                          <button 
+                            onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                            style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '12px', color: '#64748b' }}>Qty:</span>
+                            <input 
+                              type="number" min="1" 
+                              style={{ width: '50px', padding: '6px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700 }}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const next = [...items];
+                                next[idx].quantity = Number(e.target.value);
+                                setItems(next);
+                              }}
+                            />
+                          </div>
+                          <div style={{ fontWeight: 800, color: '#0f172a' }}>₹ {(item.price * item.quantity).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    ))}
+                    {items.length === 0 && <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8' }}>No items added.</div>}
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9' }}>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DESCRIPTION</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>UNIT PRICE</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>QTY</th>
+                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>TOTAL (₹)</th>
                       </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={4} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
-                          No items added to invoice.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {items.length > 0 ? items.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '20px 16px' }}>
+                            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>{item.description}</div>
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>TAX: {item.tax}% • {item.source_module || 'MANUAL'}</div>
+                          </td>
+                          <td style={{ padding: '20px 16px', fontWeight: 600, color: '#475569' }}>₹ {item.price.toLocaleString()}</td>
+                          <td style={{ padding: '20px 16px' }}>
+                            <input 
+                              type="number" min="1" 
+                              style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700 }}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const next = [...items];
+                                next[idx].quantity = Number(e.target.value);
+                                setItems(next);
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '20px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px' }}>
+                              <span style={{ fontWeight: 800, color: '#0f172a' }}>{(item.price * item.quantity).toLocaleString()}</span>
+                              <button 
+                                onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                                style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={4} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                            No items added to invoice.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
 

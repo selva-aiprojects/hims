@@ -25,6 +25,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -99,9 +107,9 @@ export default function DashboardPage() {
   const occupancyPercent = Math.round((bedOccupancy / bedTotal) * 100);
 
   return (
-    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Sidebar />
-      <main className="main-content" style={{ padding: '40px', backgroundColor: '#f8fafc' }}>
+      <main className="main-content" style={{ padding: isMobile ? '16px' : '40px', backgroundColor: '#f8fafc', flex: 1, width: '100%' }}>
         <Header title={`Welcome, ${userName}`} />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px', marginTop: '8px' }}>
@@ -113,29 +121,29 @@ export default function DashboardPage() {
         </div>
 
         {/* TOP ROW: REAL-TIME KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
           {[
             { label: 'Patient Inflow', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6' },
             { label: 'Active IPD', val: stats.metrics.activeAdmissions, icon: Activity, color: '#f59e0b' },
             { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444' },
-            { label: 'Daily Revenue', val: `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981' }
+            { label: 'Daily Revenue', val: isMobile ? `₹${(Number(stats.metrics.dailyRevenue)/1000).toFixed(1)}k` : `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981' }
           ].map((m, i) => (
-            <div key={i} className="stat-card" style={{ padding: '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: `${m.color}15`, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
-                <m.icon size={20} />
+            <div key={i} className="stat-card" style={{ padding: isMobile ? '16px' : '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
+              <div style={{ width: isMobile ? '32px' : '40px', height: isMobile ? '32px' : '40px', borderRadius: '10px', backgroundColor: `${m.color}15`, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: isMobile ? '8px' : '16px' }}>
+                <m.icon size={isMobile ? 16 : 20} />
               </div>
-              <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>{loading ? '...' : m.val}</div>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</div>
+              <div style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 900, color: '#0f172a' }}>{loading ? '...' : m.val}</div>
+              <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</div>
             </div>
           ))}
         </div>
 
         {/* MIDDLE ROW: PERFORMANCE COMPARISON */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '32px', marginBottom: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr 1fr', gap: isMobile ? '24px' : '32px', marginBottom: '32px' }}>
           {/* Discharge vs Admission Comparison */}
           <div className="page-card" style={{ padding: '24px' }}>
             <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Admission vs. Discharge (7D)</h3>
-            <ReactECharts option={dischargeOption} style={{ height: '240px' }} />
+            <ReactECharts option={dischargeOption} style={{ height: isMobile ? '180px' : '240px' }} />
           </div>
 
           {/* IP vs OP Ratio */}
@@ -152,8 +160,8 @@ export default function DashboardPage() {
           <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
             <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Live Bed Census</h3>
             <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px', alignContent: 'flex-start' }}>
-               {Array.from({ length: bedTotal }).map((_, i) => (
-                 <div key={i} style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: i < bedOccupancy ? '#ef4444' : '#10b981' }}></div>
+               {Array.from({ length: isMobile ? Math.min(bedTotal, 40) : bedTotal }).map((_, i) => (
+                 <div key={i} style={{ width: isMobile ? '10px' : '12px', height: isMobile ? '10px' : '12px', borderRadius: '3px', backgroundColor: i < bedOccupancy ? '#ef4444' : '#10b981' }}></div>
                ))}
             </div>
             <div style={{ marginTop: '16px' }}>
@@ -164,7 +172,7 @@ export default function DashboardPage() {
         </div>
 
         {/* BOTTOM ROW: ALERTS & LAB */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? '24px' : '32px' }}>
           {/* Pharmacy Stock Alerts */}
           <div className="page-card" style={{ padding: '24px' }}>
              <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -172,7 +180,7 @@ export default function DashboardPage() {
              </h3>
              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {stats.stockAlerts.length > 0 ? stats.stockAlerts.map((item: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#fef2f2', borderRadius: '10px' }}>
+                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#fef2f2', borderRadius: '10px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b' }}>{item.name}</span>
                     <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626' }}>{item.stock_quantity} Left</span>
                   </div>

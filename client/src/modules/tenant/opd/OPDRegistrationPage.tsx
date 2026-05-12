@@ -21,6 +21,14 @@ export default function OPDRegistrationPage() {
   const [showFullReg, setShowFullReg] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   // Initialize with a fallback doctor so the user is NEVER blocked
   const [doctors, setDoctors] = useState<any[]>([
     { id: 'emerg-01', name: 'Clinical Duty Officer', specialization: 'Emergency Desk' }
@@ -166,9 +174,9 @@ export default function OPDRegistrationPage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ backgroundColor: '#f1f5f9' }}>
+    <div className="dashboard-layout" style={{ backgroundColor: '#f1f5f9', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Sidebar />
-      <main className="main-content" style={{ padding: '32px' }}>
+      <main className="main-content" style={{ padding: isMobile ? '16px' : '32px', flex: 1, width: '100%' }}>
         <Header title="OPD Professional Intake Desk" />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
@@ -179,7 +187,7 @@ export default function OPDRegistrationPage() {
           <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Streamlined clinical intake and token management for efficient outpatient operations.</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '28px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1.6fr', gap: isMobile ? '16px' : '28px' }}>
           
           {/* LEFT: UNIFIED INTAKE CONSOLE */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -243,7 +251,7 @@ export default function OPDRegistrationPage() {
                    </div>
 
                    {/* Personal Section */}
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                       <div className="input-group">
                          <label className="field-label">Full Name*</label>
                          <input className="input-field" value={regData.name} onChange={e => setRegData({...regData, name: e.target.value})} />
@@ -265,7 +273,7 @@ export default function OPDRegistrationPage() {
                    </div>
 
                    {/* Additional Details */}
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
                       <div><label className="field-label">Blood Group</label><select className="select-field" value={regData.blood_group} onChange={e => setRegData({...regData, blood_group: e.target.value})}><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>O+</option><option>O-</option><option>AB+</option><option>AB-</option></select></div>
                       <div><label className="field-label">Occupation</label><input className="input-field" value={regData.occupation} onChange={e => setRegData({...regData, occupation: e.target.value})} /></div>
                    </div>
@@ -305,7 +313,7 @@ export default function OPDRegistrationPage() {
               <Activity size={18} /> 2. CAPTURE VITALS & ASSIGN DOCTOR
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(2, 1fr)', gap: isMobile ? '12px' : '20px', marginBottom: '32px' }}>
                <div className="input-group">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Scale size={12} /> Weight (kg)</label>
                   <input className="input-field high-velocity-input" placeholder="e.g. 70" value={vitals.weight} onChange={e => setVitals({...vitals, weight: e.target.value})} />
@@ -382,7 +390,7 @@ export default function OPDRegistrationPage() {
           </div>
 
           {/* RECENT QUEUE MINI-CARD */}
-          <div className="page-card" style={{ gridColumn: '1 / 2', padding: '28px', borderRadius: '28px' }}>
+          <div className="page-card" style={{ gridColumn: isMobile ? 'auto' : '1 / 2', padding: isMobile ? '20px' : '28px', borderRadius: '28px' }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h3 style={{ margin: 0, fontSize: '13px', fontWeight: 800, color: '#64748b' }}>RECENTLY PROCESSED</h3>
                 <button onClick={fetchInitialData} className="button-link" style={{ fontSize: '11px', fontWeight: 800 }}>REFRESH</button>

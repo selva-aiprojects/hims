@@ -30,6 +30,14 @@ export default function AppointmentsPage() {
   const [doctorSlots, setDoctorSlots] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const fetchAppointments = async () => {
     const headers = { 
       Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -128,14 +136,22 @@ export default function AppointmentsPage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex' }}>
+    <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Sidebar />
-      <main className="main-content" style={{ flex: 1, padding: '32px' }}>
+      <main className="main-content" style={{ flex: 1, padding: isMobile ? '16px' : '32px', width: '100%' }}>
         <Header title="Patient Scheduling" />
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', marginTop: '16px' }}>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: isMobile ? 'column' : 'row',
+          justifyContent: 'space-between', 
+          alignItems: isMobile ? 'flex-start' : 'center', 
+          marginBottom: '32px', 
+          marginTop: '16px',
+          gap: '20px'
+        }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Appointments Management</h2>
+            <h2 style={{ fontSize: isMobile ? '20px' : '24px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Appointments Management</h2>
             <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>Check doctor availability and book patient appointments.</p>
           </div>
           <button 
@@ -147,7 +163,9 @@ export default function AppointmentsPage() {
               gap: '10px', 
               padding: '14px 28px', 
               borderRadius: '16px',
-              boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3)'
+              boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3)',
+              width: isMobile ? '100%' : 'auto',
+              justifyContent: 'center'
             }}
           >
             <Plus size={20} />
@@ -155,7 +173,7 @@ export default function AppointmentsPage() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 380px', gap: '32px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{ 
               background: 'white', 
@@ -163,25 +181,28 @@ export default function AppointmentsPage() {
               border: '1px solid #e2e8f0', 
               boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
               display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
               overflow: 'hidden'
             }}>
-              {/* Vertical Category Panel */}
+              {/* Vertical/Horizontal Category Panel */}
               <div style={{ 
-                width: '200px', 
+                width: isMobile ? '100%' : '200px', 
                 background: '#f8fafc', 
-                borderRight: '1px solid #e2e8f0',
-                padding: '24px 16px',
+                borderRight: isMobile ? 'none' : '1px solid #e2e8f0',
+                borderBottom: isMobile ? '1px solid #e2e8f0' : 'none',
+                padding: isMobile ? '16px' : '24px 16px',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
+                flexDirection: isMobile ? 'row' : 'column',
+                gap: '8px',
+                overflowX: isMobile ? 'auto' : 'visible'
               }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', paddingLeft: '12px' }}>Categories</div>
+                {!isMobile && <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', paddingLeft: '12px' }}>Categories</div>}
                 {["All", "Scheduled", "Completed", "Cancelled"].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
                     style={{
-                      padding: '12px 16px',
+                      padding: isMobile ? '8px 16px' : '12px 16px',
                       borderRadius: '12px',
                       border: 'none',
                       textAlign: 'left',
@@ -193,7 +214,9 @@ export default function AppointmentsPage() {
                       transition: 'all 0.2s ease',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between'
+                      justifyContent: 'space-between',
+                      whiteSpace: 'nowrap',
+                      gap: '8px'
                     }}
                   >
                     {cat}
@@ -209,7 +232,7 @@ export default function AppointmentsPage() {
                 ))}
               </div>
 
-              <div style={{ flex: 1, padding: '32px' }}>
+              <div style={{ flex: 1, padding: isMobile ? '20px' : '32px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
                   <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Calendar size={20} color="#3b82f6" />
@@ -218,7 +241,7 @@ export default function AppointmentsPage() {
                 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {/* Search Bar */}
-                    <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
                       <input 
                         type="text" 
                         placeholder="Search appointments..." 
@@ -229,7 +252,7 @@ export default function AppointmentsPage() {
                           borderRadius: '12px',
                           border: '1px solid #e2e8f0',
                           fontSize: '13px',
-                          width: '220px',
+                          width: isMobile ? '100%' : '220px',
                           outline: 'none',
                           background: '#f8fafc'
                         }}
@@ -249,7 +272,8 @@ export default function AppointmentsPage() {
                         fontWeight: 700, 
                         color: '#1e293b',
                         outline: 'none',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        width: isMobile ? '100%' : 'auto'
                       }}
                     >
                       <option value="">All Doctors</option>
@@ -312,19 +336,19 @@ export default function AppointmentsPage() {
                             {appt.appointment_time ? new Date(appt.appointment_time).getDate() : '--'}
                           </div>
                         </div>
-                        <div style={{ marginLeft: '20px', flex: 1 }}>
-                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px' }}>{appt.patient_name}</div>
-                          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <User size={14} /> Assigned to Dr. {appt.doctor_name}
+                        <div style={{ marginLeft: isMobile ? '12px' : '20px', flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: isMobile ? '14px' : '16px' }}>{appt.patient_name}</div>
+                          <div style={{ fontSize: isMobile ? '11px' : '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <User size={14} /> Dr. {appt.doctor_name}
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '20px' }}>
                           <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end', fontWeight: 800, color: '#3b82f6', fontSize: '16px' }}>
-                              <Clock size={16} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', fontWeight: 800, color: '#3b82f6', fontSize: isMobile ? '13px' : '16px' }}>
+                              <Clock size={isMobile ? 12 : 16} />
                               {appt.appointment_time ? new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                             </div>
-                            <div style={{ fontSize: '11px', color: appt.status === 'Completed' ? '#10b981' : '#f59e0b', fontWeight: 800, background: appt.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '4px 12px', borderRadius: '100px', marginTop: '8px', display: 'inline-block' }}>
+                            <div style={{ fontSize: '10px', color: appt.status === 'Completed' ? '#10b981' : '#f59e0b', fontWeight: 800, background: appt.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '2px 8px', borderRadius: '100px', marginTop: '4px', display: 'inline-block' }}>
                               {appt.status}
                             </div>
                           </div>
@@ -520,13 +544,16 @@ export default function AppointmentsPage() {
           }}>
             <div style={{ 
               background: 'white', 
-              padding: '40px', 
-              borderRadius: '32px', 
+              padding: isMobile ? '24px' : '40px', 
+              borderRadius: isMobile ? '24px 24px 0 0' : '32px', 
               width: '100%', 
               maxWidth: '500px',
+              height: isMobile ? '90vh' : 'auto',
+              maxHeight: isMobile ? '90vh' : 'auto',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: 'relative',
-              overflow: 'hidden'
+              position: isMobile ? 'fixed' : 'relative',
+              bottom: isMobile ? 0 : 'auto',
+              overflowY: 'auto'
             }}>
               <div style={{ 
                 position: 'absolute', 

@@ -16,6 +16,14 @@ export default function PrescriptionQueue() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [selectedItems, setSelectedItems] = useState<any[]>([]);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -71,9 +79,9 @@ export default function PrescriptionQueue() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#f8fafc' }}>
       <Sidebar />
-      <main className="main-content">
+      <main className="main-content" style={{ flex: 1, padding: isMobile ? '16px' : '32px', width: '100%' }}>
         <Header title="Clinical Prescription Queue" />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
@@ -84,66 +92,131 @@ export default function PrescriptionQueue() {
           <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Real-time surveillance of clinical prescriptions, dispensing logistics, and inventory synchronization.</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: activePrescription ? '1fr 450px' : '1fr', gap: '32px', alignItems: 'start' }}>
-           <div style={{ background: 'white', borderRadius: '32px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-               <thead>
-                 <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
-                   <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Patient / MRN</th>
-                   <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Prescribed By</th>
-                   <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Status</th>
-                   <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
-                 </tr>
-               </thead>
-               <tbody>
-                 {prescriptions.length === 0 && (
-                   <tr><td colSpan={4} style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>No pending prescriptions.</td></tr>
-                 )}
-                 {prescriptions.map((p, i) => (
-                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                     <td style={{ padding: '20px 24px' }}>
-                       <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.patient_name || 'Unknown Patient'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: (activePrescription && !isMobile) ? '1fr 450px' : '1fr', gap: '32px', alignItems: 'start' }}>
+           {isMobile ? (
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+               {prescriptions.map((p, i) => (
+                 <div key={i} style={{ 
+                   background: 'white', 
+                   borderRadius: '24px', 
+                   padding: '24px', 
+                   border: '1px solid #e2e8f0',
+                   boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                   display: 'flex',
+                   flexDirection: 'column',
+                   gap: '16px'
+                 }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                     <div>
+                       <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '16px' }}>{p.patient_name || 'Unknown Patient'}</div>
                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</div>
-                     </td>
-                     <td style={{ padding: '20px 24px' }}>
-                        <div style={{ fontWeight: 700, fontSize: '13px' }}>{p.doctor_name || 'Staff'}</div>
-                        <div style={{ fontSize: '11px', color: '#94a3b8' }}>General Medicine</div>
-                     </td>
-                     <td style={{ padding: '20px 24px' }}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, color: p.status === 'Completed' ? '#10b981' : '#f59e0b', background: p.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '4px 10px', borderRadius: '20px', border: `1px solid ${p.status === 'Completed' ? '#dcfce7' : '#fef3c7'}` }}>
-                            {p.status === 'Completed' ? 'DISPENSED' : 'PENDING'}
-                          </span>
-                          {p.is_paid ? (
-                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', background: '#f0fdf4', padding: '4px 10px', borderRadius: '20px', border: '1px solid #dcfce7' }}>✓ BILLED</span>
-                          ) : (
-                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fef2f2', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fee2e2' }}>UNBILLED</span>
-                          )}
-                        </div>
-                     </td>
-                     <td style={{ padding: '20px 24px', textAlign: 'right' }}>
-                        <button 
-                          onClick={() => startDispensing(p)}
-                          disabled={p.status === 'Completed'}
-                          style={{ 
-                            padding: '10px 24px', 
-                            background: p.status !== 'Completed' ? '#3b82f6' : '#94a3b8', 
-                            color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800,
-                            cursor: p.status === 'Completed' ? 'not-allowed' : 'pointer',
-                            opacity: p.status === 'Completed' ? 0.5 : 1
-                          }}
-                        >
-                           {p.status === 'Completed' ? 'Dispensed ✓' : 'Dispense'}
-                        </button>
-                     </td>
-                   </tr>
-                 ))}
-               </tbody>
-             </table>
-           </div>
+                     </div>
+                     <div style={{ display: 'flex', gap: '8px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 900, color: p.status === 'Completed' ? '#10b981' : '#f59e0b', background: p.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '4px 10px', borderRadius: '20px' }}>
+                          {p.status === 'Completed' ? 'DISPENSED' : 'PENDING'}
+                        </span>
+                     </div>
+                   </div>
 
-           {activePrescription && (
-             <aside style={{ background: 'white', padding: '32px', borderRadius: '32px', border: '1px solid #e2e8f0', boxShadow: '0 20px 50px -12px rgba(0,0,0,0.1)' }}>
+                   <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <div>
+                       <div style={{ fontWeight: 700, fontSize: '13px', color: '#475569' }}>{p.doctor_name || 'Staff'}</div>
+                       <div style={{ fontSize: '11px', color: '#94a3b8' }}>General Medicine</div>
+                     </div>
+                     {!p.is_paid && <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fef2f2', padding: '4px 8px', borderRadius: '8px' }}>UNBILLED</span>}
+                   </div>
+
+                   <button 
+                      onClick={() => startDispensing(p)}
+                      disabled={p.status === 'Completed'}
+                      style={{ 
+                        width: '100%',
+                        padding: '14px', 
+                        background: p.status !== 'Completed' ? '#3b82f6' : '#94a3b8', 
+                        color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800,
+                        cursor: p.status === 'Completed' ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                       {p.status === 'Completed' ? 'Dispensed ✓' : 'Start Dispensing'}
+                    </button>
+                 </div>
+               ))}
+               {prescriptions.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No pending prescriptions.</div>}
+             </div>
+           ) : (
+             <div style={{ background: 'white', borderRadius: '32px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                 <thead>
+                   <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
+                     <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Patient / MRN</th>
+                     <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Prescribed By</th>
+                     <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Status</th>
+                     <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase', textAlign: 'right' }}>Actions</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {prescriptions.length === 0 && (
+                     <tr><td colSpan={4} style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>No pending prescriptions.</td></tr>
+                   )}
+                   {prescriptions.map((p, i) => (
+                     <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                       <td style={{ padding: '20px 24px' }}>
+                         <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.patient_name || 'Unknown Patient'}</div>
+                         <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</div>
+                       </td>
+                       <td style={{ padding: '20px 24px' }}>
+                          <div style={{ fontWeight: 700, fontSize: '13px' }}>{p.doctor_name || 'Staff'}</div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8' }}>General Medicine</div>
+                       </td>
+                       <td style={{ padding: '20px 24px' }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: p.status === 'Completed' ? '#10b981' : '#f59e0b', background: p.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '4px 10px', borderRadius: '20px', border: `1px solid ${p.status === 'Completed' ? '#dcfce7' : '#fef3c7'}` }}>
+                              {p.status === 'Completed' ? 'DISPENSED' : 'PENDING'}
+                            </span>
+                            {p.is_paid ? (
+                              <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', background: '#f0fdf4', padding: '4px 10px', borderRadius: '20px', border: '1px solid #dcfce7' }}>✓ BILLED</span>
+                            ) : (
+                              <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fef2f2', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fee2e2' }}>UNBILLED</span>
+                            )}
+                          </div>
+                       </td>
+                       <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                          <button 
+                            onClick={() => startDispensing(p)}
+                            disabled={p.status === 'Completed'}
+                            style={{ 
+                              padding: '10px 24px', 
+                              background: p.status !== 'Completed' ? '#3b82f6' : '#94a3b8', 
+                              color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800,
+                              cursor: p.status === 'Completed' ? 'not-allowed' : 'pointer',
+                              opacity: p.status === 'Completed' ? 0.5 : 1
+                            }}
+                          >
+                             {p.status === 'Completed' ? 'Dispensed ✓' : 'Dispense'}
+                          </button>
+                       </td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+           )}
+
+            {activePrescription && (
+              <aside style={{ 
+                background: 'white', 
+                padding: isMobile ? '24px' : '32px', 
+                borderRadius: isMobile ? '24px 24px 0 0' : '32px', 
+                border: '1px solid #e2e8f0', 
+                boxShadow: '0 20px 50px -12px rgba(0,0,0,0.1)',
+                position: isMobile ? 'fixed' : 'relative',
+                bottom: isMobile ? 0 : 'auto',
+                left: isMobile ? 0 : 'auto',
+                right: isMobile ? 0 : 'auto',
+                zIndex: isMobile ? 1001 : 1,
+                maxHeight: isMobile ? '85vh' : 'auto',
+                overflowY: 'auto'
+              }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                    <h2 style={{ fontSize: '20px', fontWeight: 900 }}>Fulfill Order</h2>
                    <button onClick={() => setActivePrescription(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8' }}>✕</button>

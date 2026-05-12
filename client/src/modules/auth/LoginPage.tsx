@@ -21,6 +21,14 @@ export default function LoginPage() {
     axios.get(`${API_BASE}/api/nexus/tenants/public`).then(res => setFacilities(res.data));
   }, []);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -78,59 +86,74 @@ export default function LoginPage() {
       fontFamily: "'Inter', sans-serif"
     }}>
       <div style={{ 
-        width: '1040px', 
-        height: '640px',
+        width: isMobile ? '90%' : '1040px', 
+        maxWidth: '1040px',
+        height: isMobile ? 'auto' : '640px',
         display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row',
         background: 'white', 
-        borderRadius: '32px', 
+        borderRadius: isMobile ? '24px' : '32px', 
         overflow: 'hidden',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1)',
+        margin: isMobile ? '20px 0' : '0'
       }}>
-        {/* LEFT: Hero Section */}
-        <div style={{ 
-          flex: 1, 
-          background: '#0f172a', 
-          padding: '60px', 
-          display: 'flex', 
-          flexDirection: 'column',
-          justifyContent: 'center',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
-          {/* Subtle Background Pattern */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.1, pointerEvents: 'none' }}>
-            <svg width="100%" height="100%"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#grid)" /></svg>
-          </div>
-
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ marginBottom: '40px' }}>
-               <BrandLogo size="md" light={true} />
+        {!isMobile && (
+          <div style={{ 
+            flex: 1, 
+            background: '#0f172a', 
+            padding: '60px', 
+            display: 'flex', 
+            flexDirection: 'column',
+            justifyContent: 'center',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            {/* Subtle Background Pattern */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.1, pointerEvents: 'none' }}>
+              <svg width="100%" height="100%"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" strokeWidth="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#grid)" /></svg>
             </div>
 
-            <h1 style={{ color: 'white', fontSize: '48px', fontWeight: 900, lineHeight: 1.1, marginBottom: '24px' }}>
-              Precision Care <br/>
-              <span style={{ color: '#0d9488' }}>Intelligence Platform.</span>
-            </h1>
-            
-            <p style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.6, marginBottom: '48px', maxWidth: '400px' }}>
-              Empowering healthcare providers with modern EMR solutions and unified hospital orchestration.
-            </p>
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ marginBottom: '40px' }}>
+                 <BrandLogo size="md" light={true} />
+              </div>
 
-            <div style={{ display: 'flex', gap: '20px' }}>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '12px', fontWeight: 700 }}>
-                  <div style={{ width: '6px', height: '6px', background: '#10b981', borderRadius: '50%' }}></div>
-                  HIPAA COMPLIANT
-               </div>
-               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '12px', fontWeight: 700 }}>
-                  <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%' }}></div>
-                  SOC 2 CERTIFIED
-               </div>
+              <h1 style={{ color: 'white', fontSize: '48px', fontWeight: 900, lineHeight: 1.1, marginBottom: '24px' }}>
+                Precision Care <br/>
+                <span style={{ color: '#0d9488' }}>Intelligence Platform.</span>
+              </h1>
+              
+              <p style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.6, marginBottom: '48px', maxWidth: '400px' }}>
+                Empowering healthcare providers with modern EMR solutions and unified hospital orchestration.
+              </p>
+
+              <div style={{ display: 'flex', gap: '20px' }}>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '12px', fontWeight: 700 }}>
+                    <div style={{ width: '6px', height: '6px', background: '#10b981', borderRadius: '50%' }}></div>
+                    HIPAA COMPLIANT
+                 </div>
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '12px', fontWeight: 700 }}>
+                    <div style={{ width: '6px', height: '6px', background: '#0d9488', borderRadius: '50%' }}></div>
+                    SOC 2 CERTIFIED
+                 </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* RIGHT: Login Form */}
-        <div style={{ width: '480px', padding: '60px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ 
+          width: isMobile ? '100%' : '480px', 
+          padding: isMobile ? '40px 24px' : '60px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'center' 
+        }}>
+          {isMobile && (
+            <div style={{ marginBottom: '32px', display: 'flex', justifyContent: 'center' }}>
+              <BrandLogo size="md" />
+            </div>
+          )}
           <div style={{ marginBottom: '40px' }}>
             <h2 style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', marginBottom: '8px' }}>Welcome Back</h2>
             <p style={{ color: '#64748b', fontSize: '14px' }}>Sign in to access your healthcare workspace</p>
