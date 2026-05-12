@@ -803,6 +803,48 @@ router.get("/ipd/discharges", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/ipd/discharges/:id", async (req, res, next) => {
+  try {
+    await ensureDischargeTable(req);
+    const { id } = req.params;
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT ds.*, p.name as patient_name, p.mrn, u.name as doctor_name
+      FROM "${req.schemaName}".discharge_summaries ds
+      JOIN "${req.schemaName}".patients p ON ds.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".users u ON ds.doctor_id = u.id
+      WHERE ds.id = '${id}'
+    `);
+    if (!data.length) return res.status(404).json({ error: "Summary not found" });
+    res.json(data[0]);
+  } catch (error) { next(error); }
+});
+
+router.put("/ipd/discharges/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { summary_text, is_authenticated } = req.body;
+    const doctorId = await getCurrentUserId(req);
+    
+    let updateFields = `summary_text = '${s(summary_text)}'`;
+    if (is_authenticated !== undefined) {
+      updateFields += `, is_authenticated = ${is_authenticated}, status = '${is_authenticated ? 'Authenticated' : 'Draft'}'`;
+      if (is_authenticated) {
+        updateFields += `, authenticated_at = NOW()`;
+      }
+    }
+    if (doctorId) {
+      updateFields += `, doctor_id = '${doctorId}'`;
+    }
+
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".discharge_summaries 
+      SET ${updateFields}
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
 // --- PHARMACY MANAGEMENT ---
 router.get("/pharmacy/inventory", async (req, res, next) => {
   try {

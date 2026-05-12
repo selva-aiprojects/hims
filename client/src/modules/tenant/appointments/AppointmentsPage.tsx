@@ -3,7 +3,7 @@ import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Calendar, Clock, User, Plus, X, CheckCircle, AlertCircle, Users } from "lucide-react";
+import { Calendar, Clock, User, Plus, X, CheckCircle, Users } from "lucide-react";
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -13,6 +13,10 @@ export default function AppointmentsPage() {
   const [showBookModal, setShowBookModal] = useState(false);
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [showActionMenu, setShowActionMenu] = useState<number | null>(null);
   const [bookingForm, setBookingForm] = useState({ 
     patient_id: '', 
     doctor_id: '', 
@@ -20,6 +24,11 @@ export default function AppointmentsPage() {
     status: 'Scheduled' 
   });
 
+  // Modal specific states for "Grid & Search"
+  const [modalSearchPatient, setModalSearchPatient] = useState("");
+  const [modalSelectedDate, setModalSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [doctorSlots, setDoctorSlots] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const fetchAppointments = async () => {
     const headers = { 
@@ -34,7 +43,6 @@ export default function AppointmentsPage() {
       ]);
       setAppointments(apptRes.data || []);
       const allDocs = docRes.data || [];
-      // Trust the /doctors endpoint, but keep safety filter if role is present
       setDoctors(allDocs.filter((s: any) => !s.role || s.role.toLowerCase() === 'doctor'));
       setPatients(patRes.data || []);
     } catch (err) { 
@@ -66,6 +74,59 @@ export default function AppointmentsPage() {
     }
   };
 
+  const filteredAppointments = appointments
+    .filter(appt => !selectedDoctorId || appt.doctor_id === selectedDoctorId)
+    .filter(appt => activeCategory === "All" || appt.status === activeCategory)
+    .filter(appt => {
+      const query = searchTerm.toLowerCase();
+      return (
+        appt.patient_name?.toLowerCase().includes(query) ||
+        appt.doctor_name?.toLowerCase().includes(query) ||
+        appt.status?.toLowerCase().includes(query)
+      );
+    });
+
+  const fetchDoctorAvailability = async (doctorId: string, date: string) => {
+    if (!doctorId || !date) return;
+    setLoadingSlots(true);
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+    try {
+      const res = await axios.get(`${API_BASE}/api/doctors/${doctorId}/availability-rules?startDate=${date}&endDate=${date}`, { headers });
+      // Generate slots from 09:00 to 18:00
+      const slots = [];
+      const appointmentsOnDay = res.data.appointments || [];
+      for (let h = 9; h < 18; h++) {
+        for (let m = 0; m < 60; m += 30) {
+          const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+          const isBooked = appointmentsOnDay.some((a: any) => a.appointment_time.includes(time));
+          slots.push({ time, isBooked });
+        }
+      }
+      setDoctorSlots(slots);
+    } catch (err) { console.error(err); }
+    finally { setLoadingSlots(false); }
+  };
+
+  useEffect(() => {
+    if (showBookModal && bookingForm.doctor_id && modalSelectedDate) {
+      fetchDoctorAvailability(bookingForm.doctor_id, modalSelectedDate);
+    }
+  }, [bookingForm.doctor_id, modalSelectedDate, showBookModal]);
+
+  const inputStyle = { 
+    width: '100%', 
+    padding: '14px', 
+    borderRadius: '14px', 
+    border: '1px solid #e2e8f0', 
+    outline: 'none', 
+    fontSize: '14px', 
+    fontWeight: 600,
+    background: '#f8fafc'
+  };
+
   return (
     <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex' }}>
       <Sidebar />
@@ -95,120 +156,265 @@ export default function AppointmentsPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '32px' }}>
-          {/* Main List */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{ 
               background: 'white', 
               borderRadius: '24px', 
               border: '1px solid #e2e8f0', 
-              padding: '32px',
-              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+              display: 'flex',
+              overflow: 'hidden'
             }}>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Calendar size={20} color="#3b82f6" />
-                  Upcoming Appointments
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <select 
-                    value={selectedDoctorId} 
-                    onChange={(e) => setSelectedDoctorId(e.target.value)}
-                    style={{ 
-                      padding: '8px 16px', 
-                      borderRadius: '12px', 
-                      border: '1px solid #e2e8f0', 
-                      background: '#f8fafc', 
-                      fontSize: '13px', 
-                      fontWeight: 700, 
-                      color: '#1e293b',
-                      outline: 'none',
-                      cursor: 'pointer'
+              {/* Vertical Category Panel */}
+              <div style={{ 
+                width: '200px', 
+                background: '#f8fafc', 
+                borderRight: '1px solid #e2e8f0',
+                padding: '24px 16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', paddingLeft: '12px' }}>Categories</div>
+                {["All", "Scheduled", "Completed", "Cancelled"].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      textAlign: 'left',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      background: activeCategory === cat ? '#3b82f6' : 'transparent',
+                      color: activeCategory === cat ? 'white' : '#64748b',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
                     }}
                   >
-                    <option value="">All Doctors</option>
-                    {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
-                  </select>
-                  <span style={{ fontSize: '12px', background: '#eff6ff', color: '#3b82f6', padding: '4px 12px', borderRadius: '100px', fontWeight: 700 }}>
-                    {appointments.filter(a => !selectedDoctorId || a.doctor_id === selectedDoctorId).length} Total
-                  </span>
-                </div>
+                    {cat}
+                    <span style={{ 
+                      fontSize: '10px', 
+                      background: activeCategory === cat ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                      padding: '2px 8px',
+                      borderRadius: '100px'
+                    }}>
+                      {cat === "All" ? appointments.length : appointments.filter(a => a.status === cat).length}
+                    </span>
+                  </button>
+                ))}
               </div>
 
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ flex: 1, padding: '32px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Calendar size={20} color="#3b82f6" />
+                    Upcoming Appointments
+                  </h3>
+                
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Search appointments..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{
+                          padding: '8px 12px 8px 36px',
+                          borderRadius: '12px',
+                          border: '1px solid #e2e8f0',
+                          fontSize: '13px',
+                          width: '220px',
+                          outline: 'none',
+                          background: '#f8fafc'
+                        }}
+                      />
+                      <User size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    </div>
+
+                    <select 
+                      value={selectedDoctorId} 
+                      onChange={(e) => setSelectedDoctorId(e.target.value)}
+                      style={{ 
+                        padding: '8px 16px', 
+                        borderRadius: '12px', 
+                        border: '1px solid #e2e8f0', 
+                        background: '#f8fafc', 
+                        fontSize: '13px', 
+                        fontWeight: 700, 
+                        color: '#1e293b',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">All Doctors</option>
+                      {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
+                    </select>
+
+                    {/* View Toggle */}
+                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+                      <button 
+                        onClick={() => setViewMode('list')}
+                        style={{ 
+                          padding: '4px 8px', 
+                          borderRadius: '6px', 
+                          border: 'none', 
+                          background: viewMode === 'list' ? 'white' : 'transparent',
+                          boxShadow: viewMode === 'list' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Users size={14} color={viewMode === 'list' ? '#3b82f6' : '#64748b'} />
+                      </button>
+                      <button 
+                        onClick={() => setViewMode('grid')}
+                        style={{ 
+                          padding: '4px 8px', 
+                          borderRadius: '6px', 
+                          border: 'none', 
+                          background: viewMode === 'grid' ? 'white' : 'transparent',
+                          boxShadow: viewMode === 'grid' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Calendar size={14} color={viewMode === 'grid' ? '#3b82f6' : '#64748b'} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}>
                     <div style={{ fontSize: '14px', color: '#94a3b8' }}>Loading schedules...</div>
                   </div>
-
-                ) : appointments
-                  .filter(appt => !selectedDoctorId || appt.doctor_id === selectedDoctorId)
-                  .map((appt: any, i: number) => (
-
-                  <div key={i} style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    padding: '24px', 
-                    borderRadius: '20px', 
-                    border: '1px solid #f1f5f9', 
-                    background: '#f8fafc',
-                    transition: 'all 0.2s ease'
-                  }}>
-                    <div style={{ 
-                      width: '60px', 
-                      height: '60px', 
-                      borderRadius: '16px', 
-                      background: 'white', 
-                      border: '1px solid #e2e8f0', 
-                      display: 'flex', 
-                      flexDirection: 'column',
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.03)'
-                    }}>
-                      <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
-                        {appt.appointment_time ? new Date(appt.appointment_time).toLocaleString('en-US', { month: 'short' }) : '---'}
-                      </div>
-                      <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>
-                        {appt.appointment_time ? new Date(appt.appointment_time).getDate() : '--'}
-                      </div>
-                    </div>
-                    
-                    <div style={{ marginLeft: '20px', flex: 1 }}>
-                      <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px' }}>{appt.patient_name}</div>
-                      <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <User size={14} />
-                        Assigned to Dr. {appt.doctor_name}
-                      </div>
-                    </div>
-                    
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end', fontWeight: 800, color: '#3b82f6', fontSize: '16px' }}>
-                        <Clock size={16} />
-                        {appt.appointment_time ? new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                      </div>
-                      <div style={{ 
-                        fontSize: '11px', 
-                        color: appt.status === 'Completed' ? '#10b981' : '#f59e0b', 
-                        fontWeight: 800, 
-                        background: appt.status === 'Completed' ? '#f0fdf4' : '#fffbeb', 
-                        padding: '4px 12px', 
-                        borderRadius: '100px', 
-                        marginTop: '8px',
-                        display: 'inline-block'
+                ) : viewMode === 'list' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {filteredAppointments.map((appt: any, i: number) => (
+                      <div key={i} style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        padding: '24px', 
+                        borderRadius: '20px', 
+                        border: '1px solid #f1f5f9', 
+                        background: '#f8fafc',
+                        position: 'relative'
                       }}>
-                        {appt.status}
+                        <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'white', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
+                            {appt.appointment_time ? new Date(appt.appointment_time).toLocaleString('en-US', { month: 'short' }) : '---'}
+                          </div>
+                          <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>
+                            {appt.appointment_time ? new Date(appt.appointment_time).getDate() : '--'}
+                          </div>
+                        </div>
+                        <div style={{ marginLeft: '20px', flex: 1 }}>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '16px' }}>{appt.patient_name}</div>
+                          <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <User size={14} /> Assigned to Dr. {appt.doctor_name}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '20px' }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end', fontWeight: 800, color: '#3b82f6', fontSize: '16px' }}>
+                              <Clock size={16} />
+                              {appt.appointment_time ? new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                            </div>
+                            <div style={{ fontSize: '11px', color: appt.status === 'Completed' ? '#10b981' : '#f59e0b', fontWeight: 800, background: appt.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '4px 12px', borderRadius: '100px', marginTop: '8px', display: 'inline-block' }}>
+                              {appt.status}
+                            </div>
+                          </div>
+                          
+                          <div style={{ position: 'relative' }}>
+                            <button 
+                              onClick={() => setShowActionMenu(showActionMenu === i ? null : i)}
+                              style={{ background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '10px', cursor: 'pointer' }}
+                            >
+                              <Plus size={16} color="#64748b" style={{ transform: 'rotate(45deg)' }} />
+                            </button>
+                            
+                            {showActionMenu === i && (
+                              <div style={{ 
+                                position: 'absolute', 
+                                right: 0, 
+                                top: '100%', 
+                                background: 'white', 
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.1)', 
+                                borderRadius: '12px', 
+                                padding: '8px', 
+                                zIndex: 10,
+                                minWidth: '160px',
+                                border: '1px solid #f1f5f9',
+                                marginTop: '8px'
+                              }}>
+                                {["View Details", "Edit Schedule", "Cancel Visit", "Mark Completed"].map(action => (
+                                  <div 
+                                    key={action}
+                                    onClick={() => setShowActionMenu(null)}
+                                    style={{ 
+                                      padding: '10px 12px', 
+                                      fontSize: '12px', 
+                                      fontWeight: 700, 
+                                      color: action === "Cancel Visit" ? '#ef4444' : '#1e293b',
+                                      borderRadius: '8px',
+                                      cursor: 'pointer',
+                                      textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                  >
+                                    {action}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
+                    {filteredAppointments.map((appt: any, i: number) => (
+                      <div key={i} style={{ 
+                        padding: '20px', 
+                        borderRadius: '24px', 
+                        border: '1px solid #f1f5f9', 
+                        background: '#f8fafc',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ background: 'white', padding: '6px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{appt.appointment_time ? new Date(appt.appointment_time).toLocaleString('en-US', { month: 'short' }) : '--'}</div>
+                            <div style={{ fontSize: '16px', fontWeight: 900 }}>{appt.appointment_time ? new Date(appt.appointment_time).getDate() : '--'}</div>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 800, background: '#eff6ff', padding: '4px 10px', borderRadius: '100px' }}>
+                            {appt.appointment_time ? new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '15px' }}>{appt.patient_name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Dr. {appt.doctor_name}</div>
+                        </div>
+                        <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                           <span style={{ fontSize: '10px', fontWeight: 800, color: appt.status === 'Completed' ? '#10b981' : '#f59e0b' }}>{appt.status.toUpperCase()}</span>
+                           <button style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>Details</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                ))}
-                {!loading && appointments.filter(a => !selectedDoctorId || a.doctor_id === selectedDoctorId).length === 0 && (
-
+                {!loading && filteredAppointments.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '60px', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
                     <Calendar size={40} color="#cbd5e1" style={{ marginBottom: '16px' }} />
-                    <p style={{ color: '#94a3b8', margin: 0, fontWeight: 600 }}>No appointments scheduled yet.</p>
+                    <p style={{ color: '#94a3b8', margin: 0, fontWeight: 600 }}>No matching appointments found.</p>
                   </div>
                 )}
               </div>
@@ -356,55 +562,60 @@ export default function AppointmentsPage() {
               </div>
 
               <form onSubmit={handleBook}>
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Select Patient
                   </label>
-                  <div style={{ position: 'relative' }}>
-                    <select 
-                      required 
-                      style={{ 
-                        width: '100%', 
-                        padding: '16px 44px 16px 16px', 
-                        borderRadius: '16px', 
-                        border: '2px solid #f1f5f9', 
-                        fontWeight: 700, 
-                        appearance: 'none',
-                        background: '#f8fafc',
-                        fontSize: '15px',
-                        outline: 'none',
-                        transition: 'border-color 0.2s ease'
-                      }}
-                      onChange={e => setBookingForm({...bookingForm, patient_id: e.target.value})}
-                    >
-                      <option value="">Search or select patient...</option>
-                      {patients.map(p => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
-                    </select>
-                    {patients.length === 0 && (
-                      <div style={{ marginTop: '12px', padding: '12px', background: '#fef2f2', borderRadius: '12px', border: '1px solid #fee2e2', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', color: '#b91c1c', fontWeight: 700 }}>No patients found.</span>
-                        <button 
-                          type="button"
-                          onClick={() => window.location.href = '/tenant/opd/registration'}
-                          style={{ background: '#ef4444', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 800, cursor: 'pointer' }}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ position: 'relative' }}>
+                      <input 
+                        type="text" 
+                        placeholder="Search patient name or MRN..." 
+                        value={modalSearchPatient}
+                        onChange={(e) => setModalSearchPatient(e.target.value)}
+                        style={{ ...inputStyle, paddingLeft: '44px' }}
+                      />
+                      <Users size={18} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+                    </div>
+                    
+                    <div style={{ 
+                      maxHeight: '150px', 
+                      overflowY: 'auto', 
+                      background: '#f8fafc', 
+                      borderRadius: '16px', 
+                      border: '1px solid #f1f5f9',
+                      padding: '8px'
+                    }}>
+                      {patients.filter(p => !modalSearchPatient || p.name.toLowerCase().includes(modalSearchPatient.toLowerCase()) || p.mrn.includes(modalSearchPatient)).map(p => (
+                        <div 
+                          key={p.id}
+                          onClick={() => { setBookingForm({...bookingForm, patient_id: p.id}); setModalSearchPatient(p.name); }}
+                          style={{ 
+                            padding: '10px 16px', 
+                            borderRadius: '10px', 
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            background: bookingForm.patient_id === p.id ? '#3b82f6' : 'transparent',
+                            color: bookingForm.patient_id === p.id ? 'white' : '#1e293b',
+                            marginBottom: '4px'
+                          }}
                         >
-                          + REGISTER
-                        </button>
-                      </div>
-                    )}
-                    <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                      <Users size={18} color="#94a3b8" />
+                          {p.name} ({p.mrn})
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '24px' }}>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Assign Doctor
                   </label>
                   <div style={{ position: 'relative' }}>
                     <select 
                       required 
+                      value={bookingForm.doctor_id}
                       style={{ 
                         width: '100%', 
                         padding: '16px 44px 16px 16px', 
@@ -429,27 +640,54 @@ export default function AppointmentsPage() {
 
                 <div style={{ marginBottom: '32px' }}>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Appointment Date & Time
+                    Choose Slot (Searchable Grid)
                   </label>
-                  <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <input 
-                      type="datetime-local" 
-                      required 
-                      style={{ 
-                        width: '100%', 
-                        padding: '16px 44px 16px 16px', 
-                        borderRadius: '16px', 
-                        border: '2px solid #f1f5f9', 
-                        fontWeight: 700, 
-                        background: '#f8fafc',
-                        fontSize: '15px',
-                        outline: 'none'
-                      }}
-                      onChange={e => setBookingForm({...bookingForm, appointment_time: e.target.value})}
+                      type="date" 
+                      value={modalSelectedDate}
+                      onChange={(e) => setModalSelectedDate(e.target.value)}
+                      style={{ ...inputStyle }}
                     />
-                    <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                      <Clock size={18} color="#94a3b8" />
-                    </div>
+                    
+                    {loadingSlots ? (
+                      <div style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#94a3b8' }}>Checking doctor availability...</div>
+                    ) : bookingForm.doctor_id ? (
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(4, 1fr)', 
+                        gap: '8px',
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                        padding: '4px'
+                      }}>
+                        {doctorSlots.map(slot => (
+                          <button
+                            key={slot.time}
+                            type="button"
+                            disabled={slot.isBooked}
+                            onClick={() => setBookingForm({...bookingForm, appointment_time: `${modalSelectedDate} ${slot.time}`})}
+                            style={{
+                              padding: '10px',
+                              borderRadius: '10px',
+                              border: 'none',
+                              fontSize: '12px',
+                              fontWeight: 800,
+                              cursor: slot.isBooked ? 'not-allowed' : 'pointer',
+                              background: bookingForm.appointment_time.includes(slot.time) ? '#10b981' : (slot.isBooked ? '#f1f5f9' : '#eef2ff'),
+                              color: bookingForm.appointment_time.includes(slot.time) ? 'white' : (slot.isBooked ? '#cbd5e1' : '#3b82f6'),
+                              opacity: slot.isBooked ? 0.6 : 1
+                            }}
+                          >
+                            {slot.time}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#94a3b8', background: '#f8fafc', borderRadius: '12px' }}>
+                        Please select a doctor to see available slots.
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -496,4 +734,3 @@ export default function AppointmentsPage() {
     </div>
   );
 }
-
