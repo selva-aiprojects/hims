@@ -54,6 +54,10 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 - **Orchestration Layer**: Decoupled AI service for compute-intensive tasks (OCR, Summarization).
 - **Tenant-Lock Security**: Strict data isolation via backend context injection (HIPAA Compliance).
 
+### Infrastructure Reliability
+- **Self-Healing Shards**: Automated table and column provisioning per-tenant to eliminate environment-related runtime crashes.
+- **Atomic Revenue Hub**: Consolidated billing queue that synchronizes Lab, Pharmacy, and IPD service charges in real-time.
+
 ---
 
 ## 4. User Roles

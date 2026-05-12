@@ -4,7 +4,7 @@ This document outlines the clinical journey for patients across the three HIMS s
 
 ---
 
-## 🟢 Tier 1: HEALTHEZEE BASIC (OP Focused)
+## 🟢 Tier 1: HEALTHEZEE BASIC (OP Focused) [STABLE & VALIDATED]
 **Designed for**: Individual Doctors & Small Clinics.
 **Focus**: Rapid consultation and records management.
 
@@ -14,7 +14,7 @@ This document outlines the clinical journey for patients across the three HIMS s
 
 ---
 
-## 🔵 Tier 2: HEALTHEZEE STANDARD (OP + Lab & Pharmacy)
+## 🔵 Tier 2: HEALTHEZEE STANDARD (OP + Lab & Pharmacy) [STABLE & VALIDATED]
 **Designed for**: Multi-specialty Clinics & Nursing Homes.
 **Focus**: Integrated diagnostic and medication workflow.
 
@@ -26,14 +26,14 @@ This document outlines the clinical journey for patients across the three HIMS s
 
 ---
 
-## 🟣 Tier 3: HEALTHEZEE PROFESSIONAL (IP + Day Care)
+## 🟣 Tier 3: HEALTHEZEE PROFESSIONAL (IP + Day Care) [STABLE & VALIDATED]
 **Designed for**: Large Hospitals & Tertiary Care Centers.
 **Focus**: Continuous care and facility management.
 
 1.  **Admission Desk**: Patient arrives for IPD → Admin checks **Live Bed Map** → Assigns Patient to General Ward or Private Room.
 2.  **Inpatient Care**: Nursing staff manages bed occupancy → Doctors perform rounds and update clinical records.
 3.  **Cross-Module Services**: Lab orders and Pharmacy dispensing continue as needed during the stay.
-4.  **Discharge & Billing**: Final bill aggregation including Bed Charges (per day) + Clinical Fees + Lab + Pharmacy → Insurance reconciliation (Roadmap) → Discharge.
+4.  **Discharge & Billing**: Final bill aggregation including Bed Charges (per day) + Clinical Fees + Lab + Pharmacy → Insurance reconciliation → Discharge.
 
 ---
-*Created: 2026-05-01*
+*Last Validated: 2026-05-12*

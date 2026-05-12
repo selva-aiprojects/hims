@@ -41,7 +41,7 @@ export default function AdmissionDeskPage() {
         ]);
         setPatients(patRes.data);
         setWards(wardRes.data);
-        setDoctors(staffRes.data.filter((s: any) => s.role === 'doctor' || s.role === 'admin'));
+        setDoctors(staffRes.data.filter((s: any) => s.role === 'DOCTOR' || s.role === 'ADMIN' || s.role === 'doctor' || s.role === 'admin'));
         setRecommendations(recRes.data || []);
       } catch (err) { console.error(err); }
     };
@@ -126,7 +126,7 @@ export default function AdmissionDeskPage() {
                         value={form.bedId} onChange={e => setForm({...form, bedId: e.target.value})}
                       >
                          <option value="">Select Bed...</option>
-                         {availableBeds.map(b => <option key={b.bed_id} value={b.bed_id}>{b.bed_number}</option>)}
+                         {availableBeds.map(b => <option key={b.id} value={b.id}>{b.bed_number}</option>)}
                       </select>
                    </div>
                 </div>

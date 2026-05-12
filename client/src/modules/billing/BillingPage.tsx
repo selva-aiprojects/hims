@@ -527,7 +527,7 @@ export default function BillingPage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <button 
-                    disabled={loading || totals.net <= 0}
+                    disabled={loading || items.length === 0}
                     onClick={finalizeBilling}
                     style={{ 
                       width: '100%', padding: '18px', borderRadius: '16px', background: '#10b981', color: 'white', 

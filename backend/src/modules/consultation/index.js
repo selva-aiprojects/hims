@@ -86,7 +86,7 @@ router.post("/", async (req, res, next) => {
     if (followUpDate) {
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".follow_ups (patient_id, encounter_id, scheduled_date)
-        VALUES ('${patientId}', '${encounter_id}', '${followUpDate}')
+        VALUES ('${patientId}', '${encounterId}', '${followUpDate}')
       `);
     }
 

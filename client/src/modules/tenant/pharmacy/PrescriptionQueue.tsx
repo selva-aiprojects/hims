@@ -3,12 +3,14 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { Pill } from 'lucide-react';
 
 
 export default function PrescriptionQueue() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [activePrescription, setActivePrescription] = useState<any>(null);
   const [inventory, setInventory] = useState<any[]>([]);
@@ -47,7 +49,7 @@ export default function PrescriptionQueue() {
         quantity: 10,
         unitPrice: item.unit_price || inventory.find(i => i.drug_name === (item.medicine_name || item.drug_name))?.unit_price || 0
       })));
-    } catch (err) { alert("Failed to fetch prescription details"); }
+    } catch (err) { showToast("Failed to fetch prescription details", "error"); }
   };
 
   const confirmDispense = async () => {
@@ -62,10 +64,10 @@ export default function PrescriptionQueue() {
         items: selectedItems.filter(i => i.drugId)
       }, { headers });
       
-      alert("Medication dispensed successfully!");
+      showToast("Medication dispensed & billing queue updated!", "success");
       setActivePrescription(null);
       fetchData();
-    } catch (err) { alert("Dispensing failed. Check stock levels."); }
+    } catch (err) { showToast("Dispensing failed. Check stock levels.", "error"); }
   };
 
   return (
@@ -94,37 +96,44 @@ export default function PrescriptionQueue() {
                  </tr>
                </thead>
                <tbody>
+                 {prescriptions.length === 0 && (
+                   <tr><td colSpan={4} style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>No pending prescriptions.</td></tr>
+                 )}
                  {prescriptions.map((p, i) => (
                    <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                      <td style={{ padding: '20px 24px' }}>
-                       <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.patient_name}</div>
+                       <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.patient_name || 'Unknown Patient'}</div>
                        <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</div>
                      </td>
                      <td style={{ padding: '20px 24px' }}>
-                        <div style={{ fontWeight: 700, fontSize: '13px' }}>Dr. Admin</div>
+                        <div style={{ fontWeight: 700, fontSize: '13px' }}>{p.doctor_name || 'Staff'}</div>
                         <div style={{ fontSize: '11px', color: '#94a3b8' }}>General Medicine</div>
                      </td>
                      <td style={{ padding: '20px 24px' }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 900, color: '#f59e0b', background: '#fffbeb', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fef3c7' }}>PENDING</span>
+                          <span style={{ fontSize: '10px', fontWeight: 900, color: p.status === 'Completed' ? '#10b981' : '#f59e0b', background: p.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '4px 10px', borderRadius: '20px', border: `1px solid ${p.status === 'Completed' ? '#dcfce7' : '#fef3c7'}` }}>
+                            {p.status === 'Completed' ? 'DISPENSED' : 'PENDING'}
+                          </span>
                           {p.is_paid ? (
-                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', background: '#f0fdf4', padding: '4px 10px', borderRadius: '20px', border: '1px solid #dcfce7' }}>✓ PAID</span>
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#10b981', background: '#f0fdf4', padding: '4px 10px', borderRadius: '20px', border: '1px solid #dcfce7' }}>✓ BILLED</span>
                           ) : (
-                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fef2f2', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fee2e2' }}>UNPAID</span>
+                            <span style={{ fontSize: '10px', fontWeight: 900, color: '#ef4444', background: '#fef2f2', padding: '4px 10px', borderRadius: '20px', border: '1px solid #fee2e2' }}>UNBILLED</span>
                           )}
                         </div>
                      </td>
                      <td style={{ padding: '20px 24px', textAlign: 'right' }}>
                         <button 
                           onClick={() => startDispensing(p)}
+                          disabled={p.status === 'Completed'}
                           style={{ 
                             padding: '10px 24px', 
-                            background: p.is_paid ? '#3b82f6' : '#94a3b8', 
-                            color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer',
-                            opacity: p.is_paid ? 1 : 0.7
+                            background: p.status !== 'Completed' ? '#3b82f6' : '#94a3b8', 
+                            color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800,
+                            cursor: p.status === 'Completed' ? 'not-allowed' : 'pointer',
+                            opacity: p.status === 'Completed' ? 0.5 : 1
                           }}
                         >
-                           {p.is_paid ? 'Dispense' : 'View Order'}
+                           {p.status === 'Completed' ? 'Dispensed ✓' : 'Dispense'}
                         </button>
                      </td>
                    </tr>
@@ -142,7 +151,7 @@ export default function PrescriptionQueue() {
                 
                 <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '20px', marginBottom: '24px' }}>
                    <p style={{ margin: 0, fontSize: '12px', color: '#64748b', fontWeight: 700 }}>ORDER FOR</p>
-                   <p style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>{activePrescription.patient_name}</p>
+                   <p style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>{activePrescription.patient_name || 'Patient'}</p>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
@@ -164,10 +173,12 @@ export default function PrescriptionQueue() {
                         />
                      </div>
                    ))}
+                   {selectedItems.length === 0 && <p style={{ textAlign: 'center', color: '#94a3b8' }}>No items to dispense.</p>}
                 </div>
 
                 <button 
                   onClick={confirmDispense}
+                  disabled={selectedItems.length === 0}
                   style={{ width: '100%', padding: '20px', borderRadius: '20px', background: '#0f172a', color: 'white', border: 'none', fontWeight: 900, fontSize: '16px', cursor: 'pointer' }}
                 >
                    Validate & Dispense

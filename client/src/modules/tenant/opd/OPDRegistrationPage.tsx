@@ -57,7 +57,7 @@ export default function OPDRegistrationPage() {
 
     // Fetch queue independently
     try {
-      const queueRes = await axios.get(`${API_BASE}/api/hospital/encounters?status=Draft`, { headers: h });
+      const queueRes = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active`, { headers: h });
       setRecentQueue((queueRes.data || []).slice(0, 5));
     } catch (err) { console.error("Queue fetch failed", err); }
   };

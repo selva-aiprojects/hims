@@ -23,7 +23,7 @@ export default function OPDQueuePage() {
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
     try {
-      const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Draft`, { headers });
+      const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active`, { headers });
       setEncounters(res.data);
     } catch (err) { 
       console.error(err); 

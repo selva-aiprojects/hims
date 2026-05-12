@@ -47,6 +47,8 @@ export default function DoctorAvailabilityPage() {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showActionDrawer, setShowActionDrawer] = useState(false);
   const [selectedSlotState, setSelectedSlotState] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState("ALL"); // ALL, AVAILABLE, BOOKED
 
   const headers = {
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -241,15 +243,37 @@ export default function DoctorAvailabilityPage() {
 
              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {activeTab === 'Operational Calendar' && (
-                   <div style={{ ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column', padding: 0 }}>
-                      <div style={calendarHeaderStyle}>
-                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }} style={navBtnStyle}><ChevronLeft size={16} /></button>
-                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900 }}>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h3>
-                            <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }} style={navBtnStyle}><ChevronRight size={16} /></button>
-                         </div>
-                         <div style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>Weekly Operational View</div>
-                      </div>
+                    <div style={{ ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+                       <div style={calendarHeaderStyle}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                             <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }} style={navBtnStyle}><ChevronLeft size={16} /></button>
+                             <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 900 }}>{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</h3>
+                             <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() + 7); setCurrentDate(d); }} style={navBtnStyle}><ChevronRight size={16} /></button>
+                          </div>
+                          
+                          {/* Search & Filter Bar */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-end' }}>
+                             <div style={{ position: 'relative', width: '240px' }}>
+                                <input 
+                                  type="text" 
+                                  placeholder="Search Patient Slot..." 
+                                  value={searchQuery}
+                                  onChange={(e) => setSearchQuery(e.target.value)}
+                                  style={{ ...inputStyle, padding: '10px 16px 10px 36px', fontSize: '12px', borderRadius: '10px' }} 
+                                />
+                                <User size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                             </div>
+                             <select 
+                               value={filterStatus}
+                               onChange={(e) => setFilterStatus(e.target.value)}
+                               style={{ ...inputStyle, width: '140px', padding: '10px', fontSize: '12px', borderRadius: '10px' }}
+                             >
+                                <option value="ALL">All Slots</option>
+                                <option value="AVAILABLE">Available Only</option>
+                                <option value="BOOKED">Booked Only</option>
+                             </select>
+                          </div>
+                       </div>
 
                       <div style={gridScrollStyle}>
                          <div style={calendarGridStyle}>
@@ -284,8 +308,19 @@ export default function DoctorAvailabilityPage() {
                                         overrides,
                                         doctorStatus
                                      });
+
+                                     // Apply Filters
+                                     const matchesSearch = searchQuery && state.appointment?.patient_name?.toLowerCase().includes(searchQuery.toLowerCase());
+                                     const matchesStatus = filterStatus === 'ALL' || 
+                                                          (filterStatus === 'AVAILABLE' && (state.status === 'AVAILABLE' || state.status === 'DELAYED_AVAIL')) ||
+                                                          (filterStatus === 'BOOKED' && state.status === 'BOOKED');
+
                                      return (
-                                        <div key={`${idx}-${dayIdx}`} style={slotCellWrapperStyle}>
+                                        <div key={`${idx}-${dayIdx}`} style={{ 
+                                           ...slotCellWrapperStyle, 
+                                           opacity: (searchQuery && !matchesSearch) || !matchesStatus ? 0.3 : 1,
+                                           filter: (searchQuery && !matchesSearch) || !matchesStatus ? 'grayscale(0.5)' : 'none'
+                                        }}>
                                            <div 
                                              onClick={() => {
                                                setSelectedDate(date);
@@ -293,7 +328,12 @@ export default function DoctorAvailabilityPage() {
                                                setSelectedSlotState(state);
                                                setShowActionDrawer(true);
                                              }}
-                                             style={slotInnerStyle(state)}
+                                             style={{ 
+                                               ...slotInnerStyle(state),
+                                               border: matchesSearch ? '2px solid #f97316' : slotInnerStyle(state).border,
+                                               boxShadow: matchesSearch ? '0 0 12px rgba(249, 115, 22, 0.4)' : slotInnerStyle(state).boxShadow,
+                                               animation: matchesSearch ? 'pulse 1.5s infinite' : slotInnerStyle(state).animation
+                                             }}
                                            >
                                               {state.status === 'BOOKED' ? <User size={12} /> : state.label === 'AVAILABLE' ? <Plus size={12} /> : ''}
                                            </div>
@@ -524,8 +564,14 @@ const SummaryItem = ({ label, value, icon }: any) => (
 );
 
 const navBtnStyle = { width: '32px', height: '32px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' };
-const gridScrollStyle = { flex: 1, overflowY: 'auto' as const };
-const calendarGridStyle = { display: 'grid', gridTemplateColumns: '100px repeat(7, 1fr)', background: 'white' };
+const gridScrollStyle = { 
+  flex: 1, 
+  overflowY: 'auto' as const,
+  maxHeight: 'calc(100vh - 350px)',
+  scrollbarWidth: 'thin' as const,
+  scrollbarColor: '#e2e8f0 transparent'
+};
+const calendarGridStyle = { display: 'grid', gridTemplateColumns: '100px repeat(7, 1fr)', background: 'white', minHeight: '800px' };
 const drawerOverlayStyle: any = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', zIndex: 3000, display: 'flex', justifyContent: 'flex-end' };
 const drawerStyle: any = { width: '450px', height: '100%', background: 'white', padding: '40px', boxShadow: '-10px 0 30px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' };
 const closeBtnStyle = { background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' };
