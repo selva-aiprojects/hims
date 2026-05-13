@@ -11,7 +11,9 @@ function getPrisma() {
     // Clean the connection string to prevent conflicts with Pool options
     const rawUrl = process.env.DATABASE_URL || "";
     
-    // Standard Vercel/Supabase connection with SSL forced to bypass
+    // FORCED SSL BYPASS: Required for Vercel -> Supabase/Managed DB connectivity
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
     const pool = new Pool({ 
       connectionString: rawUrl,
       ssl: {
