@@ -161,7 +161,12 @@ router.get("/tenants/public", async (req, res, next) => {
     `);
     res.json(tenants);
   } catch (error) {
-    next(error);
+    console.error("[NEXUS_PUBLIC] DB Error:", error.message);
+    res.status(500).json({ 
+      error: "Database Fetch Failed", 
+      message: error.message,
+      hint: "Check if 'nexus' schema exists in production DB"
+    });
   }
 });
 
