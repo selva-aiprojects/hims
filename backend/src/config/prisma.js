@@ -10,19 +10,13 @@ function getPrisma() {
     
     // Clean the connection string to prevent conflicts with Pool options
     const rawUrl = process.env.DATABASE_URL || "";
-    const cleanUrl = rawUrl.split('?')[0]; 
     
-    // Detect if we need to force the nexus schema (critical for multi-tenant registry)
-    const hasNexusSchema = rawUrl.includes('schema=nexus');
-
+    // Standard Vercel/Supabase connection with SSL forced to bypass
     const pool = new Pool({ 
-      connectionString: cleanUrl,
+      connectionString: rawUrl,
       ssl: {
         rejectUnauthorized: false, 
-      },
-      max: 10,
-      // Force search path if we're connecting to the nexus registry
-      options: hasNexusSchema ? "-c search_path=nexus,public" : undefined
+      }
     });
     
     const adapter = new PrismaPg(pool);
