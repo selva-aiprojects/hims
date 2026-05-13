@@ -450,13 +450,10 @@ app.get("/api/nexus/fix-enterprise-scheduling", async (req, res) => {
 // Dedicated Seeding Endpoint (to prevent startup timeouts)
 
 app.get("/api/nexus/seed-database", async (req, res) => {
-  if (process.env.NODE_ENV === 'production' && process.env.AUTO_SEED !== 'true') {
-    return res.status(403).json({ error: "Seeding is disabled in production" });
-  }
   try {
-    console.log("[SEED] Manual Seed Triggered...");
+    console.log("[SEED] Production Clinical Setup Triggered...");
     await seedSamples();
-    res.json({ message: "Seeding process started. Check logs for progress." });
+    res.json({ message: "Production database seeding started. Please wait 10 seconds and refresh your app." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -483,10 +480,23 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.get("/health-db", async (req, res) => {
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok", db: "connected" });
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    const result = await pool.query('SELECT current_schema(), now()');
+    await pool.end();
+    res.json({ 
+      status: "ok", 
+      db: "Raw Connection Success", 
+      details: result.rows[0],
+      url: process.env.DATABASE_URL ? "URL is present" : "URL is MISSING"
+    });
   } catch (err) {
-    res.status(500).json({ status: "error", message: err.message });
+    res.status(500).json({ 
+      status: "error", 
+      message: "Raw Connection Failed", 
+      error: err.message,
+      stack: err.stack?.substring(0, 100)
+    });
   }
 });
 

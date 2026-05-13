@@ -8,13 +8,12 @@ import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 class ApiService {
   final Dio _dio = Dio();
   
-  // Smart Base URL: Detects Vercel production vs Local development
+  // Smart Base URL: Pointing to your live HIMS-KAPPA backend
   static String get _baseUrl {
     if (kIsWeb) {
-      // If on Vercel, it uses the current domain's /api. 
-      // If on local Flutter dev (port 60997 etc), it falls back to :4000
       final String origin = html.window.location.origin;
-      return origin.contains('localhost') ? "http://localhost:4000/api" : "$origin/api";
+      // If running locally, use localhost:4000. If on Vercel, use the KAPPA production API.
+      return origin.contains('localhost') ? "http://localhost:4000/api" : "https://hims-kappa.vercel.app/api";
     }
     return "http://10.0.2.2:4000/api"; // Android Emulator fallback
   }
