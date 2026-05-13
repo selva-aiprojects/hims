@@ -462,9 +462,9 @@ app.get("/api/nexus/seed-database", async (req, res) => {
   }
 });
 
-// CORS configuration - allowing both Web and Mobile Suites
+// CORS configuration - Dynamic Origin for Multi-Platform Sync
 app.use(cors({
-  origin: ["https://hims-kappa.vercel.app", "https://hims-mobile.vercel.app", "http://localhost:3000", "http://localhost:60997"],
+  origin: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "x-tenant-id"],
   credentials: true
