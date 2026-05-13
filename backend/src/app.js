@@ -4,6 +4,7 @@ const cors = require("cors");
 const routes = require("./routes");
 const { prisma } = require("./config/prisma");
 const { audit } = require("./middleware/audit");
+const { register, metrics } = require("./config/metrics");
 
 const app = express();
 
@@ -487,6 +488,84 @@ app.get("/health-db", async (req, res) => {
   } catch (err) {
     res.status(500).json({ status: "error", message: err.message });
   }
+});
+
+// --- PROMETHEUS METRICS ENDPOINT (Vercel Optimized - Reads from DB) ---
+app.get("/metrics", async (req, res) => {
+  try {
+    // 1. Clear previous in-memory values to avoid stale data from previous invocations
+    metrics.tenantDbSize.reset();
+    metrics.tenantActiveUsers.reset();
+    metrics.tenantTotalRecords.reset();
+
+    // 2. Fetch latest actuals from the database
+    const latestLogs = await prisma.$queryRawUnsafe(`
+      SELECT DISTINCT ON (tenant_id) l.*, t.name as tenant_name, t.plan
+      FROM nexus.utilization_logs l
+      JOIN nexus.tenants t ON l.tenant_id = t.id
+      ORDER BY tenant_id, created_at DESC
+    `);
+
+    // 3. Populate Gauges for the current response
+    for (const log of latestLogs) {
+      metrics.tenantDbSize.set({ tenant_id: log.tenant_id, tenant_name: log.tenant_name, plan: log.plan }, parseFloat(log.db_size_mb));
+      metrics.tenantActiveUsers.set({ tenant_id: log.tenant_id, tenant_name: log.tenant_name }, log.active_users);
+      metrics.tenantTotalRecords.set({ tenant_id: log.tenant_id, tenant_name: log.tenant_name }, log.total_records);
+    }
+
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (ex) {
+    console.error("[METRICS] Failed to serve Prometheus metrics:", ex.message);
+    res.status(500).end(ex.message);
+  }
+});
+
+// --- BACKGROUND METRICS SYNC (Triggerable via Cron or Manual) ---
+async function syncPrometheusMetrics() {
+  try {
+    console.log("[METRICS] Triggering Infrastructure-wide Actuals Sync...");
+    const tenants = await prisma.$queryRawUnsafe(`SELECT id, name, db_name, plan FROM nexus.tenants`);
+    
+    for (const tenant of tenants) {
+      const schema = tenant.db_name;
+      const sizeResult = await prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(relname))), 0) / 1024 / 1024 AS size_mb
+        FROM pg_stat_user_tables
+        WHERE schemaname = '${schema}'
+      `);
+      const sizeMb = parseFloat(sizeResult[0]?.size_mb || 0);
+      
+      let userCount = 0;
+      let recordCount = 0;
+      try {
+        const counts = await prisma.$queryRawUnsafe(`
+          SELECT 
+            (SELECT COUNT(*) FROM "${schema}".users) as users,
+            (SELECT COUNT(*) FROM "${schema}".patients) as patients
+        `);
+        userCount = Number(counts[0].users || 0);
+        recordCount = Number(counts[0].patients || 0);
+      } catch (e) {}
+
+      // PERSIST to Database so /metrics can read it anytime
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO nexus.utilization_logs (tenant_id, db_size_mb, total_records, active_users)
+        VALUES ('${tenant.id}', ${sizeMb}, ${recordCount}, ${userCount})
+      `);
+    }
+    console.log(`[METRICS] Successfully persisted actuals for ${tenants.length} tenants.`);
+    return true;
+  } catch (err) {
+    console.error("[METRICS] Sync failed:", err.message);
+    return false;
+  }
+}
+
+// Route to trigger sync via Vercel Cron
+app.get("/api/nexus/utilization/sync-actuals", async (req, res) => {
+  const success = await syncPrometheusMetrics();
+  res.json({ success, message: success ? "Metrics synchronized" : "Sync failed" });
 });
 
 app.use(audit);

@@ -48,6 +48,19 @@ async function ensureNexusColumns(prisma) {
 
     const countRes = await prisma.$queryRawUnsafe(`SELECT COUNT(*) as count FROM nexus.tenants`);
     console.log(`[NEXUS] Registry contains ${countRes[0].count} tenants.`);
+
+    // Resource Utilization Infrastructure
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS nexus.utilization_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id VARCHAR(255),
+        db_size_mb DECIMAL(10,2),
+        total_records INT,
+        active_users INT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    
     console.log("[NEXUS] Registry Schema is synchronized.");
   } catch (err) {
     console.warn("[NEXUS] Schema sync warning:", err.message);
@@ -734,6 +747,131 @@ router.post("/send-signal", async (req, res, next) => {
 
     res.json({ message: "Signal dispatched successfully" });
   } catch (error) { next(error); }
+});
+
+// --- RESOURCE UTILIZATION TRACKING ---
+
+router.get("/utilization", async (req, res, next) => {
+  try {
+    const tenants = await req.prisma.$queryRawUnsafe(`SELECT id, name, db_name as "dbName", plan FROM nexus.tenants`);
+    const utilizationData = [];
+
+    for (const tenant of tenants) {
+      const schemaName = tenant.dbName;
+      
+      // Calculate DB Size
+      const sizeResult = await req.prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(relname))), 0) / 1024 / 1024 AS size_mb
+        FROM pg_stat_user_tables
+        WHERE schemaname = '${schemaName}'
+      `);
+      
+      // Calculate Key Metrics (Activity)
+      let recordCount = 0;
+      let userCount = 0;
+      try {
+        const counts = await req.prisma.$queryRawUnsafe(`
+          SELECT 
+            (SELECT COUNT(*) FROM "${schemaName}".users) as users,
+            (SELECT COUNT(*) FROM "${schemaName}".patients) as patients,
+            (SELECT COUNT(*) FROM "${schemaName}".encounters) as encounters
+        `);
+        userCount = Number(counts[0].users || 0);
+        recordCount = Number(counts[0].patients || 0) + Number(counts[0].encounters || 0);
+      } catch (e) {
+        console.warn(`Could not fetch metrics for ${schemaName}:`, e.message);
+      }
+
+      const planLimits = {
+        'basic': 1024, // 1GB
+        'standard': 5120, // 5GB
+        'professional': 20480, // 20GB
+        'enterprise': 102400 // 100GB
+      };
+
+      const limit = planLimits[tenant.plan?.toLowerCase()] || 1024;
+      const sizeMb = parseFloat(sizeResult[0]?.size_mb || 0);
+
+      utilizationData.push({
+        id: tenant.id,
+        name: tenant.name,
+        dbName: schemaName,
+        plan: tenant.plan,
+        storageUsedMb: sizeMb.toFixed(2),
+        storageLimitMb: limit,
+        usagePercentage: ((sizeMb / limit) * 100).toFixed(2),
+        activeUsers: userCount,
+        totalRecords: recordCount,
+        status: sizeMb > (limit * 0.9) ? 'CRITICAL' : sizeMb > (limit * 0.7) ? 'WARNING' : 'HEALTHY'
+      });
+    }
+
+    res.json(utilizationData);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/utilization/snapshot", async (req, res, next) => {
+  try {
+    const tenants = await req.prisma.$queryRawUnsafe(`SELECT id, db_name as "dbName" FROM nexus.tenants`);
+    
+    for (const tenant of tenants) {
+      const schemaName = tenant.dbName;
+      const sizeResult = await req.prisma.$queryRawUnsafe(`
+        SELECT COALESCE(SUM(pg_total_relation_size(quote_ident(schemaname) || '.' || quote_ident(relname))), 0) / 1024 / 1024 AS size_mb
+        FROM pg_stat_user_tables
+        WHERE schemaname = '${schemaName}'
+      `);
+      
+      let recordCount = 0;
+      let userCount = 0;
+      try {
+        const counts = await req.prisma.$queryRawUnsafe(`
+          SELECT 
+            (SELECT COUNT(*) FROM "${schemaName}".users) as users,
+            (SELECT COUNT(*) FROM "${schemaName}".patients) as patients
+        `);
+        userCount = Number(counts[0].users || 0);
+        recordCount = Number(counts[0].patients || 0);
+      } catch (e) {}
+
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO nexus.utilization_logs (tenant_id, db_size_mb, total_records, active_users)
+        VALUES ('${tenant.id}', ${parseFloat(sizeResult[0]?.size_mb || 0)}, ${recordCount}, ${userCount})
+      `);
+    }
+
+    res.json({ message: "Utilization snapshot captured for all shards." });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/utilization/history", async (req, res, next) => {
+  try {
+    const { tenantId } = req.query;
+    let query = `
+      SELECT created_at as date, SUM(db_size_mb) as total_size_mb, COUNT(DISTINCT tenant_id) as tenant_count
+      FROM nexus.utilization_logs
+    `;
+    
+    if (tenantId) {
+      query = `
+        SELECT created_at as date, db_size_mb as size_mb, total_records, active_users
+        FROM nexus.utilization_logs
+        WHERE tenant_id = '${tenantId}'
+      `;
+    }
+    
+    query += ` GROUP BY created_at ORDER BY created_at ASC LIMIT 100`;
+    
+    // Fallback if no history yet
+    const history = await req.prisma.$queryRawUnsafe(query);
+    res.json(history);
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;
