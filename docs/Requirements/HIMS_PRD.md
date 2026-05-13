@@ -10,6 +10,7 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 
 ### Tier 1: Basic (OPD & Communications)
 - Patient Management (MRN Generation)
+- **ABHA Identity Integration**: Aadhaar-based OTP verification & mobile discovery (ABDM M1).
 - Appointment Scheduling
 - OPD Consultation (Core EMR)
 - Prescription Generation
@@ -38,6 +39,7 @@ The Healthezee HIMS follows a 4-tier subscription model, enabling hospitals to s
 - All Professional Features
 - AI-Powered Discharge Summaries
 - AI Clinical Insights & History Summaries
+- **Multi-Model AI Orchestration**: Seamless integration of Google Gemini (Complex Medical Processing) and Llama 3.3/Groq (High-Velocity CDS).
 - **AI Lab Assistant**: OCR-driven external report parsing and pathological interpretation.
 - Nexus Multi-Tenant Management
 - Global Communication Hub & Signal History
@@ -106,4 +108,5 @@ The HIMS platform utilizes a **Premium Clinical Design System** optimized for hi
 - **Consultation Speed**: < 2 minutes per patient.
 - **Prescription Efficiency**: < 3 clicks.
 - **Revenue Capture**: 100% linkage between clinical orders and invoices.
+- **Identity Integrity**: > 90% patient verification rate via ABHA/ABDM.
 - **Onboarding**: < 5 minutes for new hospital shards.

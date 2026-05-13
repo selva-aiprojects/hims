@@ -18,15 +18,41 @@ async function ensurePatientColumns(req) {
     'medical_history TEXT',
     'allergies TEXT',
     'ai_summary TEXT',
+    'abha_id VARCHAR(50)',
+    'abha_number VARCHAR(50)',
+    'abha_status VARCHAR(20)',
+    'abha_verified BOOLEAN DEFAULT FALSE',
+    'abha_linked_at TIMESTAMP',
+    'created_at TIMESTAMP DEFAULT NOW()'
+  ];
+  
+  const abhaAuditLogs = [
+    'id UUID PRIMARY KEY DEFAULT gen_random_uuid()',
+    'patient_id VARCHAR(100)',
+    'api_name VARCHAR(100)',
+    'txn_id VARCHAR(100)',
+    'status VARCHAR(20)',
+    'error_message TEXT',
+    'request_payload JSONB',
+    'response_payload JSONB',
     'created_at TIMESTAMP DEFAULT NOW()'
   ];
 
   for (const col of columns) {
     try {
       await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS ${col}`);
-    } catch (e) {
-      // console.warn(`[PATIENT_HEAL] Column add failed for ${col}: ${e.message}`);
-    }
+    } catch (e) {}
+  }
+
+  // Ensure Audit Log Table exists
+  try {
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".abha_audit_logs (
+        ${abhaAuditLogs.join(', ')}
+      )
+    `);
+  } catch (e) {
+    console.error(`[PATIENT_HEAL] ABHA Audit Table failed: ${e.message}`);
   }
 }
 
@@ -58,7 +84,8 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
       name, phone, email, gender, age, dob, 
       blood_group, occupation, address, 
       guardian_name, guardian_phone, 
-      medical_history, allergies 
+      medical_history, allergies, 
+      abhaId, abhaNumber, abhaStatus, abhaVerified
     } = req.body;
     
     // Healthcare Standard MRN Generation: MRN-[YYMM]-[6-Digit Sequence]
@@ -91,13 +118,16 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
         mrn, name, phone, email, gender, age, dob, 
         blood_group, occupation, address, 
         guardian_name, guardian_phone, 
-        medical_history, allergies, ai_summary
+        medical_history, allergies, ai_summary, 
+        abha_id, abha_number, abha_status, abha_verified, abha_linked_at
       ) 
       VALUES (
         '${mrn}', '${s(name)}', '${s(phone)}', '${s(email)}', '${s(gender)}', ${parseInt(age) || 0}, 
         ${dob ? `'${dob}'` : 'NULL'}, '${s(blood_group)}', '${s(occupation)}', '${s(address)}', 
         '${s(guardian_name)}', '${s(guardian_phone)}', 
-        '${s(medical_history)}', '${s(allergies)}', '${safeSummary}'
+        '${s(medical_history)}', '${s(allergies)}', '${safeSummary}', 
+        '${s(abhaId)}', '${s(abhaNumber)}', '${s(abhaStatus)}', ${abhaVerified ? 'TRUE' : 'FALSE'}, 
+        ${abhaVerified ? 'NOW()' : 'NULL'}
       )
       RETURNING *
     `;

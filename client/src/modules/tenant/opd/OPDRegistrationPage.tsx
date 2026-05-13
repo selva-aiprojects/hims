@@ -39,10 +39,19 @@ export default function OPDRegistrationPage() {
   const [regData, setRegData] = useState({ 
     name: '', phone: '', email: '', dob: '', gender: 'Male', 
     blood_group: '', occupation: '', address: '', 
-    guardian_name: '', guardian_phone: '', medical_history: '', allergies: '' 
+    medical_history: '', allergies: '',
+    abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
   });
   const [vitals, setVitals] = useState({ weight: '', bp: '', temp: '', height: '' });
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [isAbhaMandatory, setIsAbhaMandatory] = useState(false);
+  const [abhaStep, setAbhaStep] = useState<'IDLE' | 'OTP_SENT' | 'VERIFIED'>('IDLE');
+  const [aadhaarInput, setAadhaarInput] = useState("");
+  const [otpInput, setOtpInput] = useState("");
+  const [abhaTxnId, setAbhaTxnId] = useState("");
+  const [isAbhaLoading, setIsAbhaLoading] = useState(false);
+  const [hasConsent, setHasConsent] = useState(false);
+  const [discoveredAbhas, setDiscoveredAbhas] = useState<any[]>([]);
 
   useEffect(() => {
     fetchInitialData();
@@ -68,6 +77,12 @@ export default function OPDRegistrationPage() {
       const queueRes = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active`, { headers: h });
       setRecentQueue((queueRes.data || []).slice(0, 5));
     } catch (err) { console.error("Queue fetch failed", err); }
+
+    // Fetch ABHA Config
+    try {
+      const configRes = await axios.get(`${API_BASE}/api/abha/config`, { headers: h });
+      setIsAbhaMandatory(configRes.data.isAbhaMandatory);
+    } catch (err) { console.warn("ABHA config fetch failed"); }
   };
 
   const handleLiveSearch = async (val: string) => {
@@ -116,9 +131,98 @@ export default function OPDRegistrationPage() {
     setShowFullReg(true);
   };
 
+  const handleAbhaOtpRequest = async () => {
+    if (aadhaarInput.length !== 12) {
+      showToast("Please enter a valid 12-digit Aadhaar number", "error");
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/abha/generate-otp`, { aadhaar: aadhaarInput }, { headers: getHeaders() });
+      setAbhaTxnId(res.data.txnId);
+      setAbhaStep('OTP_SENT');
+      showToast("OTP sent to Aadhaar-registered mobile", "success");
+    } catch (err: any) {
+      showToast(err.response?.data?.error || "Failed to generate ABHA OTP", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
+  const handleAbhaDiscovery = async () => {
+    if (!regData.phone || regData.phone.length < 10) {
+      showToast("Please enter a valid mobile number first", "error");
+      return;
+    }
+    if (!hasConsent) {
+      showToast("ABDM Consent is required for discovery", "error");
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/abha/search-mobile`, { mobile: regData.phone }, { headers: getHeaders() });
+      if (res.data.healthIds && res.data.healthIds.length > 0) {
+        setDiscoveredAbhas(res.data.healthIds);
+        showToast(`Found ${res.data.healthIds.length} existing ABHA(s)`, "success");
+      } else {
+        showToast("No existing ABHA found for this mobile. Please use Aadhaar flow.", "info");
+      }
+    } catch (err: any) {
+      showToast("Discovery failed", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
+  const linkDiscoveredAbha = (abha: any) => {
+    setRegData(prev => ({ 
+      ...prev, 
+      name: abha.name || prev.name,
+      abhaId: abha.healthId,
+      abhaNumber: abha.healthIdNumber,
+      abhaStatus: 'LINKED',
+      abhaVerified: true
+    }));
+    setAbhaStep('VERIFIED');
+    setDiscoveredAbhas([]);
+  };
+
+  const handleAbhaVerify = async () => {
+    if (otpInput.length !== 6) {
+      showToast("Please enter 6-digit OTP", "error");
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/abha/verify-otp`, { otp: otpInput, txnId: abhaTxnId }, { headers: getHeaders() });
+      const profile = res.data;
+      setRegData(prev => ({
+        ...prev,
+        name: profile.name || prev.name,
+        gender: profile.gender === 'M' ? 'Male' : profile.gender === 'F' ? 'Female' : 'Other',
+        dob: profile.dayOfBirth ? `${profile.yearOfBirth}-${profile.monthOfBirth}-${profile.dayOfBirth}` : prev.dob,
+        address: profile.address || prev.address,
+        abhaId: profile.healthId,
+        abhaNumber: profile.healthIdNumber,
+        abhaStatus: profile.status || 'ACTIVE',
+        abhaVerified: true
+      }));
+      setAbhaStep('VERIFIED');
+      showToast("ABHA Verified & Form Auto-populated!", "success");
+    } catch (err: any) {
+      showToast(err.response?.data?.error || "ABHA Verification failed", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
   const registerAndQueue = async () => {
     if (!regData.name || !regData.phone || !selectedDoctorId) {
       showToast("Basic info (Name, Phone) and Doctor selection are mandatory.", "error");
+      return;
+    }
+    if (isAbhaMandatory && abhaStep !== 'VERIFIED') {
+      showToast("ABHA Verification is mandatory for this facility.", "error");
       return;
     }
     setIsProcessing(true);
@@ -165,10 +269,14 @@ export default function OPDRegistrationPage() {
     setRegData({ 
         name: '', phone: '', email: '', dob: '', gender: 'Male', 
         blood_group: '', occupation: '', address: '', 
-        guardian_name: '', guardian_phone: '', medical_history: '', allergies: '' 
+        guardian_name: '', guardian_phone: '', medical_history: '', allergies: '',
+        abhaId: ''
     });
     setVitals({ weight: '', bp: '', temp: '', height: '' });
     setSelectedDoctorId("");
+    setAbhaStep('IDLE');
+    setAadhaarInput("");
+    setOtpInput("");
     setShowFullReg(false);
     fetchInitialData();
   };
@@ -205,6 +313,107 @@ export default function OPDRegistrationPage() {
                   onChange={e => handleLiveSearch(e.target.value)}
                 />
                 <Search style={{ position: 'absolute', left: '18px', top: '20px', color: '#3b82f6' }} size={22} />
+              </div>
+
+              {/* ABHA INTEGRATION SECTION */}
+              <div style={{ background: '#f0f9ff', padding: '24px', borderRadius: '24px', border: '1px solid #bae6fd', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                  <Shield size={20} style={{ color: '#0369a1' }} />
+                  <div style={{ fontSize: '14px', fontWeight: 800, color: '#0c4a6e' }}>ABHA IDENTITY (ABDM)</div>
+                  {isAbhaMandatory && <span style={{ fontSize: '10px', background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '4px' }}>MANDATORY</span>}
+                </div>
+
+                {abhaStep === 'IDLE' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#eff6ff', padding: '10px 14px', borderRadius: '12px', border: '1px solid #dbeafe' }}>
+                      <input 
+                        type="checkbox" 
+                        id="abha-consent"
+                        checked={hasConsent}
+                        onChange={(e) => setHasConsent(e.target.checked)}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                      <label htmlFor="abha-consent" style={{ fontSize: '12px', color: '#1e40af', fontWeight: 600, cursor: 'pointer' }}>
+                        I consent to use my ABHA for healthcare services (Mandatory)
+                      </label>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                      <input 
+                        placeholder="Enter 12 Digit Aadhaar" 
+                        className="input-field" 
+                        style={{ background: 'white' }}
+                        value={aadhaarInput}
+                        onChange={e => setAadhaarInput(e.target.value)}
+                        maxLength={12}
+                      />
+                      <button 
+                        onClick={handleAbhaOtpRequest}
+                        disabled={isAbhaLoading || !hasConsent}
+                        style={{ whiteSpace: 'nowrap', padding: '0 24px', background: '#0369a1', color: 'white', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer', opacity: (!hasConsent || isAbhaLoading) ? 0.6 : 1 }}
+                      >
+                        {isAbhaLoading ? '...' : 'GET OTP'}
+                      </button>
+                    </div>
+
+                    <div style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>— OR —</div>
+
+                    <button 
+                      onClick={handleAbhaDiscovery}
+                      disabled={isAbhaLoading || !hasConsent}
+                      style={{ width: '100%', padding: '12px', background: 'white', color: '#0369a1', borderRadius: '12px', border: '2px dashed #0369a1', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    >
+                      <Search size={16} /> CHECK FOR EXISTING ABHA BY MOBILE
+                    </button>
+
+                    {discoveredAbhas.length > 0 && (
+                      <div style={{ background: '#f0f9ff', padding: '16px', borderRadius: '16px', border: '1px solid #bae6fd' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 800, color: '#0369a1', marginBottom: '12px' }}>DISCOVERED IDENTITIES:</div>
+                        {discoveredAbhas.map((a, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'white', borderRadius: '10px', marginBottom: '8px', border: '1px solid #e0f2fe' }}>
+                             <div>
+                                <div style={{ fontWeight: 800, fontSize: '13px' }}>{a.name}</div>
+                                <div style={{ fontSize: '11px', color: '#64748b' }}>{a.healthId} • {a.healthIdNumber}</div>
+                             </div>
+                             <button onClick={() => linkDiscoveredAbha(a)} style={{ background: '#0369a1', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>LINK</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {abhaStep === 'OTP_SENT' && (
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <input 
+                      placeholder="Enter 6-Digit OTP" 
+                      className="input-field" 
+                      style={{ background: 'white' }}
+                      value={otpInput}
+                      onChange={e => setOtpInput(e.target.value)}
+                      maxLength={6}
+                    />
+                    <button 
+                      onClick={handleAbhaVerify}
+                      disabled={isAbhaLoading}
+                      style={{ whiteSpace: 'nowrap', padding: '0 24px', background: '#059669', color: 'white', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {isAbhaLoading ? '...' : 'VERIFY'}
+                    </button>
+                  </div>
+                )}
+
+                {abhaStep === 'VERIFIED' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#059669', fontWeight: 700 }}>
+                    <CheckCircle2 size={20} />
+                    <div>
+                       <div style={{ fontSize: '13px' }}>ABHA Verified: {regData.abhaId}</div>
+                       <div style={{ fontSize: '11px', opacity: 0.8 }}>{regData.abhaNumber} • {regData.abhaStatus}</div>
+                    </div>
+                    <button onClick={() => { setAbhaStep('IDLE'); setDiscoveredAbhas([]); }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#0369a1', fontSize: '12px', cursor: 'pointer' }}>Change</button>
+                  </div>
+                )}
+                <div style={{ fontSize: '11px', color: '#0369a1', marginTop: '12px', opacity: 0.8 }}>Verify patient identity instantly via India's National Health Stack.</div>
               </div>
 
               {/* SEARCH RESULTS */}
@@ -269,6 +478,10 @@ export default function OPDRegistrationPage() {
                          <select className="select-field" value={regData.gender} onChange={e => setRegData({...regData, gender: e.target.value})}>
                             <option>Male</option><option>Female</option><option>Other</option>
                          </select>
+                      </div>
+                      <div className="input-group">
+                         <label className="field-label">ABHA ID / PHR</label>
+                         <input className="input-field" value={regData.abhaId} readOnly style={{ background: '#f1f5f9' }} />
                       </div>
                    </div>
 

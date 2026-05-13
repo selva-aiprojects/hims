@@ -1,0 +1,52 @@
+# Healthezee HIMS Technical Architecture
+
+## 1. System Overview
+Healthezee HIMS is a high-velocity, multi-tenant clinical platform designed for enterprise scalability. It utilizes a **Shared-Instance, Separate-Schema** database architecture to ensure maximum performance and data isolation.
+
+---
+
+## 2. Technology Stack
+
+### **Core Infrastructure**
+- **Frontend**: React (Vite) + Lucide Icons + Vanilla CSS (Adaptive Design)
+- **Backend**: Node.js (Express)
+- **Database**: PostgreSQL with **Prisma ORM**
+- **Architecture**: Multi-tenant schema isolation (Tenant-ID locked)
+- **Testing**: Playwright (E2E Regression)
+
+### **AI & Generative AI (GenAI)**
+We utilize an **API-first GenAI Architecture** for clinical intelligence:
+- **LLM Engines**: 
+  - **Google Gemini 1.5 (Pro/Flash)**: Primary engine for multi-modal clinical OCR (Lab reports, PDFs) and complex medical summarization.
+  - **Llama 3.3 (via Groq)**: High-speed engine (ultra-low latency) for real-time Clinical Decision Support (CDS) and medicine suggestions.
+- **Foundational Patterns**:
+  - **Context-Injection**: Dynamic injection of hospital-specific metrics and patient history into LLM prompts (Foundational RAG).
+  - **Multi-Modal OCR**: Vision-based extraction of structured findings from hand-written or printed medical documents.
+
+---
+
+## 3. ABHA Identity Integration (ABDM M1)
+The platform is fully integrated with India's **National Digital Health Stack (ABDM)** using an Enterprise flow.
+
+### **Architecture**
+- **Security**: Mandatory RSA Encryption (PKCS1Padding) using the native Node.js `crypto` module for all Aadhaar/OTP payloads.
+- **Enterprise Onboarding Flow**:
+  1. **Mobile Discovery**: Fast-track lookup of existing ABHA profiles by mobile number.
+  2. **Consent-Driven**: Mandatory digital consent flag before any identity verification.
+  3. **Aadhaar-Based Creation**: Secure fallback for new identity generation via Aadhaar OTP.
+- **Traceability**: Unified **ABHA Audit Logs** tracking every gateway transaction for compliance.
+- **Demo Mode**: Environment-locked simulation layer for development without gateway dependency (`ABHA_DEMO_MODE=true`).
+
+---
+
+## 4. Cloud Resource Monitoring (Nexus)
+- **Telemetry**: Infrastructure tracking via `prom-client`.
+- **Dashboard**: Real-time visualization of database utilization, active tenants, and cloud resource consumption.
+- **Persistence**: Daily cron-based snapshotting of infrastructure actuals for historical trend analysis.
+
+---
+
+## 5. Security & Compliance
+- **RBAC**: Role-Based Access Control integrated with multi-tenant shard validation.
+- **Data Privacy**: Strict tenant isolation at the database schema level.
+- **Audit Trails**: Global and tenant-specific audit logs for all clinical and administrative actions.

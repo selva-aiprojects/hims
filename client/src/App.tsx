@@ -39,6 +39,7 @@ import ProvisionTenantPage from './modules/nexus/ProvisionTenantPage';
 import SupportTicketsPage from './modules/tenant/support/SupportTicketsPage';
 import NexusTicketingPage from './modules/nexus/NexusTicketingPage';
 import NexusCommunicationPage from './modules/nexus/NexusCommunicationPage';
+import NexusUtilizationPage from './modules/nexus/NexusUtilizationPage';
 import InsurancePage from './modules/tenant/billing/InsurancePage';
 import DischargeSummariesPage from './modules/tenant/ipd/DischargeSummariesPage';
 import MessageBoardPage from './modules/tenant/communication/MessageBoardPage';
@@ -46,6 +47,8 @@ import MailManagementPage from './modules/tenant/communication/MailManagementPag
 import { useEffect } from 'react';
 import SettingsPage from './modules/tenant/SettingsPage';
 import AIChatbot from './components/AIChatbot';
+
+import MobilePreviewPortal from './modules/mobile_preview/MobilePreviewPortal';
 
 function App() {
   // Apply saved theme on app load
@@ -58,6 +61,9 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         
+        {/* Mobile Experience Portal */}
+        <Route path="/mobile" element={<MobilePreviewPortal />} />
+
         {/* Tenant Routes */}
         <Route path="/tenant/dashboard" element={<DashboardPage />} />
         <Route path="/tenant/masters" element={<MastersPage />} />
@@ -102,6 +108,7 @@ function App() {
         <Route path="/nexus/activity" element={<NexusActivityPage />} />
         <Route path="/nexus/tickets" element={<NexusTicketingPage />} />
         <Route path="/nexus/communications" element={<NexusCommunicationPage />} />
+        <Route path="/nexus/utilization" element={<NexusUtilizationPage />} />
         <Route path="/nexus/settings" element={<NexusSettingsPage />} />
         
         <Route path="*" element={<Navigate to="/" replace />} />

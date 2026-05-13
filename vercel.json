@@ -15,5 +15,11 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/nexus/utilization/sync-actuals",
+      "schedule": "0 0 * * *"
+    }
   ]
 }

@@ -27,10 +27,19 @@ const Icons = {
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   ),
+  Database: () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+    </svg>
+  ),
   Users: () => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
       <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   )
 };
@@ -91,6 +100,19 @@ export default function NexusDashboardPage() {
               <div className="stat-label" style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Avg. API Latency</div>
             </div>
           </div>
+
+          <div className="stat-card" style={{ padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0', background: 'white' }}>
+            <div className="stat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
+                <Icons.Database />
+              </div>
+              <span style={{ color: '#3b82f6', fontSize: '12px', fontWeight: 700 }}>Active</span>
+            </div>
+            <div>
+              <div className="stat-value" style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>4.2 GB</div>
+              <div className="stat-label" style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Total Cloud Storage</div>
+            </div>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -125,14 +147,23 @@ export default function NexusDashboardPage() {
               <p>System telemetry & history</p>
             </div>
           </div>
-
-          <div className="action-card" onClick={() => navigate('/nexus/tickets')}>
+          <div className="action-card" onClick={() => navigate('/nexus/support')}>
             <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(245, 158, 11, 0.5)' }}>
-              <Icons.Settings />
+               <Icons.Settings />
             </div>
             <div className="action-content">
               <h3 style={{ fontWeight: 800 }}>Support Ticketing</h3>
               <p>Manage tenant requests & upgrades</p>
+            </div>
+          </div>
+
+          <div className="action-card" onClick={() => navigate('/nexus/utilization')}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(99, 102, 241, 0.5)' }}>
+              <Icons.Database />
+            </div>
+            <div className="action-content">
+              <h3 style={{ fontWeight: 800 }}>Resource Consumption</h3>
+              <p>Cloud utilization & DB growth</p>
             </div>
           </div>
         </div>
