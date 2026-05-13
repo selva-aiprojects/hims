@@ -28,5 +28,16 @@ router.use("/insurance", auth, tenant, insuranceRoutes);
 router.use("/doctor", auth, tenant, doctorRoutes);
 router.use("/doctors", auth, tenant, doctorRoutes);
 router.use("/abha", abhaRoutes);
+router.get("/health-db", async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    const result = await pool.query('SELECT current_schema(), now()');
+    await pool.end();
+    res.json({ status: "ok", db: "Raw Connection Success", details: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ status: "error", error: err.message });
+  }
+});
 
 module.exports = router;
