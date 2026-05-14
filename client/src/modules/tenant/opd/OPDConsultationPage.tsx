@@ -316,7 +316,11 @@ export default function OPDConsultationPage() {
                    <input 
                     className="input-field" 
                     placeholder="Enter Clinical Diagnosis or select from ICD-10..." 
-                    style={{ margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px', paddingRight: '40px' }} 
+                    style={{ 
+                      margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px', paddingRight: '40px',
+                      border: !diagnosis ? '2px solid #fed7aa' : '2px solid #e2e8f0',
+                      background: !diagnosis ? '#fffaf5' : 'white'
+                    }} 
                     value={diagnosis} 
                     onChange={e => setDiagnosis(e.target.value)}
                    />
@@ -458,16 +462,24 @@ export default function OPDConsultationPage() {
                )}
             </div>
 
+            {!diagnosis && (
+              <div style={{ marginBottom: '12px', padding: '12px', background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Info size={16} style={{ color: '#c2410c' }} />
+                <span style={{ fontSize: '13px', color: '#c2410c', fontWeight: 600 }}>Diagnosis is required to finalize this consultation.</span>
+              </div>
+            )}
+
             <button 
-              disabled={isFinishing}
+              disabled={isFinishing || !diagnosis}
               onClick={finishConsultation}
               style={{ 
                 width: '100%', padding: '28px', borderRadius: '28px', border: 'none', 
-                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', 
-                color: 'white', fontWeight: 900, fontSize: '20px', cursor: 'pointer',
+                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)', 
+                color: 'white', fontWeight: 900, fontSize: '20px', cursor: diagnosis ? 'pointer' : 'not-allowed',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
                 boxShadow: diagnosis ? '0 20px 40px rgba(16, 185, 129, 0.2)' : 'none',
-                opacity: isFinishing ? 0.7 : 1
+                opacity: isFinishing ? 0.7 : 1,
+                transition: 'all 0.3s ease'
               }}
             >
               {isFinishing ? (
@@ -478,7 +490,7 @@ export default function OPDConsultationPage() {
               ) : (
                 <span>
                   <CheckCircle2 size={26} style={{ verticalAlign: 'middle', marginRight: '10px' }} /> 
-                  {diagnosis ? 'FINISH CONSULTATION' : 'ENTER DIAGNOSIS TO FINISH'}
+                  {diagnosis ? 'FINISH CONSULTATION' : 'DIAGNOSIS REQUIRED'}
                 </span>
               )}
             </button>

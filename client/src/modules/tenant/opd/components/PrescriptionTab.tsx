@@ -25,25 +25,31 @@ export default function PrescriptionTab({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddCommonMeds = () => {
-    const commonNames = ['Paracetamol', 'Ibuprofen', 'Amoxicillin', 'Cetirizine', 'Pantoprazole'];
+    const commonNames = [
+      { name: 'Paracetamol', dosage: '500mg' },
+      { name: 'Ibuprofen', dosage: '400mg' },
+      { name: 'Amoxicillin', dosage: '500mg' },
+      { name: 'Cetirizine', dosage: '10mg' },
+      { name: 'Pantoprazole', dosage: '40px' }
+    ];
+    
     const newPrescriptions = [...prescriptions];
     
-    commonNames.forEach(name => {
+    commonNames.forEach(item => {
       // Avoid duplicates
-      if (newPrescriptions.find(p => p.name.toLowerCase().includes(name.toLowerCase()))) return;
+      if (newPrescriptions.find(p => p.name.toLowerCase().includes(item.name.toLowerCase()))) return;
       
-      const med = medicines.find(m => (m.name || '').toLowerCase().includes(name.toLowerCase()));
-      if (med) {
-        newPrescriptions.push({
-          medicine_id: med.id,
-          name: med.name,
-          composition: med.composition,
-          dosage: med.dosage_adult || '1 Tab',
-          frequency: '1-0-1',
-          duration: '5 Days',
-          instructions: 'After Food'
-        });
-      }
+      const med = medicines.find(m => (m.name || '').toLowerCase().includes(item.name.toLowerCase()));
+      
+      newPrescriptions.push({
+        medicine_id: med?.id || null,
+        name: med?.name || item.name,
+        composition: med?.composition || item.name,
+        dosage: med?.dosage_adult || item.dosage || '1 Tab',
+        frequency: '1-0-1',
+        duration: '5 Days',
+        instructions: 'After Food'
+      });
     });
     
     setPrescriptions(newPrescriptions);
