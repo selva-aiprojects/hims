@@ -97,12 +97,15 @@ async function seedTenantMasterData(prisma, schema) {
       CREATE TABLE IF NOT EXISTS "${schema}".beds (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), ward_id UUID REFERENCES "${schema}".wards(id), bed_number VARCHAR(20), status VARCHAR(20) DEFAULT 'Vacant');
     `);
 
-    // 2. Seed Default Clinical Staff
+    // 2. Seed Default Clinical Staff (Isolated & Dynamic)
+    const hospitalPrefix = schema.split('_')[0].toUpperCase();
+    const domain = `${schema.replace(/_/g, '-')}.hims.com`;
+
     await prisma.$executeRawUnsafe(`
       INSERT INTO "${schema}".users (id, name, email, role, specialization, is_active)
       VALUES 
-      (gen_random_uuid(), 'Dr. Aravind Kumar', 'aravind@${schema}.com', 'DOCTOR', 'General Physician', true),
-      (gen_random_uuid(), 'Dr. Santhanakrishnan', 'santhan@${schema}.com', 'DOCTOR', 'General Physician', true)
+      (gen_random_uuid(), 'Dr. ${hospitalPrefix} Lead Physician', 'lead@${domain}', 'DOCTOR', 'Internal Medicine', true),
+      (gen_random_uuid(), 'Dr. ${hospitalPrefix} Senior Consultant', 'senior@${domain}', 'DOCTOR', 'Cardiology', true)
       ON CONFLICT DO NOTHING
     `);
 
@@ -522,7 +525,7 @@ router.get("/debug/rbac-sync", async (req, res) => {
       ('Pharmacy Dashboard', '/tenant/pharmacy/dashboard', 'Pharmacy', 5, 'standard'),
       ('Stock Inventory', '/tenant/pharmacy/inventory', 'Pill', 6, 'standard'),
       ('Prescription Queue', '/tenant/pharmacy/queue', 'Receipt', 7, 'standard'),
-      ('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'standard'),
+      ('Hospital Settings (Masters)', '/tenant/masters', 'Settings', 11, 'basic'),
       ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 14, 'professional'),
       ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
       ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 9, 'professional'),

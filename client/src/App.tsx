@@ -7,6 +7,8 @@ import OPDRegistrationPage from './modules/tenant/opd/OPDRegistrationPage';
 import OPDQueuePage from './modules/tenant/opd/OPDQueuePage';
 import OPDConsultationPage from './modules/tenant/opd/OPDConsultationPage';
 import TenantAppointmentsPage from './modules/tenant/appointments/AppointmentsPage';
+import ClinicalAnalyticsDashboard from './modules/tenant/analytics/ClinicalAnalyticsDashboard';
+import HistoricalArchivesPage from './modules/tenant/dashboard/HistoricalArchivesPage';
 
 import DoctorAvailabilityPage from './modules/tenant/appointments/DoctorAvailabilityPage';
 import AdvancedDoctorAvailabilityPage from './modules/tenant/appointments/AdvancedDoctorAvailabilityPage';
@@ -66,11 +68,13 @@ function App() {
 
         {/* Tenant Routes */}
         <Route path="/tenant/dashboard" element={<DashboardPage />} />
+        <Route path="/tenant/analytics" element={<ClinicalAnalyticsDashboard />} />
         <Route path="/tenant/masters" element={<MastersPage />} />
         <Route path="/tenant/opd/registration" element={<OPDRegistrationPage />} />
         <Route path="/tenant/opd/queue" element={<OPDQueuePage />} />
         <Route path="/tenant/opd/consultation" element={<OPDConsultationPage />} />
         <Route path="/tenant/appointments" element={<TenantAppointmentsPage />} />
+        <Route path="/tenant/archives" element={<HistoricalArchivesPage />} />
 
         <Route path="/tenant/appointments/doctor-calendar" element={<DoctorAvailabilityPage />} />
         <Route path="/tenant/appointments/advanced-calendar" element={<AdvancedDoctorAvailabilityPage />} />

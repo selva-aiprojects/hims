@@ -80,6 +80,7 @@ export default function MastersPage() {
         "x-tenant-id": localStorage.getItem("tenant") || ""
       };
       await axios.post(`${API_BASE}/api/hospital/masters/${activeTab}`, newItem, { headers });
+      alert(`${activeConfig.label.slice(0, -1)} added successfully!`);
       setShowAddModal(false);
       setNewItem({ 
         name: '', price: '', category: '', description: '',
@@ -91,7 +92,8 @@ export default function MastersPage() {
       });
       fetchData();
     } catch (err) {
-      alert("Failed to add master data");
+      console.error("Master add error:", err);
+      alert("Failed to add master data. Please check if all fields are correct.");
     }
   };
 
@@ -306,9 +308,18 @@ export default function MastersPage() {
                     </div>
                   </>
                 )}
-                {(activeTab === 'services' || activeTab === 'treatments') && (
+                {activeTab === 'departments' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <input placeholder={activeTab === 'services' ? 'Service Code' : 'CPT Code'} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={activeTab === 'services' ? newItem.service_code : newItem.cpt_code} onChange={e => setNewItem({ ...newItem, [activeTab === 'services' ? 'service_code' : 'cpt_code']: e.target.value })} />
+                    <input placeholder="HOD Name" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.hod} onChange={e => setNewItem({ ...newItem, hod: e.target.value })} />
+                    <input placeholder="Primary Specialty" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.specialty} onChange={e => setNewItem({ ...newItem, specialty: e.target.value })} />
+                  </div>
+                )}
+                {activeTab === 'specialities' && (
+                   <input placeholder="Consultation Fee (₹)" type="number" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.fee} onChange={e => setNewItem({ ...newItem, fee: e.target.value })} />
+                )}
+                {(activeTab === 'services' || activeTab === 'treatments' || activeTab === 'diagnostics') && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    <input placeholder={activeTab === 'services' ? 'Service Code' : activeTab === 'treatments' ? 'CPT Code' : 'Category'} style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={activeTab === 'services' ? newItem.service_code : activeTab === 'treatments' ? newItem.cpt_code : newItem.category} onChange={e => setNewItem({ ...newItem, [activeTab === 'services' ? 'service_code' : activeTab === 'treatments' ? 'cpt_code' : 'category']: e.target.value })} />
                     <input placeholder="Price" type="number" style={{ padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0', background: '#f8fafc' }} value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} />
                   </div>
                 )}

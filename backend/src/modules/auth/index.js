@@ -360,6 +360,7 @@ router.post("/login", async (req, res) => {
               landingPage, 
               role: normalizedRole, 
               userName: user.name,
+              userId: user.id,
               menus: authorizedMenus,
               permissions: permissions,
               uiSettings: tenants[0].ui_settings || {}

@@ -47,45 +47,99 @@ async function ensureOrderColumns(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS instructions TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
+  
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS instructions TEXT`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS medicine_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS results JSONB`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS technician_notes TEXT`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS test_name VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS priority VARCHAR(50) DEFAULT 'Normal'`);
 }
 
-async function ensureStaffColumns(req) {
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS dob DATE`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS doj DATE`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS specialization VARCHAR(100)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS department VARCHAR(100)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS license_number VARCHAR(100)`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0`);
-  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".users ADD COLUMN IF NOT EXISTS qualifications TEXT`);
+const staffSyncedSchemas = new Set();
 
-  await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".users SET is_active = true WHERE is_active IS NULL OR is_active = false`);
+async function ensureStaffColumns(req, force = false) {
+  const schema = req.schemaName;
+  if (!schema) return;
+  if (staffSyncedSchemas.has(schema) && !force) return;
   
-  const activeDoctors = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".users WHERE (role = 'DOCTOR' OR name ILIKE 'Dr.%') AND is_active = true`);
-  
-  if (activeDoctors[0].count === 0) {
-    const staffTemplate = [
-      { name: 'Dr. Sankaran R', email: 'sankaran@apollo.com', role: 'DOCTOR', spec: 'Cardiology', dept: 'Cardiology' },
-      { name: 'Dr. Maheswaran R', email: 'maheswaran@apollo.com', role: 'DOCTOR', spec: 'Orthopedics', dept: 'Orthopedics' },
-      { name: 'Dr. Aravind Kumar', email: 'aravind@apollo.com', role: 'DOCTOR', spec: 'Pediatrics', dept: 'Pediatrics' }
+  try {
+    // 1. Column Healing (Consolidated)
+    await req.prisma.$executeRawUnsafe(`
+      ALTER TABLE "${req.schemaName}".users 
+      ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS dob DATE,
+      ADD COLUMN IF NOT EXISTS doj DATE,
+      ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
+      ADD COLUMN IF NOT EXISTS license_number VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS specialization VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS department VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS qualifications TEXT
+    `);
+
+    // 2. Dynamic, Isolated Seeding
+    const hospitalPrefix = req.tenantName?.split(' ')[0] || schema.split('_')[0].toUpperCase();
+    const domain = `${schema.replace(/_/g, '-')}.hims.com`;
+    const pwd = await bcrypt.hash('Healthezee@123', 10);
+    
+    // Cleanup any OLD mock staff from previous global seeding or base schema
+    const legacyEmails = [
+      'sankaran@apollo.com', 'maheswaran@apollo.com', 'aravind@apollo.com', 
+      'clara@apollo.com', 'florence@apollo.com', 'pharmacy@apollo.com', 
+      'lab@apollo.com', 'reception@apollo.com', 'mrutyunjaya@apollo.com', 
+      'santhanakrishnan@apollo.com'
     ];
+    
+    await req.prisma.$executeRawUnsafe(`
+      DELETE FROM "${req.schemaName}".rbac_user_roles 
+      WHERE user_id IN (SELECT id FROM "${req.schemaName}".users WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')}))
+    `);
+    
+    await req.prisma.$executeRawUnsafe(`
+      DELETE FROM "${req.schemaName}".users 
+      WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
+      OR (name LIKE 'Dr.%' AND email LIKE '%@apollo.com')
+      OR (name IN ('Dr. Mrutyunjaya', 'Dr. Santhanakrishnan', 'Dr. Aravind Kumar', 'Dr. Sankaran R', 'Dr. Maheswaran R'))
+      OR (email LIKE 'aravind@%')
+      OR (email LIKE 'santhan@%')
+    `);
+
+    const staffTemplate = [
+      { name: `Dr. ${hospitalPrefix} Senior Surgeon`, email: `surgeon1@${domain}`, role: 'DOCTOR', spec: 'General Surgery', dept: 'Surgery' },
+      { name: `Dr. ${hospitalPrefix} Consultant`, email: `consultant1@${domain}`, role: 'DOCTOR', spec: 'Internal Medicine', dept: 'OPD' },
+      { name: `Dr. ${hospitalPrefix} Specialist`, email: `specialist1@${domain}`, role: 'DOCTOR', spec: 'Cardiology', dept: 'Cardiology' }
+    ];
+
     for (const s of staffTemplate) {
       const id = crypto.randomUUID();
-      const pwd = await require('bcryptjs').hash('password123', 10);
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".users (id, name, email, password_hash, role, specialization, department, is_active)
         VALUES ('${id}', '${s.name}', '${s.email}', '${pwd}', '${s.role}', '${s.spec}', '${s.dept}', true)
+        ON CONFLICT (email) DO UPDATE SET
+          name = EXCLUDED.name,
+          specialization = EXCLUDED.specialization,
+          department = EXCLUDED.department,
+          is_active = true
       `);
     }
+
+    // 3. Deduplication Cleanup
+    await req.prisma.$executeRawUnsafe(`
+      DELETE FROM "${req.schemaName}".users a
+      USING "${req.schemaName}".users b
+      WHERE a.id > b.id AND a.email = b.email
+    `);
+    
+    staffSyncedSchemas.add(schema);
+  } catch (err) {
+    console.warn(`[STAFF_HEALING] Error for ${req.schemaName}:`, err.message);
   }
 }
 
@@ -117,6 +171,9 @@ async function ensureTableColumns(req, table) {
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS description TEXT`);
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS category VARCHAR(255)`);
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+    await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS hod VARCHAR(255)`);
+    await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS specialty VARCHAR(255)`);
+    await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS base_consultation_fee NUMERIC DEFAULT 0`);
   } catch (e) {}
 }
 
@@ -214,7 +271,7 @@ router.use("/metrics", metricsRoutes);
 // --- GLOBAL HEAL UTILITY ---
 router.get("/heal-all-masters", async (req, res, next) => {
   try {
-    await ensureStaffColumns(req);
+    await ensureStaffColumns(req, true);
     await ensurePatientColumns(req);
     await ensureIPDMasters(req);
     await ensureIPDAdmissionsTable(req);
@@ -268,12 +325,39 @@ masterTables.forEach(({ path, table }) => {
   router.post(`/masters/${path}`, async (req, res, next) => {
     try {
       await ensureTableColumns(req, table);
-      const fields = Object.keys(req.body).filter(f => ['name','description','category','price','unit_price','stock_quantity','expiry_date','hod','specialty','status'].includes(f));
-      const values = fields.map(f => typeof req.body[f] === 'string' ? `'${req.body[f].replace(/'/g, "''")}'` : req.body[f]);
-      const query = `INSERT INTO "${req.schemaName}"."${table}" (${fields.join(',')}) VALUES (${values.join(',')}) RETURNING *`;
+      
+      // Table-aware field filtering
+      const tableFields = {
+        departments: ['name', 'description', 'hod', 'specialty', 'status'],
+        specialities: ['name', 'description', 'base_consultation_fee'],
+        consultation_modes: ['name', 'surcharge_percent', 'is_virtual'],
+        diseases: ['name', 'category', 'icd_code', 'severity_level'],
+        treatments: ['name', 'category', 'price', 'description', 'cpt_code', 'estimated_duration'],
+        diagnostics: ['name', 'price', 'category'],
+        medicines: ['name', 'category', 'composition', 'dosage_adult', 'dosage_pediatric', 'instructions', 'unit_price', 'stock_quantity'],
+        services: ['name', 'category', 'service_code', 'price', 'tax_percent'],
+        wards: ['name', 'type', 'capacity', 'floor', 'base_charge']
+      };
+
+      const allowed = tableFields[table] || ['name', 'description', 'category', 'price'];
+      const fields = Object.keys(req.body).filter(f => allowed.includes(f) || (f === 'fee' && allowed.includes('base_consultation_fee')));
+      
+      if (fields.length === 0) return res.status(400).json({ error: "No valid fields provided for this master type." });
+
+      const finalFields = fields.map(f => f === 'fee' ? 'base_consultation_fee' : f);
+      const values = fields.map(f => {
+        const val = req.body[f];
+        if (val === undefined || val === null || val === '') return 'NULL';
+        return typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : val;
+      });
+
+      const query = `INSERT INTO "${req.schemaName}"."${table}" (${finalFields.join(',')}) VALUES (${values.join(',')}) RETURNING *`;
       const result = await req.prisma.$queryRawUnsafe(query);
       res.status(201).json(result[0]);
-    } catch (error) { next(error); }
+    } catch (error) { 
+      console.error(`[MASTERS_POST_ERROR] ${table}:`, error.message);
+      next(error); 
+    }
   });
 
   router.post(`/masters/${path}/bulk`, async (req, res, next) => {
@@ -396,13 +480,17 @@ router.get("/encounters", async (req, res, next) => {
     await ensureEncounterTable(req);
     const status = req.query.status || 'Active';
     const patientId = req.query.patientId;
+    const doctorId = req.query.doctorId;
     const patientFilter = patientId ? `AND e.patient_id = '${patientId}'` : '';
+    const doctorFilter = doctorId ? `AND e.doctor_id = '${doctorId}'` : '';
+    const statusFilter = status === 'All' ? '' : `AND e.status = '${status}'`;
+    
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT e.*, p.name as patient_name, p.mrn, u.name as doctor_name 
       FROM "${req.schemaName}".encounters e
       JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
       JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
-      WHERE e.status = '${status}' ${patientFilter}
+      WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter}
       ORDER BY e.created_at DESC
     `);
     res.json(data);
@@ -434,6 +522,35 @@ router.get("/ipd/wards/:id/beds", async (req, res, next) => {
       ORDER BY b.bed_number ASC
     `);
     res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/ipd/wards/:id/provision-beds", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const wards = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".wards WHERE id = '${id}'`);
+    if (!wards.length) return res.status(404).json({ error: "Ward not found" });
+    const ward = wards[0];
+    const capacity = parseInt(ward.capacity) || 10;
+
+    // Add unique constraint idempotently to avoid duplicates
+    try {
+      await req.prisma.$executeRawUnsafe(`
+        ALTER TABLE "${req.schemaName}".beds 
+        ADD CONSTRAINT beds_ward_bed_unique UNIQUE (ward_id, bed_number)
+      `);
+    } catch (e) { /* Constraint already exists — safe to ignore */ }
+
+    // Provision beds that don't already exist
+    for (let i = 1; i <= capacity; i++) {
+      const bedNum = `${ward.name.substring(0, 2).toUpperCase()}-${String(i).padStart(2, '0')}`;
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".beds (ward_id, bed_number, status)
+        VALUES ('${id}', '${bedNum}', 'Vacant')
+        ON CONFLICT (ward_id, bed_number) DO NOTHING
+      `);
+    }
+    res.json({ success: true, message: `Provisioned up to ${capacity} beds for ward.` });
   } catch (error) { next(error); }
 });
 
@@ -632,37 +749,53 @@ router.post("/encounters/:id/prescriptions", async (req, res, next) => {
     await ensureBillingQueue(req);
 
     const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${id}'`);
-    const patientId = encounter[0]?.patient_id;
+    if (!encounter.length) return res.status(404).json({ error: "Encounter not found" });
+    const patientId = encounter[0].patient_id;
 
+    // 1. Create Prescription Header
+    const presHeader = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".prescriptions (encounter_id, status)
+      VALUES ('${id}', 'Pending')
+      RETURNING id
+    `);
+    const presId = presHeader[0].id;
+
+    // 2. Create Prescription Items & Billing
     for (const item of items) {
-      const presId = crypto.randomUUID();
+      // Find medicine for pricing
+      const med = await req.prisma.$queryRawUnsafe(`SELECT id, unit_price FROM "${req.schemaName}".medicines WHERE name ILIKE '%${s(item.name)}%' LIMIT 1`);
+      const medicineId = med[0]?.id || null;
+      const price = med[0]?.unit_price || 100;
+
       await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".prescriptions (id, encounter_id, medicine_name, dosage, frequency, duration, instructions, status)
-        VALUES ('${presId}', '${id}', '${s(item.name)}', '${s(item.dosage)}', '${s(item.frequency)}', '${s(item.duration)}', '${s(item.instructions)}', 'Pending')
+        INSERT INTO "${req.schemaName}".prescription_items (prescription_id, medicine_id, drug_name, dosage, frequency, duration, instructions)
+        VALUES ('${presId}', ${medicineId ? `'${medicineId}'` : 'NULL'}, '${s(item.name)}', '${s(item.dosage)}', '${s(item.frequency)}', '${s(item.duration)}', '${s(item.instructions)}')
       `);
 
-      // Push to Billing Queue (Estimate Price if possible)
-      const med = await req.prisma.$queryRawUnsafe(`SELECT unit_price FROM "${req.schemaName}".medicines WHERE name ILIKE '%${s(item.name)}%' LIMIT 1`);
-      const price = med[0]?.unit_price || 100; // Fallback price
-      
+      // Push to Billing Queue
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price)
         VALUES ('${patientId}', '${id}', 'PHARMACY', '${presId}', 'Medicine: ${s(item.name)}', 1, ${price})
       `);
     }
-    res.json({ message: "Prescriptions saved and billed." });
-  } catch (error) { next(error); }
+    res.json({ message: "Prescriptions saved and billed.", prescriptionId: presId });
+  } catch (error) { 
+    console.error("[PRESCRIPTION_POST_ERROR]", error.message);
+    next(error); 
+  }
 });
 
 router.post("/encounters/:id/lab-orders", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { diagnosticIds } = req.body;
+    const { diagnosticIds, priority } = req.body;
     await ensureOrderColumns(req);
     await ensureBillingQueue(req);
 
-    const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id FROM "${req.schemaName}".encounters WHERE id = '${id}'`);
-    const patientId = encounter[0]?.patient_id;
+    const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id, doctor_id FROM "${req.schemaName}".encounters WHERE id = '${id}'`);
+    if (!encounter.length) return res.status(404).json({ error: "Encounter not found" });
+    const patientId = encounter[0].patient_id;
+    const doctorId = encounter[0].doctor_id;
 
     for (const testId of diagnosticIds) {
       const orderId = crypto.randomUUID();
@@ -671,8 +804,8 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
       const price = diag[0]?.price || 500;
 
       await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".lab_orders (id, encounter_id, test_name, status)
-        VALUES ('${orderId}', '${id}', '${s(testName)}', 'Pending')
+        INSERT INTO "${req.schemaName}".lab_orders (id, encounter_id, patient_id, doctor_id, test_name, priority, status)
+        VALUES ('${orderId}', '${id}', '${patientId}', '${doctorId}', '${s(testName)}', '${s(priority || 'Normal')}', 'Pending')
       `);
 
       // Push to Billing Queue
@@ -682,18 +815,23 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
       `);
     }
     res.json({ message: "Lab orders saved and billed." });
-  } catch (error) { next(error); }
+  } catch (error) { 
+    console.error("[LAB_ORDER_POST_ERROR]", error.message);
+    next(error); 
+  }
 });
 
 router.get("/lab/orders", async (req, res, next) => {
   try {
     await ensureOrderColumns(req);
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT lo.*, p.name as patient_name, p.mrn, p.id as patient_id, e.id as encounter_id, u.name as doctor_name
+      SELECT lo.*, 
+             COALESCE(p.name, 'Unknown') as patient_name, 
+             p.mrn, 
+             COALESCE(u.name, 'Staff') as doctor_name
       FROM "${req.schemaName}".lab_orders lo
-      JOIN "${req.schemaName}".encounters e ON lo.encounter_id = e.id
-      JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
-      JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      LEFT JOIN "${req.schemaName}".patients p ON lo.patient_id = p.id
+      LEFT JOIN "${req.schemaName}".users u ON lo.doctor_id = u.id
       ORDER BY lo.created_at DESC
     `);
     res.json(data);
@@ -883,8 +1021,12 @@ router.get("/pharmacy/prescriptions", async (req, res, next) => {
 router.get("/pharmacy/prescriptions/:id/items", async (req, res, next) => {
   try {
     const { id } = req.params;
-    // For now, return a mock item if prescriptions table doesn't have a split items table yet
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".prescriptions WHERE id = '${id}'`);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT pi.*, m.name as medicine_name, m.unit_price
+      FROM "${req.schemaName}".prescription_items pi
+      LEFT JOIN "${req.schemaName}".medicines m ON pi.medicine_id = m.id
+      WHERE pi.prescription_id = '${id}'
+    `);
     res.json(data);
   } catch (error) { next(error); }
 });

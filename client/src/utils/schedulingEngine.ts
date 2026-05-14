@@ -9,13 +9,22 @@ export const getSlotState = ({
   doctorStatus,
 }: any) => {
   const now = new Date();
-  const slotDate = new Date(`${date}T${time}:00`);
-  const isPast = slotDate < new Date(now.getTime() - 30 * 60000); // Buffer for current slot
-  const isCurrent = slotDate >= new Date(now.getTime() - 30 * 60000) && slotDate <= now;
+  const [y, mo, d] = date.split('-').map(Number);
+  const [h, mi] = time.split(':').map(Number);
+  const slotDate = new Date(y, mo - 1, d, h, mi);
+  
+  // Buffer of 30 mins to allow editing/booking current/very recent slots
+  const isPast = slotDate.getTime() < (now.getTime() - 30 * 60 * 1000);
+  const isCurrent = Math.abs(slotDate.getTime() - now.getTime()) < 30 * 60 * 1000;
   
   const weekday = new Date(date).getDay();
 
-  // 1. Appointment Check (Highest priority - show if someone booked it)
+  // 1. Doctor Global Status Check (Emergency) - Highest priority, blocks everything
+  if (doctorStatus?.status === 'EMERGENCY') {
+    return { status: 'EMERGENCY', color: '#be123c', label: 'EMERGENCY', isBookable: false, isPast, isCurrent };
+  }
+
+  // 2. Appointment Check
   const appointment = appointments.find((a: any) => {
     const apptDate = new Date(a.appointment_time);
     const apptDateStr = apptDate.toLocaleDateString('en-CA');
@@ -24,12 +33,16 @@ export const getSlotState = ({
   });
 
   if (appointment) {
-    return { status: 'BOOKED', color: '#2563eb', label: appointment.patient_name, isBookable: false, appointment, isPast, isCurrent };
-  }
-
-  // 2. Doctor Global Status Check (Emergency/Delayed)
-  if (doctorStatus?.status === 'EMERGENCY') {
-    return { status: 'EMERGENCY', color: '#be123c', label: 'EMERGENCY', isBookable: false, isPast, isCurrent };
+    const isDelayed = doctorStatus?.delay_minutes > 0;
+    return { 
+      status: 'BOOKED', 
+      color: isDelayed ? '#7e22ce' : '#3b82f6', // Purple if delayed, Blue otherwise
+      label: isDelayed ? `${appointment.patient_name} (DELAYED)` : appointment.patient_name, 
+      isBookable: false, 
+      appointment, 
+      isPast, 
+      isCurrent 
+    };
   }
 
   // 3. Leave Check
@@ -54,7 +67,7 @@ export const getSlotState = ({
   }
 
   if (!isAvailable) {
-    return { status: 'UNAVAILABLE', color: '#f1f5f9', label: reason, isBookable: !isPast, isPast, isCurrent };
+    return { status: 'UNAVAILABLE', color: '#f8fafc', label: reason, isBookable: false, isPast, isCurrent };
   }
 
   // 7. Handle Delay Indication
@@ -71,7 +84,7 @@ export const getSlotState = ({
 
   return {
     status: 'AVAILABLE',
-    color: '#059669', // Mint Green for Available
+    color: '#dcfce7', // Light green for Available
     label: 'AVAILABLE',
     isBookable: !isPast,
     isPast,

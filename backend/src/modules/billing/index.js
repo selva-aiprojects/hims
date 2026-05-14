@@ -19,6 +19,19 @@ router.get("/queue/:patientId", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// 2. Fetch Billing History (Invoices)
+router.get("/history", async (req, res, next) => {
+  try {
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT i.*, i.total as total_amount, p.name as patient_name, p.mrn as patient_mrn
+      FROM "${req.schemaName}".invoices i
+      JOIN "${req.schemaName}".patients p ON i.patient_id = p.id
+      ORDER BY i.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 // 2. Fetch existing invoices
 router.get("/", async (req, res, next) => {
   try {

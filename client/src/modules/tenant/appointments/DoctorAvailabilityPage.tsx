@@ -22,6 +22,7 @@ import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
 import { getSlotState } from "../../../utils/schedulingEngine";
 import { useSearchParams } from "react-router-dom";
+import { trackEvent } from "../../../utils/analytics";
 
 
 
@@ -58,6 +59,8 @@ export default function DoctorAvailabilityPage() {
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  const [reschedulingAppt, setReschedulingAppt] = useState<any>(null);
 
   const fetchInitialData = async () => {
     try {
@@ -111,6 +114,15 @@ export default function DoctorAvailabilityPage() {
   const updateDoctorStatus = async (status: string, delay: number = 0) => {
     try {
       await axios.post(`${API_BASE}/api/doctors/${selectedDoctor.id}/status`, { status, delay_minutes: delay }, { headers });
+      
+      // Analytics: Track status change
+      trackEvent('physician_status_changed', {
+        doctor_id: selectedDoctor.id,
+        new_status: status,
+        delay_minutes: delay,
+        specialization: selectedDoctor.specialization
+      });
+
       fetchSchedulingData();
     } catch (err) { console.error(err); }
   };
@@ -140,12 +152,42 @@ export default function DoctorAvailabilityPage() {
       <Sidebar />
       <main className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 32px 32px' }}>
         <Header title="Clinical Scheduling Command" />
-        
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', margin: '32px 0 8px' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eef2ff', color: '#4f46e5', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(79, 70, 233, 0.1)' }}>
-            <CalendarIcon size={24} />
+
+        {reschedulingAppt && (
+          <div style={{ 
+            background: 'rgba(79, 70, 229, 0.1)', 
+            border: '1.5px dashed #4f46e5', 
+            borderRadius: '16px', 
+            padding: '16px 24px', 
+            margin: '16px 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            animation: 'pulse 2s infinite'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#4f46e5', color: 'white', display: 'grid', placeItems: 'center' }}>
+                <Activity size={20} />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 900, color: '#4f46e5' }}>RESCHEDULING MODE ACTIVE</div>
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Moving <strong>{reschedulingAppt.patient_name}</strong>. Select a new available slot in the calendar.</div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setReschedulingAppt(null)}
+              style={{ padding: '8px 16px', borderRadius: '10px', background: 'white', border: '1px solid #4f46e5', color: '#4f46e5', fontSize: '12px', fontWeight: 800, cursor: 'pointer' }}
+            >
+              Cancel Move
+            </button>
           </div>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Unified command center for physician availability, appointment scheduling, and clinical resource optimization.</p>
+        )}
+        
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '8px', margin: '16px 0 4px' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eef2ff', color: '#4f46e5', display: 'grid', placeItems: 'center', boxShadow: '0 8px 12px -3px rgba(79, 70, 233, 0.1)' }}>
+            <CalendarIcon size={20} />
+          </div>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 500, maxWidth: '600px' }}>Unified command center for physician availability, appointment scheduling, and clinical resource optimization.</p>
         </div>
         
         <div style={{ flex: 1, display: 'flex', padding: '24px', gap: '24px', overflow: 'hidden' }}>
@@ -182,7 +224,7 @@ export default function DoctorAvailabilityPage() {
                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <StatusBadge status={doctorStatus?.status} delay={doctorStatus?.delay_minutes} />
                   <div style={dividerStyle} />
-                  <h4 style={sectionTitleStyle}>OPERATIONAL OVERRIDES</h4>
+                  <h4 style={sectionTitleStyle}>PHYSICIAN STATUS CONTROL</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                      <button onClick={() => updateDoctorStatus('AVAILABLE', 0)} style={quickBtnStyle('#10b981')}><CheckCircle2 size={14} /> Available</button>
                      <button onClick={() => updateDoctorStatus('DELAYED', 15)} style={quickBtnStyle('#f59e0b')}><Timer size={14} /> +15m Delay</button>
@@ -229,7 +271,7 @@ export default function DoctorAvailabilityPage() {
 
           {/* RIGHT: MAIN CALENDAR / TABS */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
-             <div style={{ ...cardStyle, padding: '12px 24px', display: 'flex', gap: '32px' }}>
+             <div style={{ ...cardStyle, padding: '12px 24px', display: 'flex', gap: '32px', marginBottom: '-4px' }}>
                 {['Operational Calendar', 'Weekly Rules', 'Leave Master', 'Overrides', 'Analytics'].map(tab => (
                    <button 
                      key={tab} 
@@ -244,6 +286,15 @@ export default function DoctorAvailabilityPage() {
              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {activeTab === 'Operational Calendar' && (
                     <div style={{ ...cardStyle, flex: 1, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+                       <div style={{ padding: '16px 24px 0', display: 'flex', gap: '20px', flexWrap: 'wrap', borderBottom: '1px solid #f1f5f9' }}>
+                          <LegendItem color="#dcfce7" border="1.5px solid #10b981" label="Available" />
+                          <LegendItem color="#3b82f6" label="Booked" />
+                          <LegendItem color="#7e22ce" label="Delayed Appointment" />
+                          <LegendItem color="#d97706" label="Delayed Avail" />
+                          <LegendItem color="#be123c" label="Emergency" />
+                          <LegendItem color="#94a3b8" label="Leave" />
+                          <LegendItem color="#f8fafc" label="Unavailable" border="1px solid #e2e8f0" />
+                       </div>
                        <div style={calendarHeaderStyle}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                              <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }} style={navBtnStyle}><ChevronLeft size={16} /></button>
@@ -364,6 +415,8 @@ export default function DoctorAvailabilityPage() {
           doctor={selectedDoctor}
           patients={patients}
           onSuccess={fetchSchedulingData}
+          reschedulingAppt={reschedulingAppt}
+          setReschedulingAppt={setReschedulingAppt}
         />
       </main>
     </div>
@@ -400,7 +453,7 @@ const StatusBadge = ({ status, delay }: any) => {
   );
 };
 
-const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, onSuccess }: any) => {
+const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, onSuccess, reschedulingAppt, setReschedulingAppt }: any) => {
   const [patientId, setPatientId] = useState("");
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
@@ -412,19 +465,45 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
       const dateStr = date.toISOString().split('T')[0];
       const dt = new Date(`${dateStr} ${time}`);
 
-      // If slot is UNAVAILABLE, automatically create an override first
-      if (state.status === 'UNAVAILABLE') {
-        await axios.post(`${API_BASE}/api/doctors/overrides`, {
-          doctor_id: doctor.id, override_date: dateStr, start_time: time, end_time: time,
-          is_available: true, reason: 'Automatic opening for booking'
-        }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
-      }
-
       await axios.post(`${API_BASE}/api/appointments`, {
         patient_id: patientId, doctor_id: doctor.id, appointment_time: dt.toISOString(), status: 'Scheduled'
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
+
+      // Analytics: Track booking
+      trackEvent('appointment_booked', {
+        doctor_id: doctor.id,
+        patient_id: patientId,
+        slot_time: time,
+        is_off_hours: state.status === 'UNAVAILABLE'
+      });
+
       onSuccess(); onClose();
     } catch (err) { console.error(err); } finally { setLoading(false); }
+  };
+
+  const handleReschedule = async () => {
+    if (!reschedulingAppt) return;
+    setLoading(true);
+    try {
+      const dateStr = date.toISOString().split('T')[0];
+      const dt = new Date(`${dateStr} ${time}`);
+
+      await axios.patch(`${API_BASE}/api/appointments/${reschedulingAppt.id}`, {
+        appointment_time: dt.toISOString()
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
+
+      trackEvent('appointment_rescheduled', {
+        doctor_id: doctor.id,
+        appointment_id: reschedulingAppt.id
+      });
+
+      setReschedulingAppt(null);
+      onSuccess(); 
+      onClose();
+    } catch (err) { 
+      console.error(err); 
+      alert("Rescheduling failed. Slot might be taken.");
+    } finally { setLoading(false); }
   };
 
   const applyOverride = async (available: boolean) => {
@@ -436,6 +515,31 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
       onSuccess(); onClose();
     } catch (err) { console.error(err); } finally { setLoading(false); }
+  };
+
+  const handleCancel = async () => {
+    if (!state.appointment?.id) return;
+    if (!confirm(`Cancel appointment for ${state.appointment.patient_name}?`)) return;
+    
+    setLoading(true);
+    const authHeaders = { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" };
+    try {
+      await axios.delete(`${API_BASE}/api/appointments/${state.appointment.id}`, { headers: authHeaders });
+      
+      // Analytics: Track cancellation
+      trackEvent('appointment_cancelled', {
+        doctor_id: doctor.id,
+        appointment_id: state.appointment.id
+      });
+
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to cancel appointment. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!open) return null;
@@ -460,34 +564,64 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
                    <div style={{ fontSize: '16px', fontWeight: 800, marginTop: '4px' }}>{state.appointment?.patient_name}</div>
                    <div style={{ fontSize: '13px', color: '#64748b' }}>MRN: {state.appointment?.patient_mrn || 'N/A'}</div>
                 </div>
-                <button style={{ ...primaryBtnStyle, background: '#ef4444' }}>Cancel Appointment</button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button 
+                    onClick={() => { setReschedulingAppt(state.appointment); onClose(); }}
+                    style={{ ...primaryBtnStyle, background: '#6366f1', flex: 1 }}
+                  >
+                    Move Appointment
+                  </button>
+                  <button 
+                    onClick={handleCancel}
+                    disabled={loading}
+                    style={{ ...primaryBtnStyle, background: '#ef4444', flex: 1 }}
+                  >
+                    {loading ? '...' : 'Delete'}
+                  </button>
+                </div>
              </div>
           ) : (
              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
                  <div>
-                    <label style={labelStyle}>QUICK BOOKING</label>
-                    {patients.length > 0 ? (
-                      <>
-                        <select value={patientId} onChange={(e) => setPatientId(e.target.value)} style={inputStyle} disabled={!state.isBookable}>
-                           <option value="">Search patient...</option>
-                           {patients.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
-                        </select>
-                        <button onClick={handleBook} disabled={loading || !state.isBookable} style={{ ...primaryBtnStyle, marginTop: '12px', width: '100%' }}>
-                           {loading ? 'Processing...' : 'Confirm Appointment'}
+                    <label style={labelStyle}>{reschedulingAppt ? 'RESCHEDULE TO THIS SLOT' : 'QUICK BOOKING'}</label>
+                    {reschedulingAppt ? (
+                      <div style={{ padding: '20px', background: '#eef2ff', borderRadius: '16px', border: '1px solid #4f46e5' }}>
+                        <div style={{ fontSize: '12px', color: '#4f46e5', fontWeight: 700 }}>RESCHEDULING:</div>
+                        <div style={{ fontSize: '16px', fontWeight: 900, marginTop: '4px' }}>{reschedulingAppt.patient_name}</div>
+                        <button 
+                          onClick={handleReschedule} 
+                          disabled={loading || !state.isBookable} 
+                          style={{ ...primaryBtnStyle, marginTop: '16px', width: '100%', background: '#4f46e5' }}
+                        >
+                           {loading ? 'Moving...' : 'Confirm Move to this Slot'}
                         </button>
-                        {state.status === 'UNAVAILABLE' && (
-                          <div style={{ fontSize: '11px', color: '#0ea5e9', marginTop: '8px', fontWeight: 700 }}>
-                            <Zap size={10} style={{ display: 'inline', marginRight: '4px' }}/> 
-                            Note: This will automatically open this off-hours slot.
+                      </div>
+                    ) : (
+                      <>
+                        {patients.length > 0 ? (
+                          <>
+                            <select value={patientId} onChange={(e) => setPatientId(e.target.value)} style={inputStyle} disabled={!state.isBookable}>
+                               <option value="">Search patient...</option>
+                               {patients.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
+                            </select>
+                            <button onClick={handleBook} disabled={loading || !state.isBookable} style={{ ...primaryBtnStyle, marginTop: '12px', width: '100%' }}>
+                               {loading ? 'Processing...' : 'Confirm Appointment'}
+                            </button>
+                            {state.status === 'UNAVAILABLE' && (
+                              <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '12px', padding: '12px', background: '#fff7ed', borderRadius: '10px', border: '1px solid #ffedd5' }}>
+                                <AlertCircle size={14} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
+                                <strong>OFF-HOURS SLOT:</strong> This time is outside the doctor's weekly rules. Use the <strong>Open Slot</strong> button below if you wish to override and enable booking.
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div style={{ padding: '16px', background: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5' }}>
+                            <div style={{ fontSize: '13px', color: '#9a3412', fontWeight: 700 }}>No Patients Found</div>
+                            <div style={{ fontSize: '11px', color: '#c2410c', marginTop: '4px' }}>Register patients in the Patient Master first.</div>
+                            <button onClick={() => window.location.href='/tenant/patients'} style={{ ...quickBtnStyle('#ea580c'), marginTop: '12px', width: '100%' }}>Register Patient</button>
                           </div>
                         )}
                       </>
-                    ) : (
-                      <div style={{ padding: '16px', background: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5' }}>
-                        <div style={{ fontSize: '13px', color: '#9a3412', fontWeight: 700 }}>No Patients Found</div>
-                        <div style={{ fontSize: '11px', color: '#c2410c', marginTop: '4px' }}>Register patients in the Patient Master first.</div>
-                        <button onClick={() => window.location.href='/tenant/patients'} style={{ ...quickBtnStyle('#ea580c'), marginTop: '12px', width: '100%' }}>Register Patient</button>
-                      </div>
                     )}
                     {!state.isBookable && <div style={{ fontSize: '11px', color: '#e11d48', marginTop: '4px', fontWeight: 700 }}><AlertCircle size={10}/> Historical slots cannot be modified.</div>}
                  </div>
@@ -532,25 +666,29 @@ const timeLabelStyle = { padding: '12px 8px', textAlign: 'center' as const, font
 
 const slotCellWrapperStyle = { padding: '4px', borderRight: '1px solid #f8fafc', borderBottom: '1px solid #f8fafc' };
 const slotInnerStyle = (state: any) => {
-  const isAvailable = state.status === 'AVAILABLE' || state.status === 'DELAYED_AVAIL';
+  const isAvailable = state.status === 'AVAILABLE';
+  const isUnavailable = state.status === 'UNAVAILABLE';
   const isBookableFuture = state.isBookable && !state.isPast;
   
   return {
     height: '36px', 
-    borderRadius: '8px', 
-    background: isAvailable ? 'rgba(79, 70, 229, 0.05)' : state.color, 
+    borderRadius: '10px', 
+    background: state.color, 
     display: 'flex', 
     alignItems: 'center', 
     justifyContent: 'center',
     cursor: state.isPast ? 'not-allowed' : 'pointer', 
     transition: 'all 0.2s', 
-    color: isAvailable ? '#4f46e5' : 'white',
-    opacity: state.isPast ? 0.3 : (state.status === 'UNAVAILABLE' ? 0.4 : 1),
-    boxShadow: (state.status === 'BOOKED' && !state.isPast) ? '0 4px 12px rgba(79, 70, 229, 0.3)' : 'none',
+    color: isAvailable ? '#166534' : (isUnavailable ? '#64748b' : 'white'),
+    opacity: state.isPast ? 0.4 : 1,
+    boxShadow: (state.status === 'BOOKED' && !state.isPast) ? '0 6px 16px rgba(59, 130, 246, 0.3)' : 'none',
     transform: 'scale(1)',
     filter: state.isPast ? 'grayscale(0.8) contrast(0.8)' : 'none',
     pointerEvents: state.isPast ? 'none' as const : 'auto' as const,
-    border: state.isCurrent ? '2px solid #4f46e5' : (isBookableFuture ? '1.5px dashed #4f46e5' : 'none'),
+    border: state.isCurrent ? '2px solid #4f46e5' : (
+      isAvailable && isBookableFuture ? '1.5px solid #10b981' : 
+      (isUnavailable ? '1px solid #e2e8f0' : 'none')
+    ),
     animation: state.isCurrent ? 'pulse 2s infinite' : 'none'
   };
 };
@@ -756,6 +894,13 @@ const AnalyticsPanel = ({ stats }: any) => {
     </div>
   );
 };
+
+const LegendItem = ({ color, label, border }: any) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+    <div style={{ width: '12px', height: '12px', borderRadius: '4px', background: color, border }} />
+    <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>{label}</span>
+  </div>
+);
 
 const thStyle = { padding: '16px', color: '#64748b', fontSize: '12px', textTransform: 'uppercase' as const };
 const tdStyle = { padding: '16px', fontSize: '14px', color: '#1e293b' };

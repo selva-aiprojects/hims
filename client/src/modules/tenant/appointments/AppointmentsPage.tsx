@@ -613,7 +613,7 @@ export default function AppointmentsPage() {
                       border: '1px solid #f1f5f9',
                       padding: '8px'
                     }}>
-                      {patients.filter(p => !modalSearchPatient || p.name.toLowerCase().includes(modalSearchPatient.toLowerCase()) || p.mrn.includes(modalSearchPatient)).map(p => (
+                      {patients.filter(p => !modalSearchPatient || p.name?.toLowerCase().includes(modalSearchPatient.toLowerCase()) || p.mrn?.includes(modalSearchPatient)).map(p => (
                         <div 
                           key={p.id}
                           onClick={() => { setBookingForm({...bookingForm, patient_id: p.id}); setModalSearchPatient(p.name); }}

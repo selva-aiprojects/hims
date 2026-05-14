@@ -37,6 +37,7 @@ export default function OPDConsultationPage() {
   const [medSearch, setMedSearch] = useState("");
   const [filteredMeds, setFilteredMeds] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('prescription'); // prescription, lab, history
+  const [showPostConsultModal, setShowPostConsultModal] = useState(false);
   
   // AI State
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -157,13 +158,17 @@ export default function OPDConsultationPage() {
       }
 
       localStorage.removeItem("currentEncounter");
-      showToast("Consultation Finalized successfully.", "success");
-      navigate("/tenant/opd/queue");
+      setShowPostConsultModal(true);
     } catch (err: any) { 
       const msg = err.response?.data?.message || err.message || "Failed to save consultation.";
       showToast(msg, "error"); 
     }
     finally { setIsFinishing(false); }
+  };
+
+  const handlePostConsultClose = () => {
+    setShowPostConsultModal(false);
+    navigate("/tenant/opd/queue");
   };
 
   const getAiAdvice = async () => {
@@ -297,8 +302,9 @@ export default function OPDConsultationPage() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '28px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '28px' }}>
           
+          {/* LEFT COLUMN: OBSERVATIONS & FINISH BUTTON */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             {/* CLINICAL OBSERVATIONS */}
             <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
@@ -306,24 +312,41 @@ export default function OPDConsultationPage() {
                  <Stethoscope size={20} /> DIAGNOSIS & CHIEF COMPLAINTS
                </h3>
                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
-                 <select className="select-field" style={{ flex: 1, margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px' }} value={diagnosis} onChange={e => setDiagnosis(e.target.value)}>
-                   <option value="">Select ICD-10 Clinical Diagnosis...</option>
-                   {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
-                 </select>
-                 <button 
-                  onClick={getAiAdvice}
-                  disabled={isAiLoading}
-                  style={{ 
-                    height: '56px', padding: '0 24px', borderRadius: '14px', border: 'none', 
-                    background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)', 
-                    color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', 
-                    cursor: 'pointer', boxShadow: '0 10px 20px rgba(99, 102, 241, 0.2)' 
-                  }}
-                 >
-                   {isAiLoading ? <Loader2 className="animate-spin" /> : <Brain size={20} />}
-                   AI ADVISOR
-                 </button>
+                 <div style={{ flex: 1, position: 'relative' }}>
+                   <input 
+                    className="input-field" 
+                    placeholder="Enter Clinical Diagnosis or select from ICD-10..." 
+                    style={{ margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px', paddingRight: '40px' }} 
+                    value={diagnosis} 
+                    onChange={e => setDiagnosis(e.target.value)}
+                   />
+                   <select 
+                    style={{ position: 'absolute', right: '10px', top: '16px', opacity: 0.1, width: '30px', cursor: 'pointer' }} 
+                    onChange={e => { if (e.target.value) setDiagnosis(e.target.value); }}
+                   >
+                     <option value="">Quick Select...</option>
+                     {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
+                   </select>
+                   <div style={{ position: 'absolute', right: '14px', top: '18px', pointerEvents: 'none', color: '#64748b' }}>
+                     <ChevronRight size={20} />
+                   </div>
+                 </div>
                </div>
+
+               <button 
+                onClick={getAiAdvice}
+                disabled={isAiLoading}
+                style={{ 
+                  width: '100%', height: '56px', padding: '0 24px', borderRadius: '14px', border: 'none', 
+                  background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)', 
+                  color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', 
+                  cursor: 'pointer', boxShadow: '0 10px 20px rgba(99, 102, 241, 0.2)',
+                  marginBottom: '20px'
+                }}
+               >
+                 {isAiLoading ? <Loader2 className="animate-spin" /> : <Brain size={20} />}
+                 AI ADVISOR
+               </button>
 
                {showAiPanel && (
                  <div style={{ 
@@ -355,7 +378,7 @@ export default function OPDConsultationPage() {
                          <p style={{ fontSize: '13px', color: '#6d28d9', marginTop: '4px', fontStyle: 'italic' }}>{aiAdvice.reasoning}</p>
                        </div>
                        
-                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '20px' }}>
                           <div>
                             <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Meds</p>
                             <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
@@ -382,7 +405,7 @@ export default function OPDConsultationPage() {
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                         }}
                        >
-                         <Wand2 size={18} /> ACCEPT & APPLY AI PROPOSAL
+                         <Wand2 size={18} /> ACCEPT & APPLY PROPOSAL
                        </button>
                      </div>
                     ) : (
@@ -414,13 +437,13 @@ export default function OPDConsultationPage() {
                       padding: '10px 20px', borderRadius: '12px', 
                       background: isAdmissionPrescribed ? '#fbbf24' : '#fff7ed', 
                       border: '1px solid #ffedd5', color: isAdmissionPrescribed ? 'white' : '#c2410c', 
-                      fontSize: '13px', fontWeight: 800, cursor: 'pointer',
+                      fontSize: '13px', fontWeight: 800, cursor: 'pointer', flex: 1,
                       boxShadow: isAdmissionPrescribed ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
                     }}
                   >
-                    {isAdmissionPrescribed ? '✅ Admission Prescribed' : '+ Prescribe IPD Admission'}
+                    {isAdmissionPrescribed ? '✅ Admission Prescribed' : '+ IPD Admission'}
                   </button>
-                  <button onClick={() => setNotes(notes + " [FOLLOW_UP_7D]")} style={{ padding: '10px 20px', borderRadius: '12px', background: '#eff6ff', border: '1px solid #dbeafe', color: '#3b82f6', fontSize: '13px', fontWeight: 800, cursor: 'pointer' }}>+ Follow-up (7D)</button>
+                  <button onClick={() => setNotes(notes + " [FOLLOW_UP_7D]")} style={{ padding: '10px 20px', borderRadius: '12px', background: '#eff6ff', border: '1px solid #dbeafe', color: '#3b82f6', fontSize: '13px', fontWeight: 800, cursor: 'pointer', flex: 1 }}>+ Follow-up (7D)</button>
                </div>
                {isAdmissionPrescribed && (
                  <div style={{ marginTop: '16px', padding: '16px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: '16px' }}>
@@ -435,7 +458,33 @@ export default function OPDConsultationPage() {
                )}
             </div>
 
-            {/* TABBED CLINICAL INTERFACE */}
+            <button 
+              disabled={isFinishing}
+              onClick={finishConsultation}
+              style={{ 
+                width: '100%', padding: '28px', borderRadius: '28px', border: 'none', 
+                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', 
+                color: 'white', fontWeight: 900, fontSize: '20px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
+                boxShadow: diagnosis ? '0 20px 40px rgba(16, 185, 129, 0.2)' : 'none',
+                opacity: isFinishing ? 0.7 : 1
+              }}
+            >
+              {isFinishing ? (
+                <>
+                  <Loader2 className="animate-spin" size={26} />
+                  FINALIZING...
+                </>
+              ) : (
+                <span>
+                  <CheckCircle2 size={26} style={{ verticalAlign: 'middle', marginRight: '10px' }} /> 
+                  {diagnosis ? 'FINISH CONSULTATION' : 'ENTER DIAGNOSIS TO FINISH'}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* RIGHT COLUMN: TABBED CLINICAL INTERFACE */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Tab Navigation */}
             <div style={{ display: 'flex', background: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '4px', gap: '4px' }}>
@@ -565,35 +614,79 @@ export default function OPDConsultationPage() {
               )}
             </div>
           </div>
-
-            <button 
-              disabled={isFinishing}
-              onClick={finishConsultation}
-              style={{ 
-                width: '100%', padding: '28px', borderRadius: '28px', border: 'none', 
-                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)', 
-                color: 'white', fontWeight: 900, fontSize: '20px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
-                boxShadow: diagnosis ? '0 20px 40px rgba(16, 185, 129, 0.2)' : 'none',
-                opacity: isFinishing ? 0.7 : 1
-              }}
-            >
-              {isFinishing ? (
-                <>
-                  <Loader2 className="animate-spin" size={26} />
-                  FINALIZING...
-                </>
-              ) : (
-                <span>
-                  <CheckCircle2 size={26} /> 
-                  {diagnosis ? 'FINISH CONSULTATION' : 'ENTER DIAGNOSIS TO FINISH'}
-                </span>
-              )}
-            </button>
-          </div>
-
         </div>
       </main>
+
+      {/* POST-CONSULTATION ACTION SHEET */}
+      {showPostConsultModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}>
+          <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '32px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', animation: 'slideUp 0.3s ease-out' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '32px' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+                <CheckCircle2 size={36} />
+              </div>
+              <h2 style={{ fontSize: '24px', fontWeight: 900, margin: '0 0 8px', color: '#0f172a' }}>Consultation Finished</h2>
+              <p style={{ color: '#64748b', margin: 0, fontSize: '15px' }}>Clinical encounter successfully recorded for {encounter.patient_name}.</p>
+            </div>
+
+            <div style={{ backgroundColor: '#f8fafc', borderRadius: '20px', padding: '24px', marginBottom: '32px' }}>
+              <h3 style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px' }}>Next Steps for Patient</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {prescriptions.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#eff6ff', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Pill size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>Pharmacy</div>
+                      <div style={{ fontSize: '13px', color: '#64748b' }}>Pick up {prescriptions.length} prescribed medicines.</div>
+                    </div>
+                  </div>
+                )}
+                
+                {selectedLabTests.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#f5f3ff', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <FlaskConical size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>Diagnostic Lab</div>
+                      <div style={{ fontSize: '13px', color: '#64748b' }}>Proceed for {selectedLabTests.length} ordered lab tests.</div>
+                    </div>
+                  </div>
+                )}
+                
+                {isAdmissionPrescribed && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#fffbeb', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Activity size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e293b' }}>Admission Desk</div>
+                      <div style={{ fontSize: '13px', color: '#64748b' }}>Proceed for IPD admission processing.</div>
+                    </div>
+                  </div>
+                )}
+
+                {!prescriptions.length && !selectedLabTests.length && !isAdmissionPrescribed && (
+                  <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '14px', fontWeight: 500, fontStyle: 'italic' }}>
+                    No further clinical actions required. Proceed to billing desk if applicable.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button 
+              onClick={handlePostConsultClose}
+              style={{ width: '100%', padding: '20px', borderRadius: '16px', border: 'none', background: '#0f172a', color: 'white', fontSize: '16px', fontWeight: 800, cursor: 'pointer', transition: 'transform 0.2s' }}
+            >
+              Close & Return to Queue
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

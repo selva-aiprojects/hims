@@ -20,6 +20,7 @@ export default function OPDRegistrationPage() {
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [showFullReg, setShowFullReg] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [doctorSearchTerm, setDoctorSearchTerm] = useState("");
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
@@ -546,8 +547,19 @@ export default function OPDRegistrationPage() {
             </div>
 
              <div style={{ marginBottom: '40px' }}>
-                <label className="field-label" style={{ marginBottom: '16px' }}>SELECT CONSULTING DOCTOR</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                <label className="field-label" style={{ marginBottom: '16px', display: 'block' }}>SELECT CONSULTING DOCTOR</label>
+                <div style={{ position: 'relative', marginBottom: '16px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="Search doctor by name or specialty..."
+                    className="input-field"
+                    style={{ width: '100%', paddingLeft: '44px', borderRadius: '12px' }}
+                    value={doctorSearchTerm}
+                    onChange={(e) => setDoctorSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', maxHeight: '300px', overflowY: 'auto', paddingRight: '8px' }}>
                   {doctors.length === 0 && (
                     <div style={{ padding: '20px', borderRadius: '15px', border: '2px dashed #cbd5e1', textAlign: 'center', color: '#64748b' }}>
                       <Users size={24} style={{ marginBottom: '10px', opacity: 0.5 }} />
@@ -555,7 +567,16 @@ export default function OPDRegistrationPage() {
                       <div style={{ fontSize: '11px' }}>If this persists, please check Hospital Masters.</div>
                     </div>
                   )}
-                  {doctors.map(d => (
+                  {doctors
+                    .filter(d => {
+                      const search = doctorSearchTerm ? doctorSearchTerm.toLowerCase() : "";
+                      if (!search) return true;
+                      const nameMatch = d.name ? d.name.toLowerCase().includes(search) : false;
+                      const specMatch = d.specialization ? d.specialization.toLowerCase().includes(search) : false;
+                      const deptMatch = d.department ? d.department.toLowerCase().includes(search) : false;
+                      return nameMatch || specMatch || deptMatch;
+                    })
+                    .map(d => (
                     <button 
                      key={d.id || Math.random()} 
                      type="button"
@@ -568,16 +589,28 @@ export default function OPDRegistrationPage() {
                        textAlign: 'left'
                      }}
                    >
-                      <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: selectedDoctorId === d.id ? '#3b82f6' : '#f8fafc', color: selectedDoctorId === d.id ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: selectedDoctorId === d.id ? '#3b82f6' : '#f8fafc', color: selectedDoctorId === d.id ? 'white' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                          <Users size={20} />
                       </div>
                       <div style={{ flex: 1 }}>
-                         <div style={{ fontWeight: 800, fontSize: '15px', color: selectedDoctorId === d.id ? '#1e40af' : '#1e293b' }}>{d.name.startsWith('Dr.') ? d.name : `Dr. ${d.name}`}</div>
+                         <div style={{ fontWeight: 800, fontSize: '15px', color: selectedDoctorId === d.id ? '#1e40af' : '#1e293b' }}>{d.name && d.name.startsWith('Dr.') ? d.name : `Dr. ${d.name}`}</div>
                          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{d.specialization || d.department || 'General Physician'}</div>
                       </div>
-                      {selectedDoctorId === d.id && <CheckCircle2 size={20} style={{ color: '#3b82f6' }} />}
+                      {selectedDoctorId === d.id && <CheckCircle2 size={20} style={{ color: '#3b82f6', flexShrink: 0 }} />}
                     </button>
                   ))}
+                  {doctors.length > 0 && doctors.filter(d => {
+                      const search = doctorSearchTerm ? doctorSearchTerm.toLowerCase() : "";
+                      if (!search) return true;
+                      const nameMatch = d.name ? d.name.toLowerCase().includes(search) : false;
+                      const specMatch = d.specialization ? d.specialization.toLowerCase().includes(search) : false;
+                      const deptMatch = d.department ? d.department.toLowerCase().includes(search) : false;
+                      return nameMatch || specMatch || deptMatch;
+                    }).length === 0 && (
+                      <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                        No doctors match your search.
+                      </div>
+                  )}
                 </div>
              </div>
 

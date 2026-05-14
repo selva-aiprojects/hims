@@ -267,12 +267,19 @@ router.get("/:doctorId/available-slots", async (req, res, next) => {
 
 
 
+// Schema Healing Cache to prevent concurrent DDL race conditions
+const syncedSchemas = new Set();
+
 // Schema Healing for Enterprise Scheduling
 const ensureEnterpriseTables = async (req) => {
-  if (!req.schemaName) {
+  const schema = req.schemaName;
+  if (!schema) {
     console.error("[DOCTOR_ADMIN_HEALING] Error: req.schemaName is missing.");
     throw new Error("Tenant schema not identified. Please ensure x-tenant-id header is present.");
   }
+
+  // Guard: Avoid redundant DDL calls that cause pg_type race conditions
+  if (syncedSchemas.has(schema)) return;
 
   try {
     // Extensions are managed at the database level, avoiding per-request DDL race conditions
@@ -338,6 +345,8 @@ const ensureEnterpriseTables = async (req) => {
         last_updated TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    syncedSchemas.add(schema);
   } catch (err) {
     console.error(`[DOCTOR_ADMIN_HEALING] Failed for ${req.schemaName}:`, err.message);
     throw err;
@@ -478,61 +487,50 @@ router.get("/:doctorId/stats", async (req, res, next) => {
     const { doctorId } = req.params;
     const schema = req.schemaName;
 
-    // 1. Revenue (Consultation + linked services)
-    const revenueRes = await req.prisma.$queryRawUnsafe(`
-      SELECT COALESCE(SUM(unit_price), 0)::float as total 
-      FROM "${schema}".billing_queue 
-      WHERE source_id = '${doctorId}'
+    // 1. Total Patients Seen
+    const patientsRes = await req.prisma.$queryRawUnsafe(`
+      SELECT COUNT(DISTINCT patient_id)::integer as count 
+      FROM "${schema}".encounters 
+      WHERE doctor_id = '${doctorId}'
     `);
+    const patientsSeen = patientsRes[0]?.count || 0;
 
-    // 2. Patient Retention (Repeat patients / Total patients)
-    const retentionRes = await req.prisma.$queryRawUnsafe(`
-      WITH doctor_patients AS (
+    // 2. Repeat vs New Patients
+    const patientCounts = await req.prisma.$queryRawUnsafe(`
+      WITH patient_visits AS (
         SELECT patient_id, COUNT(*) as visit_count
         FROM "${schema}".encounters
         WHERE doctor_id = '${doctorId}'
         GROUP BY patient_id
       )
       SELECT 
-        CASE 
-          WHEN COUNT(*) = 0 THEN 0 
-          ELSE (COUNT(CASE WHEN visit_count > 1 THEN 1 END)::float / COUNT(*)::float) * 100 
-        END as rate
-      FROM doctor_patients
+        COUNT(CASE WHEN visit_count = 1 THEN 1 END)::integer as new_patients,
+        COUNT(CASE WHEN visit_count > 1 THEN 1 END)::integer as repeat_patients
+      FROM patient_visits
     `);
+    const newPatients = patientCounts[0]?.new_patients || 0;
+    const repeatPatients = patientCounts[0]?.repeat_patients || 0;
 
-    // 3. Average Wait Time (Fuzzy match between appointment and encounter)
-    const waitRes = await req.prisma.$queryRawUnsafe(`
-      SELECT AVG(EXTRACT(EPOCH FROM (e.created_at - a.appointment_time))/60)::float as avg_wait
-      FROM "${schema}".appointments a
-      JOIN "${schema}".encounters e ON a.patient_id = e.patient_id 
-        AND a.doctor_id = e.doctor_id
-        AND e.created_at >= a.appointment_time
-        AND e.created_at < a.appointment_time + INTERVAL '4 hours'
-      WHERE a.doctor_id = '${doctorId}'
-    `);
-
-    // 4. Utilization (Booked slots vs Possible slots in last 30 days)
-    const utilizationRes = await req.prisma.$queryRawUnsafe(`
-      WITH booked AS (
-        SELECT COUNT(*)::float as count 
-        FROM "${schema}".appointments 
-        WHERE doctor_id = '${doctorId}' 
-        AND appointment_time > NOW() - INTERVAL '30 days'
-      ),
-      possible AS (
-        -- Simple heuristic: Average 4 hours per day for 22 working days, 2 slots per hour
-        SELECT (22 * 4 * 2)::float as count
-      )
-      SELECT (booked.count / possible.count) * 100 as rate
-      FROM booked, possible
+    // 3. Business Breakdown
+    // We count prescriptions and lab orders associated with this doctor's encounters
+    const businessRes = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        (SELECT COUNT(*)::integer FROM "${schema}".prescriptions WHERE encounter_id IN (SELECT id FROM "${schema}".encounters WHERE doctor_id = '${doctorId}')) as prescriptions_count,
+        (SELECT COUNT(*)::integer FROM "${schema}".lab_orders WHERE encounter_id IN (SELECT id FROM "${schema}".encounters WHERE doctor_id = '${doctorId}')) as lab_orders_count,
+        (SELECT COUNT(*)::integer FROM "${schema}".appointments WHERE doctor_id = '${doctorId}' AND status = 'Completed') as completed_appointments,
+        (SELECT COALESCE(SUM(unit_price), 0)::float FROM "${schema}".billing_queue WHERE source_id = '${doctorId}') as revenue
     `);
 
     res.json({
-      revenue: revenueRes[0]?.total || 0,
-      retention: retentionRes[0]?.rate || 0,
-      avgWait: waitRes[0]?.avg_wait || 0,
-      utilization: Math.min(utilizationRes[0]?.rate || 0, 100)
+      patientsSeen,
+      newPatients,
+      repeatPatients,
+      business: {
+        prescriptions: businessRes[0]?.prescriptions_count || 0,
+        labs: businessRes[0]?.lab_orders_count || 0,
+        consultations: businessRes[0]?.completed_appointments || 0,
+        revenue: businessRes[0]?.revenue || 0
+      }
     });
   } catch (error) {
     console.error("[DOCTOR_STATS_ERROR]", error);

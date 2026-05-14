@@ -1,8 +1,13 @@
 const { prisma } = require("../config/prisma");
 
 async function tenant(req, res, next) {
-  const tenantId = req.headers["x-tenant-id"] || req.body.facility || "tenant1";
+  const tenantId = req.headers["x-tenant-id"] || req.body.facility;
   
+  if (!tenantId) {
+    console.warn(`[TENANT] Blocking request: Missing x-tenant-id header.`);
+    return res.status(400).json({ error: "Tenant identification missing. Please provide x-tenant-id header." });
+  }
+
   try {
     // 1. Resolve Tenant ID to DB Schema Name
     const tenants = await prisma.$queryRawUnsafe(`SELECT db_name, name FROM nexus.tenants WHERE id = '${tenantId}' OR code = '${tenantId}'`);

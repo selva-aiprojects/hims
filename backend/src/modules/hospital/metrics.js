@@ -103,4 +103,97 @@ router.get("/stats", async (req, res, next) => {
   }
 });
 
+/**
+ * CLINICAL COMMAND OVERVIEW
+ * High-velocity operational intelligence for hospital management.
+ */
+router.get("/clinical-command-overview", async (req, res, next) => {
+  try {
+    const schema = req.schemaName;
+
+    // Schema Healing: Ensure operational tables exist before querying
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".doctor_status (
+        doctor_id UUID PRIMARY KEY,
+        status VARCHAR(50) DEFAULT 'AVAILABLE',
+        delay_minutes INTEGER DEFAULT 0,
+        current_location VARCHAR(100),
+        last_updated TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    // 1. Top Metrics (Last 24 Hours)
+    const [consultations, waitTime, emergencies, revenue] = await Promise.all([
+      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${schema}".encounters WHERE created_at > NOW() - INTERVAL '24 hours'`),
+      req.prisma.$queryRawUnsafe(`
+        SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (e.created_at - a.appointment_time))/60), 0)::int as avg_wait
+        FROM "${schema}".encounters e
+        JOIN "${schema}".appointments a ON e.patient_id = a.patient_id 
+        WHERE e.created_at > NOW() - INTERVAL '24 hours'
+      `),
+      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${schema}".doctor_status WHERE status = 'EMERGENCY'`),
+      req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(unit_price * quantity), 0)::float as sum FROM "${schema}".billing_queue WHERE created_at > NOW() - INTERVAL '24 hours'`)
+    ]);
+
+    // 2. Patient Inflow Trend (Today by Hour)
+    const inflowTrend = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        h.hour || ':00' as time,
+        COALESCE(COUNT(e.id), 0)::int as count
+      FROM (
+        SELECT generate_series(0, 23) as hour
+      ) h
+      LEFT JOIN "${schema}".encounters e ON EXTRACT(HOUR FROM e.created_at) = h.hour AND e.created_at > CURRENT_DATE
+      GROUP BY h.hour
+      ORDER BY h.hour ASC
+    `);
+
+    // 3. Departmental Delay Index
+    const delayIndex = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        COALESCE(u.department, 'General') as name, 
+        AVG(ds.delay_minutes)::int as value
+      FROM "${schema}".doctor_status ds
+      JOIN "${schema}".users u ON ds.doctor_id = u.id
+      GROUP BY u.department
+      LIMIT 5
+    `);
+
+    // 4. Capacity Gauge
+    const capacity = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        (SELECT COUNT(*)::int FROM "${schema}".beds WHERE status = 'Occupied') as occupied,
+        (SELECT COUNT(*)::int FROM "${schema}".beds) as total
+    `);
+
+    // 5. Operational Intelligence Feed (Recent State Changes)
+    const feed = await req.prisma.$queryRawUnsafe(`
+      (SELECT 'emergency' as type, 'Emergency Mode' as title, u.name || ' activated emergency.' as desc, ds.last_updated as time
+       FROM "${schema}".doctor_status ds JOIN "${schema}".users u ON ds.doctor_id = u.id WHERE ds.status = 'EMERGENCY' LIMIT 3)
+      UNION ALL
+      (SELECT 'delay' as type, 'Physician Delay' as title, u.name || ' is running ' || ds.delay_minutes || 'm late.' as desc, ds.last_updated as time
+       FROM "${schema}".doctor_status ds JOIN "${schema}".users u ON ds.doctor_id = u.id WHERE ds.delay_minutes > 0 LIMIT 3)
+      ORDER BY time DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      metrics: {
+        consultations: consultations[0].count,
+        waitTime: waitTime[0].avg_wait,
+        emergencies: emergencies[0].count,
+        revenue: revenue[0].sum
+      },
+      inflowTrend: inflowTrend.length > 0 ? inflowTrend : [{time: '08:00', count: 0}, {time: '12:00', count: 0}],
+      delayIndex: delayIndex.length > 0 ? delayIndex : [{name: 'General', value: 0}],
+      capacity: capacity[0] || { occupied: 0, total: 100 },
+      feed
+    });
+
+  } catch (error) {
+    console.error("[ANALYTICS ERROR]", error);
+    res.status(500).json({ error: "Failed to fetch clinical command data" });
+  }
+});
+
 module.exports = router;

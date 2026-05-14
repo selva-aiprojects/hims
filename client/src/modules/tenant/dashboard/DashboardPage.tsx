@@ -10,8 +10,16 @@ import {
   AlertCircle, ChevronRight, HeartPulse, PieChart, BarChart3, Clock, ArrowUpRight, FlaskConical, Bell, Zap, Plus
 } from 'lucide-react';
 
+import DoctorDashboardPage from "./DoctorDashboardPage";
+
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const role = localStorage.getItem("role");
+  
+  if (role === "doctor") {
+    return <DoctorDashboardPage />;
+  }
+
   const [userName] = useState(localStorage.getItem("userName") || "User");
   const [stats, setStats] = useState<any>({
     metrics: { patientInflow: 0, activeAdmissions: 0, pendingBills: 0, dailyRevenue: 0 },

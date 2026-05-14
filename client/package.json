@@ -17,6 +17,8 @@
     "echarts-for-react": "^3.0.6",
     "lucide-react": "^0.344.0",
     "postcss": "^8.5.14",
+    "posthog-js": "^1.373.4",
+    "posthog-node": "^5.34.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",

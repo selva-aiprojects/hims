@@ -25,9 +25,28 @@ export default function PrescriptionTab({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddCommonMeds = () => {
-    const commonMeds = ['Paracetamol', 'Ibuprofen', 'Amoxicillin'];
-    const med = medicines.find(m => commonMeds.includes(m.name));
-    if (med) addMed(med);
+    const commonNames = ['Paracetamol', 'Ibuprofen', 'Amoxicillin', 'Cetirizine', 'Pantoprazole'];
+    const newPrescriptions = [...prescriptions];
+    
+    commonNames.forEach(name => {
+      // Avoid duplicates
+      if (newPrescriptions.find(p => p.name.toLowerCase().includes(name.toLowerCase()))) return;
+      
+      const med = medicines.find(m => (m.name || '').toLowerCase().includes(name.toLowerCase()));
+      if (med) {
+        newPrescriptions.push({
+          medicine_id: med.id,
+          name: med.name,
+          composition: med.composition,
+          dosage: med.dosage_adult || '1 Tab',
+          frequency: '1-0-1',
+          duration: '5 Days',
+          instructions: 'After Food'
+        });
+      }
+    });
+    
+    setPrescriptions(newPrescriptions);
   };
 
   const handleClearPrescriptions = () => {
@@ -165,25 +184,25 @@ export default function PrescriptionTab({
       </div>
 
       {/* Quick Actions */}
-      {prescriptions.length > 0 && (
-        <div style={{ marginTop: '24px', padding: '20px', background: '#f0f9ff', borderRadius: '16px', border: '1px solid #bae6fd' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', marginBottom: '12px' }}>QUICK ACTIONS</div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button 
-              onClick={handleAddCommonMeds}
-              style={{ padding: '8px 16px', background: 'white', border: '1px solid #3b82f6', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: '#3b82f6', cursor: 'pointer' }}
-            >
-              + Add Common Meds
-            </button>
+      <div style={{ marginTop: '24px', padding: '20px', background: '#f0f9ff', borderRadius: '16px', border: '1px solid #bae6fd' }}>
+        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0369a1', marginBottom: '12px' }}>QUICK ACTIONS</div>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button 
+            onClick={handleAddCommonMeds}
+            style={{ padding: '8px 16px', background: 'white', border: '1px solid #3b82f6', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: '#3b82f6', cursor: 'pointer' }}
+          >
+            + Add Common Meds
+          </button>
+          {prescriptions.length > 0 && (
             <button 
               onClick={handleClearPrescriptions}
               style={{ padding: '8px 16px', background: 'white', border: '1px solid #ef4444', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: '#ef4444', cursor: 'pointer' }}
             >
               Clear All
             </button>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

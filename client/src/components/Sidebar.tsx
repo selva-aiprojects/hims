@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ShieldCheck,
   LifeBuoy,
-  Box
+  Box,
+  TrendingUp
 } from 'lucide-react';
 import { API_BASE_URL as API_BASE } from "../config/api";
 
@@ -35,7 +36,8 @@ const Icons: Record<string, any> = {
   "Hospital Settings": Settings,
   "Staff & Access": Users,
   "Support & Tickets": LifeBuoy,
-  Calendar: Calendar
+  Calendar: Calendar,
+  "Clinical Intelligence": TrendingUp
 };
 
 const normalizePath = (label: string, originalPath: string) => {
@@ -62,6 +64,8 @@ const normalizePath = (label: string, originalPath: string) => {
     "hospital settings": "/tenant/masters",
     "staff & access": "/tenant/staff",
     "message board": "/tenant/communication",
+    "clinical archives": "/tenant/archives",
+    "clinical & financial archives": "/tenant/archives",
     "mail & communications": "/tenant/mail",
     "support & tickets": "/tenant/support",
     "ticketing management system": "/tenant/support/tickets"
@@ -85,6 +89,9 @@ export default function Sidebar() {
     
     if (!dm.some((m: any) => m.label.toLowerCase().includes("advanced scheduling console"))) {
       dm.push({ label: "Advanced Scheduling Console", path: "/tenant/appointments/doctor-calendar?tab=Weekly+Schedule", icon: "CalendarDays", sort_order: 9 });
+    }
+    if (!dm.some((m: any) => m.label.toLowerCase().includes("clinical & financial archives"))) {
+      dm.push({ label: "Clinical & Financial Archives", path: "/tenant/archives", icon: "History", sort_order: 10 });
     }
 
     const labelMap: Record<string, string> = {
@@ -141,9 +148,11 @@ export default function Sidebar() {
     const pm = Array.from(uniqueMap.values());
 
     const clinicalFlow = [
+      "Clinical Intelligence Hub",
       "Doctor's Schedule", "Appointment List", 
       "OPD Center", "OPD Queue", "Consultation Desk", 
-      "IPD Admission Hub", "Bed Management", "Discharge Summaries"
+      "IPD Admission Hub", "Bed Management", "Discharge Summaries",
+      "Clinical & Financial Archives"
     ];
     const serviceFlow = [
       "Laboratory", "AI Lab Assistant", 
@@ -162,8 +171,13 @@ export default function Sidebar() {
       .filter(m => labels.some(l => l.toLowerCase() === m.label.toLowerCase()))
       .sort((a, b) => labels.findIndex(l => l.toLowerCase() === a.label.toLowerCase()) - labels.findIndex(l => l.toLowerCase() === b.label.toLowerCase()));
 
+    const isIpdEnabled = ['professional', 'enterprise'].includes(plan);
+
     const gs = [
-      { id: 'clinical', title: "Clinical Operations", items: getItems(clinicalFlow), icon: Stethoscope },
+      { id: 'clinical', title: "Clinical Operations", items: getItems(clinicalFlow).filter(i => {
+        if (!isIpdEnabled && ["ipd admission hub", "bed management", "discharge summaries"].includes(i.label.toLowerCase())) return false;
+        return true;
+      }), icon: Stethoscope },
       { id: 'services', title: "Diagnostic Services", items: getItems(serviceFlow), icon: FlaskConical },
       { id: 'billing', title: "Finance & Revenue", items: getItems(billingFlow), icon: Receipt },
       { id: 'admin', title: "System Administration", items: getItems(adminFlow), icon: Settings }
