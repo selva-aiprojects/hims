@@ -1,224 +1,93 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
-import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Activity } from 'lucide-react';
-
+import PharmacyDashboard from "./PharmacyDashboard";
+import InventoryList from "./InventoryList";
+import PrescriptionQueue from "./PrescriptionQueue";
+import SuppliersList from "./SuppliersList";
+import { LayoutDashboard, Package, Pill, Truck, BarChart3 } from 'lucide-react';
 
 export default function PharmacyManagementPage() {
-  const navigate = useNavigate();
-  const role = localStorage.getItem("role");
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [prescriptions, setPrescriptions] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState("inventory"); // inventory | prescriptions
-  const [activePrescription, setActivePrescription] = useState<any>(null);
-  const [selectedItems, setSelectedItems] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, inventory, queue, suppliers, reports
 
   useEffect(() => {
-    if (!role) { navigate("/"); return; }
-    fetchData(); 
-  }, [role, navigate]);
-
-  const fetchData = async () => {
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
+    const handleTabChange = (e: any) => {
+      if (e.detail) setActiveTab(e.detail);
     };
-    try {
-      const [invRes, preRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/hospital/pharmacy/inventory`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions`, { headers })
-      ]);
-      setInventory(invRes.data);
-      setPrescriptions(preRes.data);
-    } catch (err) { console.error(err); }
+    window.addEventListener('changePharmacyTab', handleTabChange);
+    return () => window.removeEventListener('changePharmacyTab', handleTabChange);
+  }, []);
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return <PharmacyDashboard embedded={true} />;
+      case "inventory":
+        return <InventoryList embedded={true} />;
+      case "queue":
+        return <PrescriptionQueue embedded={true} />;
+      case "suppliers":
+        return <SuppliersList embedded={true} />;
+      case "reports":
+        return (
+          <div style={{ padding: '40px', textAlign: 'center', background: 'white', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
+            <BarChart3 size={48} style={{ color: '#94a3b8', marginBottom: '20px' }} />
+            <h2 style={{ fontWeight: 900 }}>Advanced Pharmacy Analytics</h2>
+            <p style={{ color: '#64748b' }}>Expiry surveillance, revenue intelligence, and ABC/VED analysis reports are being synthesized.</p>
+          </div>
+        );
+      default:
+        return <PharmacyDashboard embedded={true} />;
+    }
   };
 
-  const startDispensing = async (pres: any) => {
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-    try {
-      const res = await axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions/${pres.id}/items`, { headers });
-      setActivePrescription({ ...pres, items: res.data });
-      setSelectedItems(res.data.map((item: any) => ({
-        drugId: item.medicine_id || inventory.find(i => i.drug_name === (item.medicine_name || item.drug_name))?.id,
-        drugName: item.medicine_name || item.drug_name,
-        requestedQuantity: Number((item.duration || '').split(' ')[0]) * 3 || 10,
-        quantity: 10, // default dispense
-        unitPrice: item.unit_price || inventory.find(i => i.drug_name === (item.medicine_name || item.drug_name))?.unit_price || 0
-      })));
-    } catch (err) { alert("Failed to fetch prescription details"); }
-  };
-
-  const confirmDispense = async () => {
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-    try {
-      await axios.post(`${API_BASE}/api/hospital/pharmacy/dispense`, {
-        encounterId: activePrescription.encounter_id,
-        prescriptionId: activePrescription.id,
-        items: selectedItems.filter(i => i.drugId)
-      }, { headers });
-      
-      alert("Medication dispensed successfully!");
-      setActivePrescription(null);
-      fetchData();
-      
-      if (confirm("Would you like to generate the pharmacy bill now?")) {
-        const total = selectedItems.reduce((acc, i) => acc + (i.unitPrice * i.quantity), 0);
-        navigate('/billing', { 
-          state: { 
-            billType: 'PHARMACY', 
-            totalAmount: total,
-            patientName: activePrescription.patient_name,
-            patientId: activePrescription.patient_id,
-            encounterId: activePrescription.encounter_id
-          } 
-        });
-      }
-    } catch (err) { alert("Dispensing failed. Check stock levels."); }
-  };
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+    { id: 'inventory', label: 'Inventory', icon: <Package size={18} /> },
+    { id: 'queue', label: 'Prescription Queue', icon: <Pill size={18} /> },
+    { id: 'suppliers', label: 'Suppliers', icon: <Truck size={18} /> },
+    { id: 'reports', label: 'Reports & Analytics', icon: <BarChart3 size={18} /> },
+  ];
 
   return (
     <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh' }}>
       <Sidebar />
       <main className="main-content" style={{ padding: '32px' }}>
-        <Header title="Pharmacy & PIMS Hub" />
+        <Header title="Integrated Pharmacy Management" />
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px', gap: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#dcfce7', color: '#059669', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.1)' }}>
-              <Activity size={24} />
-            </div>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Comprehensive inventory control, automated dispensing, and medication fulfillment engine.</p>
+        <div style={{ display: 'flex', gap: '32px', marginTop: '8px' }}>
+          {/* Navigation Sidebar-like menu inside the content for local module navigation */}
+          <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+             {menuItems.map((item) => (
+               <button
+                 key={item.id}
+                 onClick={() => setActiveTab(item.id)}
+                 style={{
+                   display: 'flex',
+                   alignItems: 'center',
+                   gap: '12px',
+                   padding: '16px 20px',
+                   borderRadius: '16px',
+                   border: 'none',
+                   background: activeTab === item.id ? '#0f172a' : 'transparent',
+                   color: activeTab === item.id ? 'white' : '#64748b',
+                   fontWeight: activeTab === item.id ? 800 : 600,
+                   fontSize: '14px',
+                   cursor: 'pointer',
+                   transition: 'all 0.2s ease',
+                   textAlign: 'left'
+                 }}
+               >
+                 {item.icon}
+                 {item.label}
+               </button>
+             ))}
           </div>
-          <div style={{ background: 'white', padding: '6px', borderRadius: '18px', border: '1px solid #e2e8f0', display: 'flex', gap: '4px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-             <button 
-               onClick={() => setActiveTab("inventory")}
-               style={{ padding: '10px 24px', borderRadius: '14px', border: 'none', background: activeTab === 'inventory' ? '#3b82f6' : 'transparent', color: activeTab === 'inventory' ? 'white' : '#64748b', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}
-             >
-                Stock Inventory
-             </button>
-             <button 
-               onClick={() => setActiveTab("prescriptions")}
-               style={{ padding: '10px 24px', borderRadius: '14px', border: 'none', background: activeTab === 'prescriptions' ? '#3b82f6' : 'transparent', color: activeTab === 'prescriptions' ? 'white' : '#64748b', fontWeight: 800, fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}
-             >
-                Prescription Queue
-             </button>
+
+          <div style={{ flex: 1 }}>
+            {renderContent()}
           </div>
         </div>
-
-        {activeTab === 'inventory' ? (
-          <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Medicine</th>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Category</th>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>In Stock</th>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Price / Unit</th>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Expiry</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventory.map((item, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '16px 24px' }}>
-                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.drug_name}</div>
-                    </td>
-                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '13px' }}>{item.category}</td>
-                    <td style={{ padding: '16px 24px' }}>
-                      <span style={{ fontWeight: 800, color: Number(item.stock_quantity) < 50 ? '#ef4444' : '#10b981' }}>{item.stock_quantity} units</span>
-                    </td>
-                    <td style={{ padding: '16px 24px', fontWeight: 700 }}>₹{Number(item.unit_price).toFixed(2)}</td>
-                    <td style={{ padding: '16px 24px', color: '#94a3b8', fontSize: '13px' }}>{new Date(item.expiry_date).toLocaleDateString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Patient / MRN</th>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Date</th>
-                  <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prescriptions.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '16px 24px' }}>
-                      <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.patient_name}</div>
-                      <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 700 }}>{p.mrn}</div>
-                    </td>
-                    <td style={{ padding: '16px 24px', color: '#64748b', fontSize: '13px' }}>Today</td>
-                    <td style={{ padding: '16px 24px' }}>
-                       <button 
-                         onClick={() => startDispensing(p)}
-                         style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
-                       >
-                          Open & Dispense
-                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activePrescription && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-             <div style={{ width: '500px', background: 'white', borderRadius: '32px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                   <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', margin: 0 }}>Fulfill Prescription</h2>
-                   <button onClick={() => setActivePrescription(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
-                </div>
-                
-                <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9', marginBottom: '24px' }}>
-                   <p style={{ margin: 0, fontSize: '12px', color: '#64748b', fontWeight: 700 }}>PATIENT</p>
-                   <p style={{ margin: '4px 0 0', fontSize: '16px', fontWeight: 900, color: '#0f172a' }}>{activePrescription.patient_name} <span style={{ color: '#3b82f6' }}>({activePrescription.mrn})</span></p>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
-                   {selectedItems.map((item, idx) => (
-                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div>
-                           <p style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>{item.drugName}</p>
-                           <p style={{ margin: 0, fontSize: '11px', color: '#10b981' }}>Available: {inventory.find(i => i.id === item.drugId)?.stock_quantity || 0} units</p>
-                        </div>
-                        <input 
-                           type="number" 
-                           style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', fontWeight: 700, textAlign: 'center' }}
-                           value={item.quantity}
-                           onChange={e => {
-                              const newItems = [...selectedItems];
-                              newItems[idx].quantity = parseInt(e.target.value);
-                              setSelectedItems(newItems);
-                           }}
-                        />
-                     </div>
-                   ))}
-                </div>
-
-                <button 
-                  onClick={confirmDispense}
-                  style={{ width: '100%', padding: '18px', borderRadius: '16px', background: '#0f172a', color: 'white', border: 'none', fontWeight: 900, fontSize: '16px', cursor: 'pointer' }}
-                >
-                   Finalize & Record Dispense
-                </button>
-             </div>
-          </div>
-        )}
       </main>
     </div>
   );

@@ -5,10 +5,10 @@ import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
-export default function InventoryList() {
+export default function InventoryList({ embedded = false }: { embedded?: boolean }) {
   const [inventory, setInventory] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', category: 'Antibiotic', quantity: '', price: '', expiryDate: '' });
+  const [newItem, setNewItem] = useState({ name: '', category: 'Antibiotic', quantity: '', price: '', expiryDate: '', uom: 'Tablet' });
 
   useEffect(() => {
     fetchInventory();
@@ -32,7 +32,15 @@ export default function InventoryList() {
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
     try {
-      await axios.post(`${API_BASE}/api/hospital/pharmacy/inventory`, newItem, { headers });
+      const data = {
+        name: newItem.name,
+        category: newItem.category,
+        stock_quantity: parseInt(newItem.quantity),
+        unit_price: parseFloat(newItem.price),
+        expiry_date: newItem.expiryDate,
+        uom: newItem.uom
+      };
+      await axios.post(`${API_BASE}/api/hospital/masters/medicines`, data, { headers });
       setShowModal(false);
       fetchInventory();
       alert("Medicine added to inventory successfully!");
@@ -42,10 +50,10 @@ export default function InventoryList() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      <Sidebar />
-      <main style={{ flex: 1, padding: '32px' }}>
-        <Header title="Pharmacy Inventory Management" />
+    <div className={embedded ? "" : "dashboard-layout"} style={{ display: 'flex', minHeight: embedded ? 'auto' : '100vh', background: '#f8fafc' }}>
+      {!embedded && <Sidebar />}
+      <main style={{ flex: 1, padding: embedded ? '0' : '32px' }}>
+        {!embedded && <Header title="Pharmacy Inventory Management" />}
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px', gap: '20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
@@ -57,7 +65,7 @@ export default function InventoryList() {
           <div style={{ display: 'flex', gap: '16px' }}>
             <button 
               onClick={() => {
-                const csvContent = "name,category,stock,price,expiry\nParacetamol 500mg,Tablet,500,10.00,2025-12-31\nAmoxicillin 250mg,Antibiotic,200,45.50,2025-06-30";
+                const csvContent = "name,category,uom,stock,price,expiry\nParacetamol 500mg,Tablet,Strip,500,10.00,2025-12-31\nAmoxicillin 250mg,Antibiotic,Bottle,200,45.50,2025-06-30";
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -89,12 +97,17 @@ export default function InventoryList() {
                   const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
                   const items = lines.slice(1).map(line => {
                     const values = line.split(',').map(v => v.trim());
+                    const stockVal = parseInt(values[headers.indexOf('stock')] || values[headers.indexOf('quantity')] || '0');
+                    const priceVal = parseFloat(values[headers.indexOf('price')] || '0');
+                    const expVal = values[headers.indexOf('expiry')] || values[headers.indexOf('expiry_date')];
+
                     return {
                       name: values[headers.indexOf('name')],
                       category: values[headers.indexOf('category')] || 'Other',
-                      stock_quantity: parseInt(values[headers.indexOf('stock')] || values[headers.indexOf('quantity')] || '0'),
-                      unit_price: parseFloat(values[headers.indexOf('price')] || '0'),
-                      expiry_date: values[headers.indexOf('expiry')] || values[headers.indexOf('expiry_date')]
+                      uom: values[headers.indexOf('uom')] || 'Tablet',
+                      stock_quantity: isNaN(stockVal) ? 0 : stockVal,
+                      unit_price: isNaN(priceVal) ? 0 : priceVal,
+                      expiry_date: expVal && expVal.trim() ? expVal : null
                     };
                   }).filter(i => i.name);
 
@@ -107,7 +120,8 @@ export default function InventoryList() {
                     alert(`Successfully imported ${items.length} items!`);
                     fetchInventory();
                   } catch (err) {
-                    alert("Import failed. Check CSV format (Required: name, category, stock, price, expiry)");
+                    console.error("Bulk Import Error:", err);
+                    alert("Import failed. Please ensure your CSV follows the template format (Required: name, category, uom, stock, price, expiry)");
                   }
                 }}
               />
@@ -140,6 +154,18 @@ export default function InventoryList() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Stock Quantity</label>
                     <input required type="number" placeholder="100" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewItem({...newItem, quantity: e.target.value})} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>UOM</label>
+                    <select style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewItem({...newItem, uom: e.target.value})}>
+                      <option value="Tablet">Tablet</option>
+                      <option value="Capsule">Capsule</option>
+                      <option value="Strip">Strip</option>
+                      <option value="Vial">Vial</option>
+                      <option value="Bottle">Bottle</option>
+                      <option value="Syrup">Syrup</option>
+                      <option value="Ointment">Ointment</option>
+                    </select>
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -177,6 +203,7 @@ export default function InventoryList() {
               <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Medicine Name</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Category</th>
+                <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>UOM</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Available Stock</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Price / Unit</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Expiry Date</th>
@@ -192,6 +219,9 @@ export default function InventoryList() {
                   </td>
                   <td style={{ padding: '20px 24px' }}>
                      <span style={{ fontSize: '12px', padding: '4px 10px', background: '#f1f5f9', borderRadius: '6px', fontWeight: 700, color: '#475569' }}>{item.category}</span>
+                  </td>
+                  <td style={{ padding: '20px 24px', fontSize: '13px', fontWeight: 600, color: '#64748b' }}>
+                     {item.uom || 'Tablet'}
                   </td>
                   <td style={{ padding: '20px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

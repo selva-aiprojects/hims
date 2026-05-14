@@ -8,7 +8,7 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { Pill } from 'lucide-react';
 
 
-export default function PrescriptionQueue() {
+export default function PrescriptionQueue({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -79,10 +79,10 @@ export default function PrescriptionQueue() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', background: '#f8fafc' }}>
-      <Sidebar />
-      <main className="main-content" style={{ flex: 1, padding: isMobile ? '16px' : '32px', width: '100%' }}>
-        <Header title="Clinical Prescription Queue" />
+    <div className={embedded ? "" : "dashboard-layout"} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: embedded ? 'auto' : '100vh', background: '#f8fafc' }}>
+      {!embedded && <Sidebar />}
+      <main className="main-content" style={{ flex: 1, padding: embedded ? '0' : isMobile ? '16px' : '32px', width: '100%' }}>
+        {!embedded && <Header title="Clinical Prescription Queue" />}
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px', marginTop: '8px' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#fffbeb', color: '#f59e0b', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(245, 158, 11, 0.1)' }}>

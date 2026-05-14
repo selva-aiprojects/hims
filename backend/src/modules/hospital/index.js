@@ -174,6 +174,9 @@ async function ensureTableColumns(req, table) {
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS hod VARCHAR(255)`);
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS specialty VARCHAR(255)`);
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS base_consultation_fee NUMERIC DEFAULT 0`);
+    if (table === 'medicines') {
+      await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS uom VARCHAR(50) DEFAULT 'Tablet'`);
+    }
   } catch (e) {}
 }
 
@@ -265,6 +268,20 @@ async function ensureBillingQueue(req) {
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".billing_queue (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), patient_id UUID NOT NULL, encounter_id UUID, source_module VARCHAR(50), source_id UUID, description TEXT, quantity NUMERIC DEFAULT 1, unit_price NUMERIC NOT NULL, tax_percent NUMERIC DEFAULT 0, is_discountable BOOLEAN DEFAULT TRUE, status VARCHAR(20) DEFAULT 'PENDING', created_at TIMESTAMP DEFAULT NOW())`);
 }
 
+async function ensureSuppliersTable(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".suppliers (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name VARCHAR(255) NOT NULL,
+      contact_person VARCHAR(100),
+      email VARCHAR(255),
+      phone VARCHAR(50),
+      address TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
 // --- METRICS ---
 router.use("/metrics", metricsRoutes);
 
@@ -279,6 +296,7 @@ router.get("/heal-all-masters", async (req, res, next) => {
     await ensureOrderColumns(req);
     await ensureDischargeTable(req);
     await ensureBillingQueue(req);
+    await ensureSuppliersTable(req);
     await ensureInsuranceInfrastructure(req);
     res.json({ success: true, message: "Clinical environment provisioned." });
   } catch (error) { next(error); }
@@ -310,12 +328,14 @@ const masterTables = [
   { path: 'diagnostics', table: 'diagnostics' },
   { path: 'medicines', table: 'medicines' },
   { path: 'services', table: 'services' },
-  { path: 'wards', table: 'wards' }
+  { path: 'wards', table: 'wards' },
+  { path: 'suppliers', table: 'suppliers' }
 ];
 
 masterTables.forEach(({ path, table }) => {
   router.get(`/masters/${path}`, async (req, res, next) => {
     try {
+      if (path === 'suppliers') await ensureSuppliersTable(req);
       await ensureTableColumns(req, table);
       const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}"."${table}"`);
       res.json(data);
@@ -334,9 +354,10 @@ masterTables.forEach(({ path, table }) => {
         diseases: ['name', 'category', 'icd_code', 'severity_level'],
         treatments: ['name', 'category', 'price', 'description', 'cpt_code', 'estimated_duration'],
         diagnostics: ['name', 'price', 'category'],
-        medicines: ['name', 'category', 'composition', 'dosage_adult', 'dosage_pediatric', 'instructions', 'unit_price', 'stock_quantity'],
+        medicines: ['name', 'category', 'composition', 'dosage_adult', 'dosage_pediatric', 'instructions', 'unit_price', 'stock_quantity', 'uom'],
         services: ['name', 'category', 'service_code', 'price', 'tax_percent'],
-        wards: ['name', 'type', 'capacity', 'floor', 'base_charge']
+        wards: ['name', 'type', 'capacity', 'floor', 'base_charge'],
+        suppliers: ['name', 'contact_person', 'email', 'phone', 'address']
       };
 
       const allowed = tableFields[table] || ['name', 'description', 'category', 'price'];
@@ -366,8 +387,33 @@ masterTables.forEach(({ path, table }) => {
       const items = Array.isArray(req.body) ? req.body : [req.body];
       const results = [];
       for (const item of items) {
-        const fields = Object.keys(item).filter(f => ['name','description','category','price','unit_price','stock_quantity','expiry_date','hod','specialty','status'].includes(f));
-        const values = fields.map(f => typeof item[f] === 'string' ? `'${item[f].replace(/'/g, "''")}'` : item[f]);
+        const fields = Object.keys(item).filter(f => ['name','description','category','price','unit_price','stock_quantity','expiry_date','hod','specialty','status','uom'].includes(f));
+        const values = fields.map(f => {
+          let val = item[f];
+          
+          if (val === undefined || val === null || val === '') {
+            if (f.includes('date')) return 'NULL';
+            if (f.includes('price') || f.includes('quantity') || f === 'price') return '0';
+            return "''";
+          }
+          
+          // Date Normalization (Handle DD-MM-YYYY and other formats)
+          if (f.includes('date') && typeof val === 'string') {
+            if (val.includes('-') && val.split('-')[0].length === 2) {
+              const parts = val.split('-');
+              val = `${parts[2]}-${parts[1]}-${parts[0]}`; // DD-MM-YYYY to YYYY-MM-DD
+            } else if (val.includes('/') && val.split('/')[0].length === 2) {
+              const parts = val.split('/');
+              val = `${parts[2]}-${parts[1]}-${parts[0]}`; // DD/MM/YYYY to YYYY-MM-DD
+            }
+          }
+
+          if (typeof val === 'number') {
+            if (isNaN(val)) return '0';
+            return val;
+          }
+          return `'${val.toString().replace(/'/g, "''")}'`;
+        });
         const query = `INSERT INTO "${req.schemaName}"."${table}" (${fields.join(',')}) VALUES (${values.join(',')}) RETURNING *`;
         const result = await req.prisma.$queryRawUnsafe(query);
         results.push(result[0]);

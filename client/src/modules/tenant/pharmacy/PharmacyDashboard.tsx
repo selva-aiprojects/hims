@@ -6,7 +6,7 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { Activity } from 'lucide-react';
 
 
-export default function PharmacyDashboard() {
+export default function PharmacyDashboard({ embedded = false }: { embedded?: boolean }) {
   const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, pendingPrescriptions: 0, todaysSales: 0, recentDispenses: [] });
   const [loading, setLoading] = useState(true);
 
@@ -36,10 +36,10 @@ export default function PharmacyDashboard() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      <Sidebar />
-      <main style={{ flex: 1, padding: '32px' }}>
-        <Header title="Pharmacy Intelligence Dashboard" />
+    <div className={embedded ? "" : "dashboard-layout"} style={{ display: 'flex', minHeight: embedded ? 'auto' : '100vh', background: '#f8fafc' }}>
+      {!embedded && <Sidebar />}
+      <main style={{ flex: 1, padding: embedded ? '0' : '32px' }}>
+        {!embedded && <Header title="Pharmacy Intelligence Dashboard" />}
         
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '40px' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eff6ff', color: '#2563eb', display: 'grid', placeItems: 'center', boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.1)' }}>
@@ -64,20 +64,48 @@ export default function PharmacyDashboard() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '32px' }}>
-           <div style={{ background: 'white', padding: '32px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '24px' }}>Inventory Health</h3>
-              <div style={{ height: '300px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                 {stats.lowStock > 0 ? (
-                   <div style={{ padding: '20px', background: '#fff1f2', borderRadius: '16px', color: '#be123c', fontWeight: 700 }}>
-                     Critical: {stats.lowStock} items require immediate replenishment.
-                   </div>
-                 ) : (
-                   <div style={{ padding: '20px', background: '#f0fdf4', borderRadius: '16px', color: '#166534', fontWeight: 700 }}>
-                     Inventory levels are healthy. No critical low stock detected.
-                   </div>
-                 )}
-              </div>
-           </div>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
+               <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '24px' }}>Inventory Health</h3>
+               <div style={{ height: '300px', display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'center' }}>
+                  {stats.lowStock > 0 ? (
+                    <div style={{ padding: '24px', background: '#fff1f2', borderRadius: '24px', border: '1px solid #ffe4e6', textAlign: 'center' }}>
+                      <div style={{ fontSize: '40px', marginBottom: '16px' }}>🚨</div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#be123c', marginBottom: '8px' }}>Critical Action Required</div>
+                      <div style={{ color: '#e11d48', fontWeight: 600, fontSize: '14px', marginBottom: '20px' }}>
+                        {stats.lowStock} items are below safety levels and require immediate replenishment.
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                        <button 
+                          onClick={() => {
+                            // This relies on the parent PharmacyManagementPage listening to state or simple re-render
+                            // For now, we'll suggest using the tabs, but we'll make this look like a link
+                            const event = new CustomEvent('changePharmacyTab', { detail: 'inventory' });
+                            window.dispatchEvent(event);
+                          }}
+                          style={{ padding: '10px 20px', background: '#e11d48', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}
+                        >
+                          View Low Stock
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const event = new CustomEvent('changePharmacyTab', { detail: 'suppliers' });
+                            window.dispatchEvent(event);
+                          }}
+                          style={{ padding: '10px 20px', background: 'white', color: '#be123c', border: '1px solid #ffe4e6', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}
+                        >
+                          Contact Suppliers
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '32px', background: '#f0fdf4', borderRadius: '24px', textAlign: 'center', border: '1px solid #dcfce7' }}>
+                      <div style={{ fontSize: '40px', marginBottom: '16px' }}>✅</div>
+                      <div style={{ color: '#166534', fontWeight: 800, fontSize: '16px' }}>Inventory Healthy</div>
+                      <div style={{ color: '#15803d', fontSize: '13px', marginTop: '8px' }}>All medication stocks are within safe operating parameters.</div>
+                    </div>
+                  )}
+               </div>
+            </div>
            <div style={{ background: 'white', padding: '32px', borderRadius: '32px', border: '1px solid #e2e8f0' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '24px' }}>Recent Dispenses</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

@@ -304,15 +304,23 @@ export default function DoctorAvailabilityPage() {
                           
                           {/* Search & Filter Bar */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-end' }}>
-                             <div style={{ position: 'relative', width: '240px' }}>
+                             <div style={{ position: 'relative', width: '280px' }}>
                                 <input 
                                   type="text" 
-                                  placeholder="Search Patient Slot..." 
+                                  placeholder="Search Appointment (Name/MRN)..." 
                                   value={searchQuery}
                                   onChange={(e) => setSearchQuery(e.target.value)}
-                                  style={{ ...inputStyle, padding: '10px 16px 10px 36px', fontSize: '12px', borderRadius: '10px' }} 
+                                  style={{ ...inputStyle, padding: '10px 40px 10px 36px', fontSize: '12px', borderRadius: '10px' }} 
                                 />
                                 <User size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                {searchQuery && (
+                                  <button 
+                                    onClick={() => setSearchQuery("")}
+                                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                )}
                              </div>
                              <select 
                                value={filterStatus}
@@ -455,8 +463,16 @@ const StatusBadge = ({ status, delay }: any) => {
 
 const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, onSuccess, reschedulingAppt, setReschedulingAppt }: any) => {
   const [patientId, setPatientId] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
+
+  const filteredPatients = patientSearch.length > 0 
+    ? patients.filter((p: any) => 
+        p.name.toLowerCase().includes(patientSearch.toLowerCase()) || 
+        (p.mrn && p.mrn.toLowerCase().includes(patientSearch.toLowerCase()))
+      ).slice(0, 50)
+    : [];
 
   const handleBook = async () => {
     if (!patientId) return alert("Select patient");
@@ -600,11 +616,54 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
                       <>
                         {patients.length > 0 ? (
                           <>
-                            <select value={patientId} onChange={(e) => setPatientId(e.target.value)} style={inputStyle} disabled={!state.isBookable}>
-                               <option value="">Search patient...</option>
-                               {patients.map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.mrn})</option>)}
-                            </select>
-                            <button onClick={handleBook} disabled={loading || !state.isBookable} style={{ ...primaryBtnStyle, marginTop: '12px', width: '100%' }}>
+                            <div style={{ position: 'relative' }}>
+                              <input 
+                                type="text"
+                                placeholder="Type Patient Name or MRN..."
+                                value={patientSearch}
+                                onChange={(e) => {
+                                  setPatientSearch(e.target.value);
+                                  // If there's an exact match, auto-select
+                                  const exact = patients.find((p:any) => p.name.toLowerCase() === e.target.value.toLowerCase());
+                                  if(exact) setPatientId(exact.id);
+                                }}
+                                style={{ ...inputStyle, marginBottom: filteredPatients.length > 0 ? '0' : '12px', borderBottomLeftRadius: filteredPatients.length > 0 ? '0' : '14px', borderBottomRightRadius: filteredPatients.length > 0 ? '0' : '14px' }}
+                                list="patient-list"
+                              />
+                              {filteredPatients.length > 0 && patientSearch.length > 0 && (
+                                <div style={{ 
+                                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                                  background: 'white', border: '1px solid #e2e8f0', borderTop: 'none',
+                                  maxHeight: '200px', overflowY: 'auto', borderBottomLeftRadius: '14px', borderBottomRightRadius: '14px',
+                                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
+                                }}>
+                                  {filteredPatients.map((p: any) => (
+                                    <div 
+                                      key={p.id}
+                                      onClick={() => {
+                                        setPatientId(p.id);
+                                        setPatientSearch(`${p.name} (${p.mrn || 'No MRN'})`);
+                                        // Close suggestions
+                                      }}
+                                      style={{ 
+                                        padding: '12px 16px', cursor: 'pointer', fontSize: '13px', 
+                                        borderBottom: '1px solid #f8fafc',
+                                        background: patientId === p.id ? '#eef2ff' : 'white'
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 800 }}>{p.name}</div>
+                                      <div style={{ fontSize: '11px', color: '#64748b' }}>MRN: {p.mrn || 'N/A'} • {p.phone || 'No Phone'}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <button 
+                              onClick={handleBook} 
+                              disabled={loading || !state.isBookable || !patientId} 
+                              style={{ ...primaryBtnStyle, marginTop: filteredPatients.length > 0 ? '16px' : '0', width: '100%' }}
+                            >
                                {loading ? 'Processing...' : 'Confirm Appointment'}
                             </button>
                             {state.status === 'UNAVAILABLE' && (
