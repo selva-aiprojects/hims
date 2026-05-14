@@ -5,7 +5,8 @@ import PharmacyDashboard from "./PharmacyDashboard";
 import InventoryList from "./InventoryList";
 import PrescriptionQueue from "./PrescriptionQueue";
 import SuppliersList from "./SuppliersList";
-import { LayoutDashboard, Package, Pill, Truck, BarChart3 } from 'lucide-react';
+import InwardRegister from "./InwardRegister";
+import { LayoutDashboard, Package, Pill, Truck, BarChart3, FileText } from 'lucide-react';
 
 export default function PharmacyManagementPage() {
   const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, inventory, queue, suppliers, reports
@@ -26,6 +27,8 @@ export default function PharmacyManagementPage() {
         return <InventoryList embedded={true} />;
       case "queue":
         return <PrescriptionQueue embedded={true} />;
+      case "inward":
+        return <InwardRegister embedded={true} />;
       case "suppliers":
         return <SuppliersList embedded={true} />;
       case "reports":
@@ -45,6 +48,7 @@ export default function PharmacyManagementPage() {
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'inventory', label: 'Inventory', icon: <Package size={18} /> },
     { id: 'queue', label: 'Prescription Queue', icon: <Pill size={18} /> },
+    { id: 'inward', label: 'Inward Register', icon: <FileText size={18} /> },
     { id: 'suppliers', label: 'Suppliers', icon: <Truck size={18} /> },
     { id: 'reports', label: 'Reports & Analytics', icon: <BarChart3 size={18} /> },
   ];

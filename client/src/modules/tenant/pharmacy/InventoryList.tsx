@@ -8,7 +8,7 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 export default function InventoryList({ embedded = false }: { embedded?: boolean }) {
   const [inventory, setInventory] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [newItem, setNewItem] = useState({ name: '', category: 'Antibiotic', quantity: '', price: '', expiryDate: '', uom: 'Tablet' });
+  const [newItem, setNewItem] = useState({ name: '', category: 'Antibiotic', quantity: '', price: '', expiryDate: '', uom: 'Tablet', batchNumber: '' });
 
   useEffect(() => {
     fetchInventory();
@@ -38,7 +38,8 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
         stock_quantity: parseInt(newItem.quantity),
         unit_price: parseFloat(newItem.price),
         expiry_date: newItem.expiryDate,
-        uom: newItem.uom
+        uom: newItem.uom,
+        batch_number: newItem.batchNumber
       };
       await axios.post(`${API_BASE}/api/hospital/masters/medicines`, data, { headers });
       setShowModal(false);
@@ -65,7 +66,7 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
           <div style={{ display: 'flex', gap: '16px' }}>
             <button 
               onClick={() => {
-                const csvContent = "name,category,uom,stock,price,expiry\nParacetamol 500mg,Tablet,Strip,500,10.00,2025-12-31\nAmoxicillin 250mg,Antibiotic,Bottle,200,45.50,2025-06-30";
+                const csvContent = "name,category,uom,batch,stock,price,expiry\nParacetamol 500mg,Tablet,Strip,BCH123,500,10.00,2025-12-31\nAmoxicillin 250mg,Antibiotic,Bottle,BCH999,200,45.50,2025-06-30";
                 const blob = new Blob([csvContent], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -105,6 +106,7 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
                       name: values[headers.indexOf('name')],
                       category: values[headers.indexOf('category')] || 'Other',
                       uom: values[headers.indexOf('uom')] || 'Tablet',
+                      batch_number: values[headers.indexOf('batch')] || values[headers.indexOf('batch_number')] || 'N/A',
                       stock_quantity: isNaN(stockVal) ? 0 : stockVal,
                       unit_price: isNaN(priceVal) ? 0 : priceVal,
                       expiry_date: expVal && expVal.trim() ? expVal : null
@@ -157,7 +159,7 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>UOM</label>
-                    <select style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewItem({...newItem, uom: e.target.value})}>
+                    <select style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewEntry({...newItem, uom: e.target.value})}>
                       <option value="Tablet">Tablet</option>
                       <option value="Capsule">Capsule</option>
                       <option value="Strip">Strip</option>
@@ -166,6 +168,10 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
                       <option value="Syrup">Syrup</option>
                       <option value="Ointment">Ointment</option>
                     </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Batch Number</label>
+                    <input required placeholder="BCH-001" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewItem({...newItem, batchNumber: e.target.value})} />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -203,6 +209,7 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
               <tr style={{ textAlign: 'left', background: '#f8fafc' }}>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Medicine Name</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Category</th>
+                <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Batch</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>UOM</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Available Stock</th>
                 <th style={{ padding: '20px 24px', fontSize: '11px', color: '#64748b', fontWeight: 800, textTransform: 'uppercase' }}>Price / Unit</th>
@@ -219,6 +226,9 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
                   </td>
                   <td style={{ padding: '20px 24px' }}>
                      <span style={{ fontSize: '12px', padding: '4px 10px', background: '#f1f5f9', borderRadius: '6px', fontWeight: 700, color: '#475569' }}>{item.category}</span>
+                  </td>
+                  <td style={{ padding: '20px 24px' }}>
+                     <span style={{ fontSize: '11px', padding: '4px 8px', background: '#eff6ff', border: '1px solid #dbeafe', borderRadius: '6px', fontWeight: 800, color: '#2563eb' }}>{item.batch_number || 'N/A'}</span>
                   </td>
                   <td style={{ padding: '20px 24px', fontSize: '13px', fontWeight: 600, color: '#64748b' }}>
                      {item.uom || 'Tablet'}

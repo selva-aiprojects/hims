@@ -176,6 +176,7 @@ async function ensureTableColumns(req, table) {
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS base_consultation_fee NUMERIC DEFAULT 0`);
     if (table === 'medicines') {
       await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS uom VARCHAR(50) DEFAULT 'Tablet'`);
+      await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS batch_number VARCHAR(100)`);
     }
   } catch (e) {}
 }
@@ -354,7 +355,7 @@ masterTables.forEach(({ path, table }) => {
         diseases: ['name', 'category', 'icd_code', 'severity_level'],
         treatments: ['name', 'category', 'price', 'description', 'cpt_code', 'estimated_duration'],
         diagnostics: ['name', 'price', 'category'],
-        medicines: ['name', 'category', 'composition', 'dosage_adult', 'dosage_pediatric', 'instructions', 'unit_price', 'stock_quantity', 'uom'],
+        medicines: ['name', 'category', 'composition', 'dosage_adult', 'dosage_pediatric', 'instructions', 'unit_price', 'stock_quantity', 'uom', 'batch_number'],
         services: ['name', 'category', 'service_code', 'price', 'tax_percent'],
         wards: ['name', 'type', 'capacity', 'floor', 'base_charge'],
         suppliers: ['name', 'contact_person', 'email', 'phone', 'address']
@@ -1145,6 +1146,90 @@ router.get("/pharmacy/stats", async (req, res, next) => {
       todaysSales: todaysSalesRes[0]?.total || 0,
       recentDispenses
     });
+  } catch (error) { next(error); }
+});
+
+// --- PHARMACY INWARD REGISTER (GRN) ---
+async function ensureInwardsTable(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".pharmacy_inwards (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      inward_no VARCHAR(50),
+      supplier_id UUID,
+      medicine_id UUID,
+      batch_number VARCHAR(100),
+      invoice_number VARCHAR(100),
+      quantity INTEGER DEFAULT 0,
+      uom VARCHAR(50),
+      purchase_price NUMERIC DEFAULT 0,
+      mrp NUMERIC DEFAULT 0,
+      mfd_date DATE,
+      expiry_date DATE,
+      received_at TIMESTAMP DEFAULT NOW(),
+      is_blocked BOOLEAN DEFAULT FALSE,
+      remarks TEXT
+    )
+  `);
+}
+
+router.get("/pharmacy/inwards", async (req, res, next) => {
+  try {
+    await ensureInwardsTable(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT i.*, s.name as supplier_name, m.name as medicine_name
+      FROM "${req.schemaName}".pharmacy_inwards i
+      LEFT JOIN "${req.schemaName}".suppliers s ON i.supplier_id = s.id
+      LEFT JOIN "${req.schemaName}".medicines m ON i.medicine_id = m.id
+      ORDER BY i.received_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/pharmacy/inwards", async (req, res, next) => {
+  try {
+    await ensureInwardsTable(req);
+    const { supplier_id, medicine_id, batch_number, invoice_number, quantity, uom, purchase_price, mrp, mfd_date, expiry_date, remarks, inward_no } = req.body;
+    
+    const finalInwardNo = inward_no || `GRN-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // 1. Record the Inward Entry
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".pharmacy_inwards 
+      (inward_no, supplier_id, medicine_id, batch_number, invoice_number, quantity, uom, purchase_price, mrp, mfd_date, expiry_date, remarks)
+      VALUES (
+        '${s(finalInwardNo)}',
+        ${supplier_id ? `'${supplier_id}'` : 'NULL'}, 
+        ${medicine_id ? `'${medicine_id}'` : 'NULL'}, 
+        '${s(batch_number)}', '${s(invoice_number)}', 
+        ${parseInt(quantity) || 0}, '${s(uom)}', 
+        ${parseFloat(purchase_price) || 0}, ${parseFloat(mrp) || 0},
+        ${sqlValue(mfd_date)}, ${sqlValue(expiry_date)}, '${s(remarks || '')}'
+      )
+    `);
+
+    // 2. AUTO-UPDATE MEDICINE STOCK
+    if (medicine_id) {
+      await req.prisma.$executeRawUnsafe(`
+        UPDATE "${req.schemaName}".medicines 
+        SET stock_quantity = stock_quantity + ${parseInt(quantity) || 0},
+            unit_price = ${parseFloat(mrp) || 0},
+            expiry_date = ${sqlValue(expiry_date)},
+            batch_number = '${s(batch_number)}'
+        WHERE id = '${medicine_id}'
+      `);
+    }
+
+    res.json({ success: true, message: "Stock inward registered and inventory updated." });
+  } catch (error) { next(error); }
+});
+
+router.patch("/pharmacy/inwards/:id/block", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { is_blocked } = req.body;
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".pharmacy_inwards SET is_blocked = ${is_blocked} WHERE id = '${id}'`);
+    res.json({ success: true, message: is_blocked ? "Batch blocked for distribution" : "Batch unblocked" });
   } catch (error) { next(error); }
 });
 

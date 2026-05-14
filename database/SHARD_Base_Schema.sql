@@ -202,12 +202,15 @@ CREATE TABLE drug_generics (
   category_id UUID REFERENCES drug_categories(id)
 );
 
-DROP TABLE IF EXISTS dosage_guidelines CASCADE;
-CREATE TABLE dosage_guidelines (
+DROP TABLE IF EXISTS suppliers CASCADE;
+CREATE TABLE suppliers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  generic_id UUID REFERENCES drug_generics(id),
-  dosage VARCHAR(100),
-  frequency VARCHAR(50)
+  name VARCHAR(255),
+  contact_person VARCHAR(255),
+  email VARCHAR(255),
+  phone VARCHAR(50),
+  address TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 DROP TABLE IF EXISTS medicines CASCADE;
@@ -215,6 +218,8 @@ CREATE TABLE medicines (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255),
   category VARCHAR(100),
+  uom VARCHAR(50) DEFAULT 'Tablet',
+  batch_number VARCHAR(100),
   composition TEXT,
   dosage_adult VARCHAR(255),
   dosage_pediatric VARCHAR(255),
@@ -225,6 +230,27 @@ CREATE TABLE medicines (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+DROP TABLE IF EXISTS pharmacy_inwards CASCADE;
+CREATE TABLE pharmacy_inwards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  inward_no VARCHAR(50),
+  supplier_id UUID REFERENCES suppliers(id),
+  medicine_id UUID REFERENCES medicines(id),
+  batch_number VARCHAR(100),
+  invoice_number VARCHAR(100),
+  quantity INTEGER DEFAULT 0,
+  uom VARCHAR(50),
+  purchase_price NUMERIC DEFAULT 0,
+  mrp NUMERIC DEFAULT 0,
+  mfd_date DATE,
+  expiry_date DATE,
+  received_at TIMESTAMP DEFAULT NOW(),
+  is_blocked BOOLEAN DEFAULT FALSE,
+  remarks TEXT
+);
+
+DROP TABLE IF EXISTS dosage_guidelines CASCADE;
 
 DROP TABLE IF EXISTS wards CASCADE;
 CREATE TABLE wards (
