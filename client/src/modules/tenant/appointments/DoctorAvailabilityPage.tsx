@@ -65,13 +65,11 @@ export default function DoctorAvailabilityPage() {
   const fetchInitialData = async () => {
     try {
       console.log("[DEBUG] Fetching Clinical Master Data...");
-      const [docRes, patRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
-        axios.get(`${API_BASE}/api/patients`, { headers }) // Removed limit to avoid potential filter conflicts
+      const [docRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/hospital/doctors`, { headers })
       ]);
-      console.log(`[DEBUG] Loaded ${docRes.data?.length || 0} doctors and ${patRes.data?.length || 0} patients.`);
+      console.log(`[DEBUG] Loaded ${docRes.data?.length || 0} doctors.`);
       setDoctors(docRes.data || []);
-      setPatients(patRes.data || []);
       if (docRes.data?.length > 0) setSelectedDoctor(docRes.data[0]);
     } catch (err) { console.error("[DEBUG] Initialization Error:", err); }
     finally { setLoading(false); }
@@ -380,22 +378,42 @@ export default function DoctorAvailabilityPage() {
                                            opacity: (searchQuery && !matchesSearch) || !matchesStatus ? 0.3 : 1,
                                            filter: (searchQuery && !matchesSearch) || !matchesStatus ? 'grayscale(0.5)' : 'none'
                                         }}>
-                                           <div 
-                                             onClick={() => {
-                                               setSelectedDate(date);
-                                               setSelectedTime(time);
-                                               setSelectedSlotState(state);
-                                               setShowActionDrawer(true);
-                                             }}
-                                             style={{ 
-                                               ...slotInnerStyle(state),
-                                               border: matchesSearch ? '2px solid #f97316' : slotInnerStyle(state).border,
-                                               boxShadow: matchesSearch ? '0 0 12px rgba(249, 115, 22, 0.4)' : slotInnerStyle(state).boxShadow,
-                                               animation: matchesSearch ? 'pulse 1.5s infinite' : slotInnerStyle(state).animation
-                                             }}
-                                           >
-                                              {state.status === 'BOOKED' ? <User size={12} /> : state.label === 'AVAILABLE' ? <Plus size={12} /> : ''}
-                                           </div>
+                                             <div 
+                                               className="appointment-slot"
+                                               onClick={() => {
+                                                 setSelectedDate(date);
+                                                 setSelectedTime(time);
+                                                 setSelectedSlotState(state);
+                                                 setShowActionDrawer(true);
+                                               }}
+                                               title={state.appointment ? `Patient: ${state.appointment.patient_name}\nMRN: ${state.appointment.patient_mrn || 'N/A'}` : state.label}
+                                               style={{ 
+                                                 ...slotInnerStyle(state),
+                                                 border: matchesSearch ? '2px solid #f97316' : slotInnerStyle(state).border,
+                                                 boxShadow: matchesSearch ? '0 0 12px rgba(249, 115, 22, 0.4)' : slotInnerStyle(state).boxShadow,
+                                                 animation: matchesSearch ? 'pulse 1.5s infinite' : slotInnerStyle(state).animation,
+                                                 position: 'relative'
+                                               }}
+                                             >
+                                                {state.status === 'BOOKED' ? (
+                                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }} className="slot-content">
+                                                    <User size={12} />
+                                                    <div className="custom-tooltip">
+                                                      <div style={{ fontWeight: 800 }}>{state.appointment.patient_name}</div>
+                                                      <div style={{ color: '#cbd5e1', fontSize: '9px' }}>MRN: {state.appointment.patient_mrn || 'N/A'}</div>
+                                                    </div>
+                                                    {matchesSearch && (
+                                                      <div style={{ 
+                                                        position: 'absolute', top: '-30px', left: '50%', transform: 'translateX(-50%)',
+                                                        background: '#0f172a', color: 'white', padding: '4px 8px', borderRadius: '4px',
+                                                        fontSize: '10px', whiteSpace: 'nowrap', zIndex: 10, pointerEvents: 'none'
+                                                      }}>
+                                                        {state.appointment.patient_name}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ) : state.label === 'AVAILABLE' ? <Plus size={12} /> : ''}
+                                             </div>
                                         </div>
                                      );
                                   })}
@@ -421,7 +439,6 @@ export default function DoctorAvailabilityPage() {
           time={selectedTime}
           state={selectedSlotState}
           doctor={selectedDoctor}
-          patients={patients}
           onSuccess={fetchSchedulingData}
           reschedulingAppt={reschedulingAppt}
           setReschedulingAppt={setReschedulingAppt}
@@ -461,18 +478,34 @@ const StatusBadge = ({ status, delay }: any) => {
   );
 };
 
-const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, onSuccess, reschedulingAppt, setReschedulingAppt }: any) => {
+const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess, reschedulingAppt, setReschedulingAppt }: any) => {
   const [patientId, setPatientId] = useState("");
   const [patientSearch, setPatientSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
 
-  const filteredPatients = patientSearch.length > 0 
-    ? patients.filter((p: any) => 
-        p.name.toLowerCase().includes(patientSearch.toLowerCase()) || 
-        (p.mrn && p.mrn.toLowerCase().includes(patientSearch.toLowerCase()))
-      ).slice(0, 50)
-    : [];
+  const [localPatients, setLocalPatients] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (patientSearch.length > 1) {
+      const delayDebounceFn = setTimeout(async () => {
+        setIsSearching(true);
+        try {
+          const res = await axios.get(`${API_BASE}/api/patients?q=${patientSearch}`, { 
+            headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } 
+          });
+          setLocalPatients(res.data || []);
+        } catch (e) { console.error(e); }
+        finally { setIsSearching(false); }
+      }, 300);
+      return () => clearTimeout(delayDebounceFn);
+    } else {
+      setLocalPatients([]);
+    }
+  }, [patientSearch]);
+
+  const filteredPatients = localPatients;
 
   const handleBook = async () => {
     if (!patientId) return alert("Select patient");
@@ -485,7 +518,6 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
         patient_id: patientId, doctor_id: doctor.id, appointment_time: dt.toISOString(), status: 'Scheduled'
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
 
-      // Analytics: Track booking
       trackEvent('appointment_booked', {
         doctor_id: doctor.id,
         patient_id: patientId,
@@ -525,9 +557,19 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
   const applyOverride = async (available: boolean) => {
     setLoading(true);
     try {
+      // Calculate end time (30 mins duration for a single slot override)
+      const [h, m] = time.split(':').map(Number);
+      const endM = (m + 30) % 60;
+      const endH = h + Math.floor((m + 30) / 60);
+      const endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
       await axios.post(`${API_BASE}/api/doctors/overrides`, {
-        doctor_id: doctor.id, override_date: date.toISOString().split('T')[0], start_time: time, end_time: time,
-        is_available: available, reason: reason || (available ? 'Manual Opening' : 'Manual Block')
+        doctor_id: doctor.id, 
+        override_date: date.toISOString().split('T')[0], 
+        start_time: time, 
+        end_time: endTime,
+        is_available: available, 
+        reason: reason || (available ? 'Manual Opening' : 'Manual Block')
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
       onSuccess(); onClose();
     } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -542,7 +584,6 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
     try {
       await axios.delete(`${API_BASE}/api/appointments/${state.appointment.id}`, { headers: authHeaders });
       
-      // Analytics: Track cancellation
       trackEvent('appointment_cancelled', {
         doctor_id: doctor.id,
         appointment_id: state.appointment.id
@@ -614,75 +655,77 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, patients, 
                       </div>
                     ) : (
                       <>
-                        {patients.length > 0 ? (
-                          <>
-                            <div style={{ position: 'relative' }}>
-                              <input 
-                                type="text"
-                                placeholder="Type Patient Name or MRN..."
-                                value={patientSearch}
-                                onChange={(e) => {
-                                  setPatientSearch(e.target.value);
-                                  // If there's an exact match, auto-select
-                                  const exact = patients.find((p:any) => p.name.toLowerCase() === e.target.value.toLowerCase());
-                                  if(exact) setPatientId(exact.id);
-                                }}
-                                style={{ ...inputStyle, marginBottom: filteredPatients.length > 0 ? '0' : '12px', borderBottomLeftRadius: filteredPatients.length > 0 ? '0' : '14px', borderBottomRightRadius: filteredPatients.length > 0 ? '0' : '14px' }}
-                                list="patient-list"
-                              />
-                              {filteredPatients.length > 0 && patientSearch.length > 0 && (
-                                <div style={{ 
-                                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                                  background: 'white', border: '1px solid #e2e8f0', borderTop: 'none',
-                                  maxHeight: '200px', overflowY: 'auto', borderBottomLeftRadius: '14px', borderBottomRightRadius: '14px',
-                                  boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
-                                }}>
-                                  {filteredPatients.map((p: any) => (
-                                    <div 
-                                      key={p.id}
-                                      onClick={() => {
-                                        setPatientId(p.id);
-                                        setPatientSearch(`${p.name} (${p.mrn || 'No MRN'})`);
-                                        // Close suggestions
-                                      }}
-                                      style={{ 
-                                        padding: '12px 16px', cursor: 'pointer', fontSize: '13px', 
-                                        borderBottom: '1px solid #f8fafc',
-                                        background: patientId === p.id ? '#eef2ff' : 'white'
-                                      }}
-                                    >
-                                      <div style={{ fontWeight: 800 }}>{p.name}</div>
-                                      <div style={{ fontSize: '11px', color: '#64748b' }}>MRN: {p.mrn || 'N/A'} • {p.phone || 'No Phone'}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            
-                            <button 
-                              onClick={handleBook} 
-                              disabled={loading || !state.isBookable || !patientId} 
-                              style={{ ...primaryBtnStyle, marginTop: filteredPatients.length > 0 ? '16px' : '0', width: '100%' }}
-                            >
-                               {loading ? 'Processing...' : 'Confirm Appointment'}
-                            </button>
-                            {state.status === 'UNAVAILABLE' && (
-                              <div style={{ fontSize: '11px', color: '#f59e0b', marginTop: '12px', padding: '12px', background: '#fff7ed', borderRadius: '10px', border: '1px solid #ffedd5' }}>
-                                <AlertCircle size={14} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }}/> 
-                                <strong>OFF-HOURS SLOT:</strong> This time is outside the doctor's weekly rules. Use the <strong>Open Slot</strong> button below if you wish to override and enable booking.
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div style={{ padding: '16px', background: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5' }}>
-                            <div style={{ fontSize: '13px', color: '#9a3412', fontWeight: 700 }}>No Patients Found</div>
-                            <div style={{ fontSize: '11px', color: '#c2410c', marginTop: '4px' }}>Register patients in the Patient Master first.</div>
-                            <button onClick={() => window.location.href='/tenant/patients'} style={{ ...quickBtnStyle('#ea580c'), marginTop: '12px', width: '100%' }}>Register Patient</button>
-                          </div>
-                        )}
+                         {localPatients.length > 0 || patientSearch.length > 0 ? (
+                           <>
+                             <div style={{ position: 'relative' }}>
+                               <input 
+                                 type="text"
+                                 placeholder="Type Patient Name or MRN..."
+                                 value={patientSearch}
+                                 onChange={(e) => {
+                                   setPatientSearch(e.target.value);
+                                 }}
+                                 style={{ ...inputStyle, marginBottom: filteredPatients.length > 0 ? '0' : '12px', borderBottomLeftRadius: filteredPatients.length > 0 ? '0' : '14px', borderBottomRightRadius: filteredPatients.length > 0 ? '0' : '14px' }}
+                               />
+                               {isSearching && <div style={{ position: 'absolute', right: '12px', top: '15px', fontSize: '10px', color: '#94a3b8' }}>Searching...</div>}
+                               {filteredPatients.length > 0 && (
+                                 <div style={{ 
+                                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                                   background: 'white', border: '1px solid #e2e8f0', borderTop: 'none',
+                                   maxHeight: '200px', overflowY: 'auto', borderBottomLeftRadius: '14px', borderBottomRightRadius: '14px',
+                                   boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
+                                 }}>
+                                   {filteredPatients.map((p: any) => (
+                                     <div 
+                                       key={p.id}
+                                       onClick={() => {
+                                         setPatientId(p.id);
+                                         setPatientSearch(`${p.name} (${p.mrn || 'No MRN'})`);
+                                         setLocalPatients([]); // Clear suggestions
+                                       }}
+                                       style={{ 
+                                         padding: '12px 16px', cursor: 'pointer', fontSize: '13px', 
+                                         borderBottom: '1px solid #f8fafc',
+                                         background: patientId === p.id ? '#eef2ff' : 'white'
+                                       }}
+                                     >
+                                       <div style={{ fontWeight: 800 }}>{p.name}</div>
+                                       <div style={{ fontSize: '11px', color: '#64748b' }}>MRN: {p.mrn || 'N/A'} • {p.phone || 'No Phone'}</div>
+                                     </div>
+                                   ))}
+                                 </div>
+                               )}
+                             </div>
+                             
+                             <button 
+                               onClick={handleBook} 
+                               disabled={loading || !state.isBookable || !patientId} 
+                               style={{ ...primaryBtnStyle, marginTop: filteredPatients.length > 0 ? '16px' : '0', width: '100%' }}
+                             >
+                                {loading ? 'Processing...' : 'Confirm Appointment'}
+                             </button>
+                           </>
+                         ) : (
+                           <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                             <User size={24} style={{ color: '#94a3b8', marginBottom: '8px' }} />
+                             <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Search for a patient to begin booking.</div>
+                             <input 
+                               type="text"
+                               placeholder="Start typing name..."
+                               value={patientSearch}
+                               onChange={(e) => setPatientSearch(e.target.value)}
+                               style={{ ...inputStyle, marginTop: '12px' }}
+                             />
+                           </div>
+                         )}
                       </>
                     )}
-                    {!state.isBookable && <div style={{ fontSize: '11px', color: '#e11d48', marginTop: '4px', fontWeight: 700 }}><AlertCircle size={10}/> Historical slots cannot be modified.</div>}
+                    {!state.isBookable && (
+                      <div style={{ fontSize: '11px', color: '#e11d48', marginTop: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle size={12}/> 
+                        {state.isPast ? 'Historical slots cannot be modified.' : 'This slot is currently unavailable for booking.'}
+                      </div>
+                    )}
                  </div>
 
                 <div style={{ marginTop: 'auto', borderTop: '1px solid #f1f5f9', paddingTop: '24px' }}>

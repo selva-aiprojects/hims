@@ -54,8 +54,37 @@ model Encounter {
   diagnosis String?
   notes     String?
   createdAt DateTime @default(now()) @map("created_at")
+  
+  events      ConsultationEvent[]
+  predictions ConsultationPrediction[]
 
   @@map("encounters")
+}
+
+model ConsultationEvent {
+  id          String   @id @default(uuid())
+  encounterId String   @map("encounter_id")
+  eventType   String   @map("event_type")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
+
+  @@map("consultation_events")
+}
+
+model ConsultationPrediction {
+  id                String   @id @default(uuid())
+  encounterId       String   @map("encounter_id")
+  predictedTimeMins Int      @map("predicted_time_mins")
+  complexity        String
+  triagePriority    Int      @map("triage_priority")
+  reasoning         String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  
+  encounter         Encounter @relation(fields: [encounterId], references: [id])
+
+  @@map("consultation_predictions")
 }
 
 model Prescription {

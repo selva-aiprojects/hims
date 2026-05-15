@@ -305,6 +305,26 @@ CREATE TABLE encounters (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+DROP TABLE IF EXISTS consultation_events CASCADE;
+CREATE TABLE consultation_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  encounter_id UUID REFERENCES encounters(id),
+  event_type VARCHAR(50) NOT NULL, -- CHECK_IN, TRIAGE_START, CONSULT_START, PAUSE, RESUME, CONSULT_END
+  metadata JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS consultation_predictions CASCADE;
+CREATE TABLE consultation_predictions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  encounter_id UUID REFERENCES encounters(id),
+  predicted_time_mins INTEGER,
+  complexity VARCHAR(50),
+  triage_priority INTEGER,
+  reasoning TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 DROP TABLE IF EXISTS complaints CASCADE;
 CREATE TABLE complaints (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -11,73 +11,51 @@ test.describe('OPD Module Regression - Field Level Validation', () => {
   });
 
   test('Full OPD Registration and Vitals Capture Flow', async ({ page }) => {
-    // 1. Navigate to OPD Registration
-    await page.click('text=OPD Registration');
+    // 1. Navigate to OPD Center
+    await auth.navigateToSidebar('OPD Center');
     await expect(page).toHaveURL(/.*opd\/registration/);
     await page.waitForLoadState('networkidle');
 
-    // 2. Register a new patient using the modal
-    await page.click('button:has-text("+ Register New Patient")');
-    await page.waitForTimeout(500);
-    
+    // 2. Register a new patient by typing their name (auto-triggers form)
     const patientName = `Test Patient ${Date.now()}`;
-    await page.fill('input[placeholder="Full Name"]', patientName);
-    await page.fill('input[placeholder="Phone Number"]', '9876543210');
-    await page.fill('input[type="number"][placeholder="Age"]', '35');
+    const searchInput = page.getByPlaceholder('Type Phone, Name or MRN to begin...');
+    await searchInput.fill(patientName);
+    await page.waitForTimeout(1000); // Allow search/auto-expand
     
-    // Select gender
-    const genderSelect = page.locator('select').first();
-    await genderSelect.selectOption('Male');
+    await expect(page.getByText('NEW PATIENT PROFILE')).toBeVisible();
+    await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill('9876543210');
     
-    // Save patient record
-    await page.click('button:has-text("Save Record & Generate AI Summary")');
-    await page.waitForTimeout(2000);
-
-    // 3. Capture Vitals - fill all vitals via direct form interaction
-    // Get all text inputs (excluding search inputs)
-    const allInputs = await page.locator('input').all();
-    const textInputs = [];
-    
-    for (const input of allInputs) {
-      const type = await input.getAttribute('type');
-      if (type === 'text' || !type) {
-        textInputs.push(input);
-      }
-    }
-    
-    // Fill vitals (should be after the patient name search field)
-    if (textInputs.length >= 5) {
-      // Assuming: [0]=search, [1]=weight, [2]=bp, [3]=temp, [4]=height
-      await textInputs[1].fill('70');
-      await textInputs[2].fill('120/80');
-      await textInputs[3].fill('98.6');
-      await textInputs[4].fill('170');
-    }
+    // 3. Capture Vitals
+    await page.getByPlaceholder('e.g. 70').fill('70');
+    await page.getByPlaceholder('e.g. 120/80').fill('120/80');
+    await page.getByPlaceholder('e.g. 98.6').fill('98.6');
+    await page.getByPlaceholder('e.g. 175').fill('170');
     
     // Assign doctor
-    const doctorSelect = page.locator('select').nth(1);
-    await doctorSelect.selectOption({ index: 1 }); // Select first doctor
-    await page.waitForTimeout(500);
+    const firstDoctor = page.locator('button').filter({ hasText: /Dr\./ }).first();
+    await expect(firstDoctor).toBeVisible();
+    await firstDoctor.click();
     
-    // Just verify the form elements are present and fields are filled
-    await expect(page.locator('button:has-text("Generate Token & Start Visit")')).toBeVisible();
+    // Just verify the finalize button is ready
+    await expect(page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i })).toBeEnabled();
   });
 
   test('OPD Registration Form Field Validations', async ({ page }) => {
-    // Navigate to OPD Registration
-    await page.click('text=OPD Registration');
+    // Navigate to OPD Center
+    await auth.navigateToSidebar('OPD Center');
     await expect(page).toHaveURL(/.*opd\/registration/);
     
-    // Click register but don't fill data
-    await page.click('button:has-text("+ Register New Patient")');
-    await page.waitForTimeout(500);
+    // Trigger form by typing
+    await page.getByPlaceholder('Type Phone, Name or MRN to begin...').fill(`Validate${Date.now()}`);
+    await page.waitForTimeout(1000);
     
-    // Try to save without filling required fields
-    await page.click('button:has-text("Save Record & Generate AI Summary")');
+    // Try to finalize without mandatory fields
+    await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();
     
-    // Browser validation should prevent submission
-    const nameInput = page.locator('input[placeholder="Full Name"]');
-    const isRequired = await nameInput.evaluate((node: HTMLInputElement) => node.required);
-    expect(isRequired).toBe(true);
+    // Should show error or be disabled if fields missing
+    // In this UI, finalize is disabled until minimal info is present
+    const btn = page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i });
+    const isDisabled = await btn.isDisabled();
+    expect(isDisabled).toBe(true);
   });
 });

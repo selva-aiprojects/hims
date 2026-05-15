@@ -532,16 +532,59 @@ router.get("/encounters", async (req, res, next) => {
     const doctorFilter = doctorId ? `AND e.doctor_id = '${doctorId}'` : '';
     const statusFilter = status === 'All' ? '' : `AND e.status = '${status}'`;
     
-    const data = await req.prisma.$queryRawUnsafe(`
-      SELECT e.*, p.name as patient_name, p.mrn, u.name as doctor_name 
+    // Enhanced Query to fetch Predictions and latest Events
+    const query = `
+      SELECT 
+        e.*, 
+        p.name as patient_name, p.mrn, p.age, p.gender,
+        u.name as doctor_name,
+        cp.predicted_time_mins,
+        (SELECT event_type FROM "${req.schemaName}".consultation_events WHERE encounter_id = e.id ORDER BY created_at DESC LIMIT 1) as latest_event,
+        (SELECT created_at FROM "${req.schemaName}".consultation_events WHERE encounter_id = e.id AND event_type = 'CONSULT_START' ORDER BY created_at DESC LIMIT 1) as start_time
       FROM "${req.schemaName}".encounters e
       JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
       JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      LEFT JOIN "${req.schemaName}".consultation_predictions cp ON cp.encounter_id = e.id
       WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter}
-      ORDER BY e.created_at DESC
-    `);
-    res.json(data);
-  } catch (error) { next(error); }
+      ORDER BY e.created_at ASC
+    `;
+    
+    const encounters = await req.prisma.$queryRawUnsafe(query);
+
+    // --- QUEUE WAIT TIME ENGINE ---
+    const doctorQueues = {};
+    encounters.forEach(enc => {
+      if (!doctorQueues[enc.doctor_id]) doctorQueues[enc.doctor_id] = [];
+      doctorQueues[enc.doctor_id].push(enc);
+    });
+
+    Object.keys(doctorQueues).forEach(docId => {
+      let cumulativeWait = 0;
+      const queue = doctorQueues[docId]; // Already sorted by created_at ASC in SQL
+      
+      queue.forEach((enc) => {
+        if (enc.latest_event === 'CONSULT_START') {
+          const elapsed = (Date.now() - new Date(enc.start_time).getTime()) / 60000;
+          const remaining = Math.max(0, (enc.predicted_time_mins || 15) - elapsed);
+          enc.predicted_wait_time = 0;
+          cumulativeWait = remaining;
+          enc.is_in_consultation = true;
+        } else if (enc.latest_event === 'CONSULT_END' || enc.status === 'Completed') {
+          enc.predicted_wait_time = 0;
+          enc.is_finished = true;
+        } else {
+          enc.predicted_wait_time = Math.round(cumulativeWait);
+          cumulativeWait += (enc.predicted_time_mins || 15);
+          enc.is_waiting = true;
+        }
+      });
+    });
+
+    res.json(encounters);
+  } catch (error) { 
+    console.error("[GET_ENCOUNTERS] Error:", error.message);
+    next(error); 
+  }
 });
 
 // --- IPD / BED MANAGEMENT ---

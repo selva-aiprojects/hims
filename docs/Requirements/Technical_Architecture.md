@@ -5,13 +5,23 @@ Healthezee HIMS is a high-velocity, multi-tenant clinical platform designed for 
 
 ---
 
-## 2. Technology Stack
+## 2. Environment & Port Mapping
+- **Frontend (Local)**: `http://localhost:3000` (Vite)
+- **Backend (Local)**: `http://localhost:4000` (Express)
+- **Monitoring (Local)**: `http://localhost:5000` (Prometheus/Grafana)
+- **Production (Vercel)**: Unified architecture with `/api/*` routing.
+
+---
+
+## 3. Technology Stack
 
 ### **Core Infrastructure**
 - **Frontend**: React (Vite) + Lucide Icons + Vanilla CSS (Adaptive Design)
 - **Backend**: Node.js (Express)
+- **Mobile**: **Flutter (Dart)** for cross-platform Doctor & Patient applications
 - **Database**: PostgreSQL with **Prisma ORM**
 - **Architecture**: Multi-tenant schema isolation (Tenant-ID locked)
+- **Analytics & Observability**: **PostHog** (User behavior tracking and operational heatmaps)
 - **Testing**: Playwright (E2E Regression)
 
 ### **AI & Generative AI (GenAI)**
@@ -22,10 +32,14 @@ We utilize an **API-first GenAI Architecture** for clinical intelligence:
 - **Foundational Patterns**:
   - **Context-Injection**: Dynamic injection of hospital-specific metrics and patient history into LLM prompts (Foundational RAG).
   - **Multi-Modal OCR**: Vision-based extraction of structured findings from hand-written or printed medical documents.
+- **Predictive Analytics Layer**: Node.js-based inference engine that processes live clinical data through LLMs to generate operational forecasts (Time, Complexity, Resource Needs).
+- **Clinical Summarization Engine**: 
+  - **Medication Summaries**: Automatic consolidation of medication regimens into human-readable patient instructions.
+  - **Smart Discharge Summaries**: AI-driven synthesis of IPD stays, laboratory results, and treatment outcomes into structured discharge documents.
 
 ---
 
-## 3. ABHA Identity Integration (ABDM M1)
+## 4. ABHA Identity Integration (ABDM M1)
 The platform is fully integrated with India's **National Digital Health Stack (ABDM)** using an Enterprise flow.
 
 ### **Architecture**
@@ -39,14 +53,14 @@ The platform is fully integrated with India's **National Digital Health Stack (A
 
 ---
 
-## 4. Cloud Resource Monitoring (Nexus)
+## 5. Cloud Resource Monitoring (Nexus)
 - **Telemetry**: Infrastructure tracking via `prom-client`.
 - **Dashboard**: Real-time visualization of database utilization, active tenants, and cloud resource consumption.
 - **Persistence**: Daily cron-based snapshotting of infrastructure actuals for historical trend analysis.
 
 ---
 
-## 5. Security & Compliance
+## 6. Security & Compliance
 - **RBAC**: Role-Based Access Control integrated with multi-tenant shard validation.
 - **Data Privacy**: Strict tenant isolation at the database schema level.
 - **Audit Trails**: Global and tenant-specific audit logs for all clinical and administrative actions.

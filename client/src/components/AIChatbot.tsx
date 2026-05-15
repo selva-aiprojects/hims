@@ -51,8 +51,12 @@ const AIChatbot: React.FC = () => {
     }
   };
 
-  // MOVE CONDITIONAL RETURN HERE (After all hooks)
-  if (location.pathname === '/' || location.pathname === '/login') {
+  // Suppress chatbot if in login page or automation mode to avoid UI overlaps in tests
+  if (
+    location.pathname === '/' || 
+    location.pathname === '/login' || 
+    localStorage.getItem('isAutomation') === 'true'
+  ) {
     return null;
   }
 

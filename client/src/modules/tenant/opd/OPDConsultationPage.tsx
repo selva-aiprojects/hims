@@ -50,9 +50,14 @@ export default function OPDConsultationPage() {
   const [isAdmissionPrescribed, setIsAdmissionPrescribed] = useState(false);
   const [admissionReason, setAdmissionReason] = useState("");
 
-  // Predictive Analysis State
   const [predictions, setPredictions] = useState<any>(null);
   const [isPredicting, setIsPredicting] = useState(false);
+
+  // Timer & Event State
+  const [hasStarted, setHasStarted] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [startTime, setStartTime] = useState<Date | null>(null);
 
 
   const getHeaders = () => ({
@@ -83,6 +88,7 @@ export default function OPDConsultationPage() {
     try {
       const res = await axios.post(`${API_BASE}/api/consultations/predict`, {
         patientId: patient.id,
+        encounterId: encounter.id,
         complaints: encounter.complaints || "Routine checkup",
         doctorId: localStorage.getItem("userId") || ""
       }, { headers: getHeaders() });
@@ -92,6 +98,46 @@ export default function OPDConsultationPage() {
     } finally {
       setIsPredicting(false);
     }
+  };
+
+  const recordEvent = async (eventType: string, metadata: any = {}) => {
+    try {
+      await axios.post(`${API_BASE}/api/consultations/events`, {
+        encounterId: encounter.id,
+        eventType,
+        metadata
+      }, { headers: getHeaders() });
+    } catch (err) {
+      console.error(`Failed to record event ${eventType}:`, err);
+    }
+  };
+
+  const startConsultation = () => {
+    setHasStarted(true);
+    setStartTime(new Date());
+    recordEvent('CONSULT_START');
+  };
+
+  const togglePause = () => {
+    const newPauseState = !isPaused;
+    setIsPaused(newPauseState);
+    recordEvent(newPauseState ? 'PAUSE' : 'RESUME', { elapsedSeconds });
+  };
+
+  useEffect(() => {
+    let interval: any;
+    if (hasStarted && !isPaused) {
+      interval = setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [hasStarted, isPaused]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const fetchPatientDetails = async (id: string) => {
@@ -185,6 +231,7 @@ export default function OPDConsultationPage() {
       }
 
       localStorage.removeItem("currentEncounter");
+      await recordEvent('CONSULT_END', { totalDuration: elapsedSeconds });
       setShowPostConsultModal(true);
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Failed to save consultation.";
@@ -301,6 +348,28 @@ export default function OPDConsultationPage() {
           <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>Unified command interface for clinical diagnosis, AI-assisted prescription, and diagnostic orders.</p>
         </div>
 
+        {/* START CONSULTATION OVERLAY */}
+        {!hasStarted && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(12px)',
+            zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>
+            <div className="page-card" style={{ padding: '48px', textAlign: 'center', maxWidth: '480px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+              <Timer size={64} style={{ color: '#3b82f6', marginBottom: '24px', animation: 'pulse 2s infinite' }} />
+              <h2 style={{ fontSize: '28px', fontWeight: 900, marginBottom: '16px' }}>Ready to Begin?</h2>
+              <p style={{ color: '#64748b', marginBottom: '32px', fontSize: '16px' }}>Starting the consultation will begin the session timer and notify the queue manager of the patient's status.</p>
+              <button 
+                onClick={startConsultation}
+                className="button-primary" 
+                style={{ width: '100%', padding: '20px', fontSize: '18px', borderRadius: '16px' }}
+              >
+                START CONSULTATION NOW
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* COMPREHENSIVE PATIENT HUD */}
         <div className="page-card" style={{ padding: '28px', borderRadius: '28px', marginBottom: '28px', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
@@ -321,7 +390,16 @@ export default function OPDConsultationPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '28px', borderLeft: '1px solid #f1f5f9', paddingLeft: '28px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '28px', borderLeft: '1px solid #f1f5f9', paddingLeft: '28px' }}>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Session Timer</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                <Timer size={16} style={{ color: isPaused ? '#ef4444' : '#10b981' }} />
+                <span style={{ fontSize: '18px', fontWeight: 900, color: isPaused ? '#ef4444' : '#0f172a', fontFamily: 'monospace' }}>{formatTime(elapsedSeconds)}</span>
+              </div>
+              <button onClick={togglePause} style={{ border: 'none', background: 'transparent', color: '#3b82f6', fontSize: '10px', fontWeight: 800, cursor: 'pointer', padding: '4px 0' }}>
+                {isPaused ? 'RESUME' : 'PAUSE'}
+              </button>
+            </div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Blood Pressure</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Activity size={16} style={{ color: '#ef4444' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.bp || '--'}</span></div></div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Temperature</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Thermometer size={16} style={{ color: '#f59e0b' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.temp || '--'}°F</span></div></div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Weight</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Scale size={16} style={{ color: '#3b82f6' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.weight || '--'}kg</span></div></div>

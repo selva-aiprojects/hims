@@ -14,6 +14,7 @@ export const getSlotState = ({
   const slotDate = new Date(y, mo - 1, d, h, mi);
   
   // Buffer of 30 mins to allow editing/booking current/very recent slots
+  // Comparison is done in local time as slotDate is constructed from local components
   const isPast = slotDate.getTime() < (now.getTime() - 30 * 60 * 1000);
   const isCurrent = Math.abs(slotDate.getTime() - now.getTime()) < 30 * 60 * 1000;
   

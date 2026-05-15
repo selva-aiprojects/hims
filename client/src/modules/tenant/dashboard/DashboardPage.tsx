@@ -132,8 +132,8 @@ export default function DashboardPage() {
     },
     yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
     series: [
-      { name: 'Actual Load', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.actual), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6', areaStyle: { color: 'rgba(59, 130, 246, 0.1)' } },
-      { name: 'Predicted', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.predicted), type: 'line', smooth: true, lineStyle: { width: 3, type: 'dashed' }, color: '#10b981' }
+      { name: 'Actual Duration', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.actual), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6', areaStyle: { color: 'rgba(59, 130, 246, 0.1)' } },
+      { name: 'AI Predicted', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.predicted), type: 'line', smooth: true, lineStyle: { width: 3, type: 'dashed' }, color: '#10b981' }
     ]
   };
 
@@ -217,8 +217,12 @@ export default function DashboardPage() {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '24px' }}>
              <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#475569' }}>Resource Workload Forecast</h4>
-                   <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '4px 10px', borderRadius: '20px' }}>AI PREDICTED</div>
+                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#475569' }}>Operational Accuracy (Last 10 Consultations)</h4>
+                   <div style={{ display: 'flex', gap: '8px' }}><div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '4px 10px', borderRadius: '20px' }}>AI SYNCED</div>
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: (stats.predictive?.utilization || 0) > 80 ? '#ef4444' : '#3b82f6', background: (stats.predictive?.utilization || 0) > 80 ? '#fef2f2' : '#eff6ff', padding: '4px 10px', borderRadius: '20px' }}>
+                        UTILIZATION: {stats.predictive?.utilization || 0}%
+                      </div>
+                    </div>
                 </div>
                 <ReactECharts option={workloadOption} style={{ height: '240px' }} />
              </div>

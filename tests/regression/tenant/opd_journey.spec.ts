@@ -18,6 +18,13 @@ async function loadConsultationWithMock(page: Page, enc: object) {
   await page.reload();
   await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(1500);
+
+  // NEW: Handle the 'START CONSULTATION NOW' overlay that blocks interaction
+  const startBtn = page.getByRole('button', { name: /START CONSULTATION NOW/i });
+  if (await startBtn.isVisible()) {
+    await startBtn.click();
+    await page.waitForTimeout(500); // Allow overlay to fade
+  }
 }
 
 // Use valid UUID-format IDs so the backend does a graceful null lookup
@@ -228,7 +235,7 @@ test.describe('OPD-3: Consultation Page', () => {
 
   test('OPD-3.11 Finish button label changes when diagnosis entered', async ({ page }) => {
     await loadConsultationWithMock(page, ENC('e9'));
-    await expect(page.locator('button').filter({ hasText: /ENTER DIAGNOSIS TO FINISH/ }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('button').filter({ hasText: /DIAGNOSIS REQUIRED/ }).first()).toBeVisible({ timeout: 10000 });
     await page.getByPlaceholder(/Enter Clinical Diagnosis/i).fill('Hypertension');
     await expect(page.locator('button').filter({ hasText: /FINISH CONSULTATION/ }).first()).toBeVisible({ timeout: 5000 });
   });

@@ -40,7 +40,7 @@ export default function OPDQueuePage() {
     }
   };
 
-  const calculateWaitTime = (createdAt: string) => {
+  const calculateActualWaitTime = (createdAt: string) => {
     const start = new Date(createdAt).getTime();
     const now = new Date().getTime();
     const diff = Math.floor((now - start) / 60000);
@@ -111,9 +111,19 @@ export default function OPDQueuePage() {
                        <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>{enc.mrn} • {enc.gender}, {enc.age} yrs</div>
                      </div>
                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '12px', fontWeight: 700 }}>
-                        <Clock size={12} /> {calculateWaitTime(enc.created_at)}
+                        <Clock size={12} /> {calculateActualWaitTime(enc.created_at)}
                      </div>
                    </div>
+
+                   {enc.is_in_consultation ? (
+                      <div style={{ background: '#dcfce7', color: '#059669', padding: '8px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 800, textAlign: 'center' }}>
+                        IN CONSULTATION NOW
+                      </div>
+                    ) : (
+                      <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '8px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: 800, textAlign: 'center' }}>
+                        ESTIMATED WAIT: {enc.predicted_wait_time} MINS
+                      </div>
+                    )}
                    
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
                      <div style={{ fontWeight: 700, color: '#475569', fontSize: '12px' }}>Dr. {enc.doctor_name}</div>
@@ -195,9 +205,16 @@ export default function OPDQueuePage() {
                       </div>
                     </td>
                     <td style={{ padding: '16px 24px' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
-                          <Clock size={14} /> {calculateWaitTime(enc.created_at)}
-                       </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', fontSize: '12px', fontWeight: 600 }}>
+                            <span style={{ fontSize: '10px', color: '#94a3b8' }}>ACTUAL:</span> {calculateActualWaitTime(enc.created_at)}
+                          </div>
+                          {enc.is_in_consultation ? (
+                            <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 800 }}>● IN CONSULTATION</div>
+                          ) : (
+                            <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 800 }}>EST. WAIT: {enc.predicted_wait_time}m</div>
+                          )}
+                        </div>
                     </td>
                     <td style={{ padding: '16px 24px', textAlign: 'right' }}>
                       <button 

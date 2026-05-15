@@ -8,6 +8,26 @@ const router = express.Router();
 router.get("/stats", async (req, res, next) => {
   try {
     const schema = req.schemaName;
+    
+    // Schema Guard: Ensure predictive analytics tables exist
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".consultation_predictions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        encounter_id UUID,
+        predicted_time_mins INTEGER,
+        complexity VARCHAR(50),
+        triage_priority INTEGER,
+        reasoning TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS "${schema}".consultation_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        encounter_id UUID,
+        event_type VARCHAR(50),
+        metadata JSONB,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
     // 1. CORE KPIs (LIVE)
     const [patientCount, admissionCount, billCount, revenue] = await Promise.all([
@@ -80,16 +100,45 @@ router.get("/stats", async (req, res, next) => {
     // 8. Latest Patient
     const lastPatientRes = await req.prisma.$queryRawUnsafe(`SELECT name FROM "${schema}".patients ORDER BY created_at DESC LIMIT 1`);
 
-    // 9. PREDICTIVE ANALYTICS (NEW)
-    // Complexity Mix of Today's Consultations (Simulated or based on AI labels if stored)
-    // For now, let's derive it from the symptoms/diagnoses trends
-    const complexityMix = [
-      { name: 'Routine', value: 65 },
-      { name: 'Moderate', value: 25 },
-      { name: 'Complex', value: 10 }
-    ];
+    // 9. PREDICTIVE ANALYTICS (REAL)
+    // 9.1 Complexity Mix from AI Predictions
+    const complexityResults = await req.prisma.$queryRawUnsafe(`
+      SELECT complexity as name, COUNT(*)::int as count 
+      FROM "${schema}".consultation_predictions 
+      GROUP BY complexity
+    `);
+    const totalComplexity = complexityResults.reduce((acc, c) => acc + c.count, 0) || 1;
+    const complexityMix = complexityResults.map(c => ({
+      name: c.name,
+      value: Math.round((c.count / totalComplexity) * 100)
+    }));
 
-    const predictedAvgTime = 18.5; // Mins
+    // 9.2 Predicted vs Actual (Accuracy Tracker)
+    // Fetch last 10 completed consultations
+    const accuracyStats = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        cp.predicted_time_mins as predicted,
+        COALESCE(NULLIF(ce.metadata->>'totalDuration', '')::float, 0) / 60 as actual,
+        e.created_at as time
+      FROM "${schema}".consultation_predictions cp
+      JOIN "${schema}".consultation_events ce ON ce.encounter_id = cp.encounter_id AND ce.event_type = 'CONSULT_END'
+      JOIN "${schema}".encounters e ON e.id = cp.encounter_id
+      ORDER BY e.created_at DESC
+      LIMIT 10
+    `);
+
+    // 9.3 Avg Predicted Time
+    const avgPredictedRes = await req.prisma.$queryRawUnsafe(`SELECT AVG(predicted_time_mins)::float FROM "${schema}".consultation_predictions`);
+
+    // 9.4 Physician Utilization (Last 24h)
+    const utilizationRes = await req.prisma.$queryRawUnsafe(`
+      SELECT 
+        COALESCE(SUM(NULLIF(metadata->>'totalDuration', '')::float), 0) / 3600 as active_hours
+      FROM "${schema}".consultation_events 
+      WHERE event_type = 'CONSULT_END' AND created_at > NOW() - INTERVAL '24 hours'
+    `);
+    const activeHours = utilizationRes[0]?.active_hours || 0;
+    const utilizationPercent = Math.min(100, Math.round((activeHours / 8) * 100)); // Assuming 8h shift for index
 
     res.json({
       metrics: {
@@ -107,15 +156,14 @@ router.get("/stats", async (req, res, next) => {
       weeklyFlow,
       totalBeds: bedStats.reduce((acc, b) => acc + (b.count || 0), 0) || 49,
       predictive: {
-        complexityMix,
-        predictedAvgTime,
-        workloadForecast: [
-          { time: '09 AM', actual: 12, predicted: 15 },
-          { time: '11 AM', actual: 28, predicted: 25 },
-          { time: '01 PM', actual: 15, predicted: 20 },
-          { time: '03 PM', actual: 22, predicted: 24 },
-          { time: '05 PM', actual: 10, predicted: 12 }
-        ]
+        complexityMix: complexityMix.length ? complexityMix : [{ name: 'Routine', value: 100 }],
+        predictedAvgTime: Math.round(avgPredictedRes[0]?.avg || 15),
+        utilization: utilizationPercent,
+        workloadForecast: (accuracyStats || []).map(s => ({
+          time: s.time ? new Date(s.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
+          actual: Math.round(Number(s.actual) || 0),
+          predicted: Number(s.predicted) || 0
+        })).reverse()
       }
     });
 

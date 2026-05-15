@@ -15,6 +15,8 @@ Provide a secure, HIPAA-compliant conversational co-pilot for hospital staff to 
 ### 2. Operational Intelligence
 - **Real-time Metrics**: Awareness of current hospital stats (Patient counts, active admissions, pending lab orders).
 - **Clinical Co-pilot**: Assistance with medical queries and hospital SOPs.
+- **Predictive Clinical Analytics**: Real-time forecasting of consultation times, triage priority, and case complexity based on clinical context.
+- **Intelligent Summarization**: Automated generation of Medication Instructions and structured Discharge Summaries from multi-source clinical data.
 - **Administrative Aid**: Help with billing status and operational bottlenecks.
 
 ### 3. Interface & UX

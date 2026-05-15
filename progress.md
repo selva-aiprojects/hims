@@ -7,6 +7,23 @@
 
 ---
 
+## 🛠️ Infrastructure & Environment Configuration
+
+### 1. Local Development
+- **Frontend (Vite)**: Runs on `http://localhost:3000` (Overridden from default 5173 for compatibility).
+- **Backend API (Node.js)**: Runs on `http://localhost:4000`.
+- **Monitoring (Nexus)**: Prometheus/Grafana stack on `http://localhost:5000` (Local observation only).
+- **Database**: Local/Staging PostgreSQL with Prisma ORM.
+
+### 2. Vercel Production
+- **Unified Deployment**: Optimized serverless architecture.
+- **Frontend**: Served from `client/dist` via Vercel Edge.
+- **Backend**: Unified entry point at `/api/index.js`. All `/api/*` requests are routed to this single function to minimize cold starts and simplify service management.
+- **Database**: Managed PostgreSQL (PlanetScale/Supabase/RDS) via Prisma.
+- **Cron Jobs**: Automated daily sync for Nexus actuals scheduled at `00:00 UTC`.
+
+---
+
 ## ✅ Completed Milestones
 ### 1. Nexus Control Plane (Master Identity)
 - [x] **Atomic Provisioning**: Schema creation and shard initialization in a single transaction.
@@ -59,10 +76,23 @@
 - [x] **IPD Continuity**: Validated discharge-to-billing flow with automated AI-driven summaries and bed release logic.
 - [x] **Pharmacy Precision**: Fixed UI/UX logic for medication dispensing and ensured inventory-accurate billing.
 
+### 8. Predictive Clinical Intelligence & Analytics
+- [x] **Predictive Consultation Engine**: Real-time forecasting of consultation duration and case complexity using Gemini/Groq.
+- [x] **Professional Intelligence Suite**: Completely overhauled dashboard with AI-driven workload forecasting and clinical complexity mix.
+- [x] **OPD War-Room Insights**: Integrated real-time predictive bar for doctors to anticipate patient needs before starting the consultation.
+- [x] **Premium Analytics Visuals**: Implementation of staggered animations, glassmorphism, and advanced charting for operational surveillance.
+- [x] **Behavioral Analytics**: Integration of **PostHog** for tracking clinical workflow patterns and system utilization.
+- [x] **Clinical Summarization**: Deployed AI engines for automated medication regimen instructions and smart discharge summaries.
+
+### 9. Mobile Ecosystem (Flutter)
+- [x] **Cross-Platform Foundation**: Initialized Flutter 3.x project with multi-tenant header management.
+- [x] **Biometric Authentication**: Secure login integrated with FaceID/Fingerprint for medical staff.
+- [ ] **Clinical Co-pilot (Mobile)**: (Active) Implementing real-time patient timeline and AI-assisted clinical note-taking on handhelds.
+
 ---
 ## 📋 Future Roadmap
 - [ ] **Internationalization**: Multi-currency and multi-language support.
-- [ ] **Predictive Diagnostics**: ML-based risk forecasting using historical patient trends.
+- [ ] **Tele-Health Bridge**: Seamless video consultation integration with synchronized clinical notes.
 
 ---
-*Last Updated: 2026-05-12 18:40*
+*Last Updated: 2026-05-15 19:40*

@@ -20,34 +20,46 @@ test.describe('HIMS Clinical Power Journeys', () => {
     // 1. DASHBOARD: Capture initial patient inflow
     await page.goto('/tenant/dashboard');
     await page.waitForLoadState('networkidle');
-    const initialInflowText = await page.locator('text=Patient Inflow').locator('xpath=following-sibling::div').first().innerText();
+    const inflowCard = page.locator('.stat-card', { hasText: 'Patient Inflow' });
+    const initialInflowText = await inflowCard.locator('div').first().innerText();
     const initialInflow = parseInt(initialInflowText) || 0;
     console.log(`Initial Inflow: ${initialInflow}`);
 
     // 2. REGISTRATION
-    await page.click('text=OPD Registration');
+    await auth.navigateToSidebar('OPD Center');
     await page.getByPlaceholder('Type Phone, Name or MRN to begin...').fill(patientName);
+    await page.waitForTimeout(1000);
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
     await page.locator('label:has-text("Gender")').locator('xpath=following-sibling::select').selectOption('Male');
     
-    // Assign Doctor (Ensure a doctor is selected)
-    const firstDoctor = page.locator('[role="button"]').filter({ hasText: /^Dr\./ }).first();
+    // Assign Doctor
+    const firstDoctor = page.locator('button').filter({ hasText: /Dr\./ }).first();
     await firstDoctor.click();
     
     await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();
     await expect(page.locator('.app-toast-success')).toBeVisible({ timeout: 15000 });
 
     // 3. CONSULTATION
-    await page.click("text=Doctor's Queue");
+    await auth.navigateToSidebar('OPD Queue');
     await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: /Start Consult/i }).click();
     
+    // Handle Start Overlay
+    const startBtn = page.getByRole('button', { name: /START CONSULTATION NOW/i });
+    if (await startBtn.isVisible({ timeout: 10000 })) {
+      await startBtn.click();
+    }
     await expect(page.getByText('Clinical Consultation War-Room')).toBeVisible();
+
+    // NEW: Verify Predictive Insights Bar
+    await expect(page.getByText('Predicted Time')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Complexity')).toBeVisible();
+    await expect(page.getByText('Priority Level')).toBeVisible();
     
     // Add Diagnosis
-    const diagnosisSelect = page.locator('select').first();
-    await diagnosisSelect.selectOption({ index: 1 });
+    const diagnosisInput = page.locator('input').first();
+    await diagnosisInput.fill('Viral Fever');
     
     // Add Medicine
     await page.getByPlaceholder('Search medicines, brands, or composition...').fill(medicineName);
@@ -55,28 +67,27 @@ test.describe('HIMS Clinical Power Journeys', () => {
     
     // Add Lab Test
     await page.click('text=Lab Tests');
-    await page.getByLabel(labTestName).check();
+    await page.getByText(labTestName).click();
     
     // Finish Consultation
     await page.getByRole('button', { name: /FINISH CONSULTATION/i }).click();
     await expect(page.locator('.app-toast-success')).toBeVisible({ timeout: 15000 });
 
     // 4. PHARMACY
-    await page.click('text=Prescription Queue');
+    await auth.navigateToSidebar('Prescription Queue');
     await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: /Dispense/i }).click();
     await page.click('button:has-text("Validate & Dispense")');
     await expect(page.locator('.app-toast-success')).toBeVisible();
 
     // 5. LAB
-    await page.click('text=Laboratory');
+    await auth.navigateToSidebar('Laboratory');
     await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
-    // Process Lab Test (Assume there's a process button)
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: /Process/i }).first().click();
     await page.click('button:has-text("Verify & Release Results")');
 
     // 6. BILLING
-    await page.click('text=Invoicing & Billing');
+    await auth.navigateToSidebar('Central Billing');
     await page.getByPlaceholder('Search patient by Name, MRN or Phone...').fill(patientName);
     await page.locator('.patient-search-result', { hasText: patientName }).first().click();
     
@@ -88,7 +99,8 @@ test.describe('HIMS Clinical Power Journeys', () => {
     // 7. DASHBOARD: Verify inflow incremented
     await page.goto('/tenant/dashboard');
     await page.waitForLoadState('networkidle');
-    const finalInflowText = await page.locator('text=Patient Inflow').locator('xpath=following-sibling::div').first().innerText();
+    const finalInflowCard = page.locator('.stat-card', { hasText: 'Patient Inflow' });
+    const finalInflowText = await finalInflowCard.locator('div').first().innerText();
     const finalInflow = parseInt(finalInflowText) || 0;
     expect(finalInflow).toBeGreaterThan(initialInflow);
   });
@@ -97,17 +109,18 @@ test.describe('HIMS Clinical Power Journeys', () => {
     const patientName = `IPD-Power-${Date.now()}`;
 
     // 1. REGISTRATION (Emergency entry via OPD)
-    await page.click('text=OPD Registration');
+    await auth.navigateToSidebar('OPD Center');
     await page.getByPlaceholder('Type Phone, Name or MRN to begin...').fill(patientName);
+    await page.waitForTimeout(1000);
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
-    const firstDoctor = page.locator('[role="button"]').filter({ hasText: /^Dr\./ }).first();
+    const firstDoctor = page.locator('button').filter({ hasText: /Dr\./ }).first();
     await firstDoctor.click();
     await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();
     await expect(page.locator('.app-toast-success')).toBeVisible();
 
     // 2. ADMISSION
-    await page.click('text=IPD Bed Map');
+    await auth.navigateToSidebar('IPD Admission Hub');
     await page.getByText('+ Admit Patient').first().click({ timeout: 15000 });
     const patientSelect = page.locator('form select').first();
     await patientSelect.selectOption({ label: patientName });
@@ -116,7 +129,8 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await expect(page.locator('.app-toast-success')).toBeVisible();
 
     // 3. CENSUS & IN-PATIENT CARE
-    await page.click('text=IPD Census & Daycare');
+    // For Census, we go to admissions
+    await page.goto('/tenant/ipd/admissions');
     await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: 'Open' }).click();
     
@@ -133,11 +147,26 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await expect(page.locator('.app-toast-success')).toBeVisible();
 
     // 5. BILLING VERIFICATION
-    await page.click('text=Invoicing & Billing');
+    await auth.navigateToSidebar('Central Billing');
     await page.getByPlaceholder('Search patient by Name, MRN or Phone...').fill(patientName);
     await page.locator('.patient-search-result', { hasText: patientName }).first().click();
     
     await expect(page.locator('text=Bed Charges')).toBeVisible();
     await expect(page.locator('text=Doctor Visit')).toBeVisible();
+  });
+
+  test('Predictive Intelligence Dashboard Validation', async ({ page }) => {
+    await page.goto('/tenant/dashboard');
+    await page.waitForLoadState('networkidle');
+
+    // Verify Predictive Section
+    await expect(page.getByText(/Professional Intelligence Suite/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Operational Accuracy/i)).toBeVisible();
+    await expect(page.getByText(/Clinical Load Complexity/i)).toBeVisible();
+    await expect(page.getByText(/Predicted Throughput/i)).toBeVisible();
+
+    // Verify AI Labels
+    await expect(page.getByText('Professional Intelligence Suite')).toBeVisible();
+    await expect(page.getByText('AI SYNCED')).toBeVisible();
   });
 });

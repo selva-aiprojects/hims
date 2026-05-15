@@ -43,11 +43,37 @@ router.post("/predict", async (req, res, next) => {
       complaints, 
       doctorData[0] || {}
     );
+
+    // PERSIST PREDICTION
+    try {
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".consultation_predictions (encounter_id, predicted_time_mins, complexity, triage_priority, reasoning)
+        VALUES ('${req.body.encounterId || ''}', ${prediction.predictedTimeMins}, '${prediction.complexity}', ${prediction.triagePriority}, '${prediction.reasoning?.replace(/'/g, "''") || ''}')
+      `);
+    } catch (e) { console.warn("[PREDICT] Persistence failed:", e.message); }
     
     res.json(prediction);
   } catch (error) {
     console.error("[PREDICT] Error:", error);
     res.status(500).json({ error: "Prediction failed" });
+  }
+});
+
+/**
+ * Record Consultation Event
+ * Tracks lifecycle: CHECK_IN, CONSULT_START, PAUSE, RESUME, CONSULT_END
+ */
+router.post("/events", async (req, res, next) => {
+  const { encounterId, eventType, metadata } = req.body;
+  try {
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".consultation_events (encounter_id, event_type, metadata)
+      VALUES ('${encounterId}', '${eventType}', '${JSON.stringify(metadata || {})}')
+    `);
+    res.json({ success: true, message: `Event ${eventType} recorded.` });
+  } catch (error) {
+    console.error("[EVENT] Error:", error.message);
+    res.status(500).json({ error: "Failed to record event" });
   }
 });
 

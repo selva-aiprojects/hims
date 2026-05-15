@@ -447,6 +447,45 @@ app.get("/api/nexus/fix-enterprise-scheduling", async (req, res) => {
   }
 });
 
+// Administrative Route to synchronize Predictive & Event Infrastructure
+app.get("/api/nexus/fix-predictive-infrastructure", async (req, res) => {
+  try {
+    const tenants = await prisma.$queryRawUnsafe(`SELECT db_name FROM nexus.tenants`);
+    let updated = 0;
+    
+    for (const t of tenants) {
+      const schema = t.db_name;
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "${schema}".consultation_events (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            encounter_id UUID REFERENCES "${schema}".encounters(id),
+            event_type VARCHAR(50) NOT NULL,
+            metadata JSONB,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS "${schema}".consultation_predictions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            encounter_id UUID REFERENCES "${schema}".encounters(id),
+            predicted_time_mins INTEGER,
+            complexity VARCHAR(50),
+            triage_priority INTEGER,
+            reasoning TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+        `);
+        updated++;
+      } catch (shardErr) {
+        console.error(`Failed to upgrade predictive infra for shard ${schema}:`, shardErr.message);
+      }
+    }
+    res.json({ message: `Successfully synchronized Predictive & Event Infrastructure for ${updated} shards.` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Dedicated Seeding Endpoint (to prevent startup timeouts)
 
 app.get("/api/nexus/seed-database", async (req, res) => {

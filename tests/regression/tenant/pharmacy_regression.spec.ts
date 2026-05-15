@@ -11,7 +11,7 @@ test.describe('Pharmacy Module Regression - Inventory & Dispensing', () => {
 
   test('Pharmacy Inventory Management - Add Stock', async ({ page }) => {
     // Navigate to Stock Inventory
-    await page.click('text=Stock Inventory');
+    await auth.navigateToSidebar('Stock Inventory');
     await expect(page).toHaveURL(/.*pharmacy\/inventory/);
     await page.waitForLoadState('networkidle');
     
@@ -49,7 +49,7 @@ test.describe('Pharmacy Module Regression - Inventory & Dispensing', () => {
 
   test('Medicine Dispensing Workflow', async ({ page }) => {
     // Navigate to Prescription Queue
-    await page.click('text=Prescription Queue');
+    await auth.navigateToSidebar('Prescription Queue');
     await expect(page).toHaveURL(/.*pharmacy\/queue/);
     await page.waitForLoadState('networkidle');
     
@@ -73,7 +73,7 @@ test.describe('Pharmacy Module Regression - Inventory & Dispensing', () => {
 
   test('Pharmacy Inventory Field Level Validations', async ({ page }) => {
     // Navigate to Stock Inventory
-    await page.click('text=Stock Inventory');
+    await auth.navigateToSidebar('Stock Inventory');
     await expect(page).toHaveURL(/.*pharmacy\/inventory/);
     
     // Open Add Stock modal

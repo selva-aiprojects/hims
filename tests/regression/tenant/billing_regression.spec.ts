@@ -11,7 +11,7 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
 
   test('Generate Patient Invoice', async ({ page }) => {
     // Navigate to Billing page
-    await page.click('text=Invoicing & Billing');
+    await auth.navigateToSidebar('Central Billing');
     await expect(page).toHaveURL(/.*billing/);
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
@@ -29,7 +29,7 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
 
   test('Billing Payment Mode Selection', async ({ page }) => {
     // Navigate to Billing
-    await page.click('text=Invoicing & Billing');
+    await auth.navigateToSidebar('Central Billing');
     await expect(page).toHaveURL(/.*billing/);
     await page.waitForLoadState('networkidle');
     
@@ -46,7 +46,7 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
 
   test('Billing Page Field Level Validations', async ({ page }) => {
     // Navigate to Billing
-    await page.click('text=Invoicing & Billing');
+    await auth.navigateToSidebar('Central Billing');
     await expect(page).toHaveURL(/.*billing/);
     await page.waitForLoadState('networkidle');
     
