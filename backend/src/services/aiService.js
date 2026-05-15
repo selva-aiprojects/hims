@@ -254,10 +254,72 @@ async function hospitalChat(messages, hospitalContext) {
   }
 }
 
+/**
+ * Predict consultation metrics like time, complexity, and resource needs.
+ */
+async function predictConsultationMetrics(patientData, complaints, doctorInfo = {}) {
+  if (!ai && !GROQ_KEY) {
+    return {
+      predictedTimeMins: 15,
+      complexityScore: "Low",
+      reasoning: "AI services unavailable. Standard 15-min slot assumed.",
+      recommendedResources: ["Stethoscope"]
+    };
+  }
+
+  try {
+    const prompt = `
+    Analyze this OPD Consultation context and provide operational predictions:
+    
+    PATIENT: ${patientData.name}, Age: ${patientData.age}, Gender: ${patientData.gender}
+    CHIEF COMPLAINTS: ${complaints}
+    DOCTOR SPECIALIZATION: ${doctorInfo.specialization || 'General Physician'}
+    
+    Predict:
+    1. Predicted Consultation Time (in minutes, as an integer).
+    2. Clinical Complexity (Low, Medium, High).
+    3. Resource Needs (e.g., ECG, Pulse Oximeter, etc.).
+    4. Triage Priority (1-5, where 1 is urgent).
+    
+    Return ONLY valid JSON with keys: predictedTimeMins, complexity, resourceNeeds (array), triagePriority, reasoning.
+    `;
+
+    let responseJson;
+    
+    if (GROQ_KEY) {
+      const response = await axios.post(GROQ_API_URL, {
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" }
+      }, {
+        headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" }
+      });
+      responseJson = JSON.parse(response.data.choices[0].message.content);
+    } else {
+      const model = ai.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        generationConfig: { responseMimeType: "application/json" }
+      });
+      const result = await model.generateContent(prompt);
+      responseJson = JSON.parse(result.response.text());
+    }
+
+    return responseJson;
+  } catch (error) {
+    console.error("[AI] Prediction Error:", error.message);
+    return {
+      predictedTimeMins: 15,
+      complexity: "Standard",
+      reasoning: "Prediction failed. Using system defaults."
+    };
+  }
+}
+
 module.exports = {
   generatePatientHistorySummary,
   generateDischargeSummary,
   generateClinicalAdvice,
   parseExternalLabReport,
-  hospitalChat
+  hospitalChat,
+  predictConsultationMetrics
 };

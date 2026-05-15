@@ -27,6 +27,31 @@ router.post("/ai-suggest", async (req, res, next) => {
 });
 
 /**
+ * Predictive Analysis for Consultation
+ * Predicts time, complexity, and resources
+ */
+router.post("/predict", async (req, res, next) => {
+  const { patientId, complaints, doctorId } = req.body;
+  try {
+    const patients = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".patients WHERE id = '${patientId}'`);
+    if (!patients.length) return res.status(404).json({ error: "Patient not found" });
+
+    const doctorData = await req.prisma.$queryRawUnsafe(`SELECT name, specialization FROM "${req.schemaName}".users WHERE id = '${doctorId}'`);
+    
+    const prediction = await aiService.predictConsultationMetrics(
+      patients[0], 
+      complaints, 
+      doctorData[0] || {}
+    );
+    
+    res.json(prediction);
+  } catch (error) {
+    console.error("[PREDICT] Error:", error);
+    res.status(500).json({ error: "Prediction failed" });
+  }
+});
+
+/**
  * Atomic OPD Consultation Sync
  * Saves Encounter, Vitals, Complaints, Diagnoses, and Prescriptions
  */

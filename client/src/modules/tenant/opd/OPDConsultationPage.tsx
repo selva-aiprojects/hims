@@ -6,11 +6,11 @@ import Header from "../../../components/Header";
 import PrivacyValue from "../../../components/PrivacyValue";
 import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { 
-  User, Activity, Pill, FlaskConical, History, 
-  CheckCircle2, ChevronRight, FileText, 
+import {
+  User, Activity, Pill, FlaskConical, History,
+  CheckCircle2, ChevronRight, FileText,
   Stethoscope, Thermometer, Droplets, Scale, Zap,
-  AlertTriangle, Heart, Info, Briefcase, Sparkles, Brain, Loader2, Wand2
+  AlertTriangle, Heart, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Clock, Timer
 } from 'lucide-react';
 import PrescriptionTab from './components/PrescriptionTab';
 import LabTab from './components/LabTab';
@@ -22,12 +22,12 @@ export default function OPDConsultationPage() {
   const role = localStorage.getItem("role");
   const [encounter, setEncounter] = useState<any>(null);
   const [patient, setPatient] = useState<any>(null);
-  
+
   // Master Data
   const [medicines, setMedicines] = useState<any[]>([]);
   const [diseases, setDiseases] = useState<any[]>([]);
   const [diagnostics, setDiagnostics] = useState<any[]>([]);
-  
+
   // Consult State
   const [diagnosis, setDiagnosis] = useState("");
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
@@ -38,20 +38,24 @@ export default function OPDConsultationPage() {
   const [filteredMeds, setFilteredMeds] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('prescription'); // prescription, lab, history
   const [showPostConsultModal, setShowPostConsultModal] = useState(false);
-  
+
   // AI State
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiAdvice, setAiAdvice] = useState<any>(null);
   const [showAiPanel, setShowAiPanel] = useState(false);
-  
+
   // Clinical History Data
   const [pastLabs, setPastLabs] = useState<any[]>([]);
   const [pastMeds, setPastMeds] = useState<any[]>([]);
   const [isAdmissionPrescribed, setIsAdmissionPrescribed] = useState(false);
   const [admissionReason, setAdmissionReason] = useState("");
 
-  
-  const getHeaders = () => ({ 
+  // Predictive Analysis State
+  const [predictions, setPredictions] = useState<any>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+
+
+  const getHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token")}`,
     "x-tenant-id": localStorage.getItem("tenant") || ""
   });
@@ -67,11 +71,34 @@ export default function OPDConsultationPage() {
     fetchMasters();
   }, []);
 
+  useEffect(() => {
+    if (patient && encounter) {
+      fetchPredictions();
+    }
+  }, [patient]);
+
+  const fetchPredictions = async () => {
+    if (!patient || !encounter) return;
+    setIsPredicting(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/consultations/predict`, {
+        patientId: patient.id,
+        complaints: encounter.complaints || "Routine checkup",
+        doctorId: localStorage.getItem("userId") || ""
+      }, { headers: getHeaders() });
+      setPredictions(res.data);
+    } catch (err) {
+      console.error("Prediction failed:", err);
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
   const fetchPatientDetails = async (id: string) => {
     try {
       const res = await axios.get(`${API_BASE}/api/patients/${id}`, { headers: getHeaders() });
       setPatient(res.data);
-      
+
       // Fetch Past History
       const [labRes, medRes] = await Promise.all([
         axios.get(`${API_BASE}/api/hospital/lab/orders?patientId=${id}`, { headers: getHeaders() }),
@@ -93,7 +120,7 @@ export default function OPDConsultationPage() {
       setMedicines(medRes.data || []);
       setDiseases(disRes.data || []);
       setDiagnostics(diagRes.data || []);
-    } catch (err) { 
+    } catch (err) {
       console.error(err);
       showToast("Master data fetch failed. Some clinical dropdowns may be empty.", "warning");
     }
@@ -102,8 +129,8 @@ export default function OPDConsultationPage() {
   const handleMedSearch = (val: string) => {
     setMedSearch(val);
     if (val.length < 1) { setFilteredMeds([]); return; }
-    const filtered = (medicines || []).filter(m => 
-      (m.name || "").toLowerCase().includes(val.toLowerCase()) || 
+    const filtered = (medicines || []).filter(m =>
+      (m.name || "").toLowerCase().includes(val.toLowerCase()) ||
       (m.composition || "").toLowerCase().includes(val.toLowerCase())
     ).slice(0, 8);
     setFilteredMeds(filtered);
@@ -151,17 +178,17 @@ export default function OPDConsultationPage() {
       if (isAdmissionPrescribed) {
         try {
           // Formal admission recommendation to Admission Desk
-          await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/admission-recommendation`, { 
-            reason: admissionReason || notes 
+          await axios.post(`${API_BASE}/api/hospital/encounters/${encounter.id}/admission-recommendation`, {
+            reason: admissionReason || notes
           }, { headers: h });
         } catch (e) { console.warn("Admission rec failed", e); }
       }
 
       localStorage.removeItem("currentEncounter");
       setShowPostConsultModal(true);
-    } catch (err: any) { 
+    } catch (err: any) {
       const msg = err.response?.data?.message || err.message || "Failed to save consultation.";
-      showToast(msg, "error"); 
+      showToast(msg, "error");
     }
     finally { setIsFinishing(false); }
   };
@@ -200,11 +227,11 @@ export default function OPDConsultationPage() {
 
   const applyAiAdvice = () => {
     if (!aiAdvice) return;
-    
+
     if (aiAdvice.suggested_diagnosis) {
       setDiagnosis(aiAdvice.suggested_diagnosis);
     }
-    
+
     if (aiAdvice.proposed_medicines && aiAdvice.proposed_medicines.length > 0) {
       const newPrescriptions = [...prescriptions];
       aiAdvice.proposed_medicines.forEach((m: any) => {
@@ -220,7 +247,7 @@ export default function OPDConsultationPage() {
       });
       setPrescriptions(newPrescriptions);
     }
-    
+
     if (aiAdvice.proposed_tests && aiAdvice.proposed_tests.length > 0) {
       const newTests = [...selectedLabTests];
       aiAdvice.proposed_tests.forEach((testName: string) => {
@@ -238,7 +265,7 @@ export default function OPDConsultationPage() {
       newNotes += `\n\n--- AI CLINICAL NOTE ---\n${aiAdvice.clinical_advice || ''}\nReasoning: ${aiAdvice.reasoning || ''}`;
       setNotes(newNotes.trim());
     }
-    
+
     showToast("AI proposal successfully applied to consultation.", "success");
     setShowAiPanel(false);
   };
@@ -277,189 +304,245 @@ export default function OPDConsultationPage() {
         {/* COMPREHENSIVE PATIENT HUD */}
         <div className="page-card" style={{ padding: '28px', borderRadius: '28px', marginBottom: '28px', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-             <div style={{ width: '72px', height: '72px', background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px rgba(59, 130, 246, 0.3)' }}>
-                <User size={36} />
-             </div>
-             <div>
-                <h2 style={{ fontSize: '24px', fontWeight: 900, margin: 0, color: '#0f172a' }}>{encounter.patient_name}</h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                   <span style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 800 }}>{encounter.mrn}</span>
-                   <span style={{ color: '#e2e8f0' }}>|</span>
-                   <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 700 }}>{encounter.age}Y • {encounter.gender}</span>
-                   <span style={{ color: '#e2e8f0' }}>|</span>
-                   <span style={{ fontSize: '12px', fontWeight: 800, color: '#ef4444', background: '#fef2f2', padding: '2px 8px', borderRadius: '6px' }}>BLOOD: {patient?.blood_group || 'N/A'}</span>
-                   <span style={{ color: '#e2e8f0' }}>|</span>
-                   <span style={{ fontSize: '12px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px' }}>TOKEN #{encounter.token}</span>
-                </div>
-             </div>
+            <div style={{ width: '72px', height: '72px', background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 20px rgba(59, 130, 246, 0.3)' }}>
+              <User size={36} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '24px', fontWeight: 900, margin: 0, color: '#0f172a' }}>{encounter.patient_name}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
+                <span style={{ fontSize: '13px', color: '#3b82f6', fontWeight: 800 }}>{encounter.mrn}</span>
+                <span style={{ color: '#e2e8f0' }}>|</span>
+                <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 700 }}>{encounter.age}Y • {encounter.gender}</span>
+                <span style={{ color: '#e2e8f0' }}>|</span>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#ef4444', background: '#fef2f2', padding: '2px 8px', borderRadius: '6px' }}>BLOOD: {patient?.blood_group || 'N/A'}</span>
+                <span style={{ color: '#e2e8f0' }}>|</span>
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '2px 8px', borderRadius: '6px' }}>TOKEN #{encounter.token}</span>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '28px', borderLeft: '1px solid #f1f5f9', paddingLeft: '28px' }}>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Blood Pressure</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Activity size={16} style={{ color: '#ef4444' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.bp || '--'}</span></div></div>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Temperature</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Thermometer size={16} style={{ color: '#f59e0b' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.temp || '--'}°F</span></div></div>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Weight</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Scale size={16} style={{ color: '#3b82f6' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.weight || '--'}kg</span></div></div>
-             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Occupation</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Briefcase size={16} style={{ color: '#64748b' }} /><span style={{ fontSize: '14px', fontWeight: 800 }}>{patient?.occupation || '--'}</span></div></div>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Blood Pressure</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Activity size={16} style={{ color: '#ef4444' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.bp || '--'}</span></div></div>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Temperature</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Thermometer size={16} style={{ color: '#f59e0b' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.temp || '--'}°F</span></div></div>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Weight</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Scale size={16} style={{ color: '#3b82f6' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.weight || '--'}kg</span></div></div>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Occupation</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Briefcase size={16} style={{ color: '#64748b' }} /><span style={{ fontSize: '14px', fontWeight: 800 }}>{patient?.occupation || '--'}</span></div></div>
           </div>
         </div>
 
+        {/* PREDICTIVE INSIGHTS BAR */}
+        {predictions && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(4, 1fr)', 
+            gap: '20px', 
+            marginBottom: '28px',
+            animation: 'fadeIn 0.5s ease-out'
+          }}>
+            <div style={{ background: 'white', padding: '16px 24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <div style={{ width: '40px', height: '40px', background: '#fef3c7', color: '#d97706', borderRadius: '10px', display: 'grid', placeItems: 'center' }}>
+                <Clock size={20} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Predicted Time</p>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>{predictions.predictedTimeMins} Mins</p>
+              </div>
+            </div>
+            
+            <div style={{ background: 'white', padding: '16px 24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <div style={{ 
+                width: '40px', height: '40px', 
+                background: predictions.complexity === 'High' ? '#fee2e2' : predictions.complexity === 'Medium' ? '#ffedd5' : '#dcfce7', 
+                color: predictions.complexity === 'High' ? '#ef4444' : predictions.complexity === 'Medium' ? '#f59e0b' : '#10b981', 
+                borderRadius: '10px', display: 'grid', placeItems: 'center' 
+              }}>
+                <Zap size={20} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Complexity</p>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>{predictions.complexity}</p>
+              </div>
+            </div>
+
+            <div style={{ background: 'white', padding: '16px 24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <div style={{ width: '40px', height: '40px', background: '#e0f2fe', color: '#0284c7', borderRadius: '10px', display: 'grid', placeItems: 'center' }}>
+                <Activity size={20} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Priority Level</p>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#1e293b' }}>Level {predictions.triagePriority}</p>
+              </div>
+            </div>
+
+            <div style={{ background: 'white', padding: '16px 24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <div style={{ width: '40px', height: '40px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '10px', display: 'grid', placeItems: 'center' }}>
+                <Info size={20} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Insights</p>
+                <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{predictions.reasoning}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '28px' }}>
-          
+
           {/* LEFT COLUMN: OBSERVATIONS & FINISH BUTTON */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
             {/* CLINICAL OBSERVATIONS */}
             <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
-               <h3 style={{ margin: '0 0 24px', fontSize: '14px', fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                 <Stethoscope size={20} /> DIAGNOSIS & CHIEF COMPLAINTS
-               </h3>
-               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
-                 <div style={{ flex: 1, position: 'relative' }}>
-                   <input 
-                    className="input-field" 
-                    placeholder="Enter Clinical Diagnosis or select from ICD-10..." 
-                    style={{ 
+              <h3 style={{ margin: '0 0 24px', fontSize: '14px', fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Stethoscope size={20} /> DIAGNOSIS & CHIEF COMPLAINTS
+              </h3>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    className="input-field"
+                    placeholder="Enter Clinical Diagnosis or select from ICD-10..."
+                    style={{
                       margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px', paddingRight: '40px',
                       border: !diagnosis ? '2px solid #fed7aa' : '2px solid #e2e8f0',
                       background: !diagnosis ? '#fffaf5' : 'white'
-                    }} 
-                    value={diagnosis} 
+                    }}
+                    value={diagnosis}
                     onChange={e => setDiagnosis(e.target.value)}
-                   />
-                   <select 
-                    style={{ position: 'absolute', right: '10px', top: '16px', opacity: 0.1, width: '30px', cursor: 'pointer' }} 
+                  />
+                  <select
+                    style={{ position: 'absolute', right: '10px', top: '16px', opacity: 0.1, width: '30px', cursor: 'pointer' }}
                     onChange={e => { if (e.target.value) setDiagnosis(e.target.value); }}
-                   >
-                     <option value="">Quick Select...</option>
-                     {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
-                   </select>
-                   <div style={{ position: 'absolute', right: '14px', top: '18px', pointerEvents: 'none', color: '#64748b' }}>
-                     <ChevronRight size={20} />
-                   </div>
-                 </div>
-               </div>
+                  >
+                    <option value="">Quick Select...</option>
+                    {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
+                  </select>
+                  <div style={{ position: 'absolute', right: '14px', top: '18px', pointerEvents: 'none', color: '#64748b' }}>
+                    <ChevronRight size={20} />
+                  </div>
+                </div>
+              </div>
 
-               <button 
+              <button
                 onClick={getAiAdvice}
                 disabled={isAiLoading}
-                style={{ 
-                  width: '100%', height: '56px', padding: '0 24px', borderRadius: '14px', border: 'none', 
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)', 
-                  color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', 
+                style={{
+                  width: '100%', height: '56px', padding: '0 24px', borderRadius: '14px', border: 'none',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)',
+                  color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
                   cursor: 'pointer', boxShadow: '0 10px 20px rgba(99, 102, 241, 0.2)',
                   marginBottom: '20px'
                 }}
-               >
-                 {isAiLoading ? <Loader2 className="animate-spin" /> : <Brain size={20} />}
-                 AI ADVISOR
-               </button>
+              >
+                {isAiLoading ? <Loader2 className="animate-spin" /> : <Brain size={20} />}
+                AI ADVISOR
+              </button>
 
-               {showAiPanel && (
-                 <div style={{ 
-                   marginBottom: '20px', padding: '24px', borderRadius: '20px', 
-                   background: '#f5f3ff', border: '1px solid #ddd6fe', position: 'relative',
-                   animation: 'slideDown 0.3s ease-out'
-                 }}>
-                   <button onClick={() => setShowAiPanel(false)} style={{ position: 'absolute', top: '16px', right: '16px', border: 'none', background: 'transparent', color: '#7c3aed', cursor: 'pointer', fontWeight: 800 }}>CLOSE</button>
-                   <h4 style={{ margin: '0 0 16px', color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 900 }}>
-                     <Sparkles size={18} /> AI CLINICAL PROPOSAL
-                   </h4>
-                   
-                   {isAiLoading ? (
-                     <div style={{ padding: '20px', textAlign: 'center', color: '#7c3aed' }}>
-                        <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto 12px' }} />
-                        <p style={{ fontWeight: 700 }}>Synthesizing clinical advice based on history...</p>
-                     </div>
-                   ) : aiAdvice?.error === 'LIMIT' ? (
-                     <div style={{ padding: '20px', textAlign: 'center', color: '#991b1b' }}>
-                        <AlertTriangle size={32} style={{ margin: '0 auto 12px' }} />
-                        <p style={{ fontWeight: 800 }}>{aiAdvice.message}</p>
-                        <button onClick={getAiAdvice} style={{ marginTop: '16px', padding: '8px 16px', background: '#991b1b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Retry Now</button>
-                     </div>
-                   ) : aiAdvice ? (
-                     <div>
-                       <div style={{ marginBottom: '16px' }}>
-                         <p style={{ fontSize: '12px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Suggested Diagnosis</p>
-                         <p style={{ fontSize: '15px', fontWeight: 700, color: '#1e1b4b' }}>{aiAdvice.suggested_diagnosis}</p>
-                         <p style={{ fontSize: '13px', color: '#6d28d9', marginTop: '4px', fontStyle: 'italic' }}>{aiAdvice.reasoning}</p>
-                       </div>
-                       
-                       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '20px' }}>
-                          <div>
-                            <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Meds</p>
-                            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                              {aiAdvice.proposed_medicines?.map((m: any, i: number) => (
-                                <li key={i} style={{ fontSize: '13px', fontWeight: 600, color: '#4c1d95', marginBottom: '2px' }}>• {m.name} ({m.dosage})</li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div>
-                            <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Tests</p>
-                            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-                              {aiAdvice.proposed_tests?.map((t: string, i: number) => (
-                                <li key={i} style={{ fontSize: '13px', fontWeight: 600, color: '#4c1d95', marginBottom: '2px' }}>• {t}</li>
-                              ))}
-                            </ul>
-                          </div>
-                       </div>
-                       
-                       <button 
+              {showAiPanel && (
+                <div style={{
+                  marginBottom: '20px', padding: '24px', borderRadius: '20px',
+                  background: '#f5f3ff', border: '1px solid #ddd6fe', position: 'relative',
+                  animation: 'slideDown 0.3s ease-out'
+                }}>
+                  <button onClick={() => setShowAiPanel(false)} style={{ position: 'absolute', top: '16px', right: '16px', border: 'none', background: 'transparent', color: '#7c3aed', cursor: 'pointer', fontWeight: 800 }}>CLOSE</button>
+                  <h4 style={{ margin: '0 0 16px', color: '#5b21b6', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 900 }}>
+                    <Sparkles size={18} /> AI CLINICAL PROPOSAL
+                  </h4>
+
+                  {isAiLoading ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#7c3aed' }}>
+                      <Loader2 className="animate-spin" size={32} style={{ margin: '0 auto 12px' }} />
+                      <p style={{ fontWeight: 700 }}>Synthesizing clinical advice based on history...</p>
+                    </div>
+                  ) : aiAdvice?.error === 'LIMIT' ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#991b1b' }}>
+                      <AlertTriangle size={32} style={{ margin: '0 auto 12px' }} />
+                      <p style={{ fontWeight: 800 }}>{aiAdvice.message}</p>
+                      <button onClick={getAiAdvice} style={{ marginTop: '16px', padding: '8px 16px', background: '#991b1b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Retry Now</button>
+                    </div>
+                  ) : aiAdvice ? (
+                    <div>
+                      <div style={{ marginBottom: '16px' }}>
+                        <p style={{ fontSize: '12px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Suggested Diagnosis</p>
+                        <p style={{ fontSize: '15px', fontWeight: 700, color: '#1e1b4b' }}>{aiAdvice.suggested_diagnosis}</p>
+                        <p style={{ fontSize: '13px', color: '#6d28d9', marginTop: '4px', fontStyle: 'italic' }}>{aiAdvice.reasoning}</p>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '20px' }}>
+                        <div>
+                          <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Meds</p>
+                          <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                            {aiAdvice.proposed_medicines?.map((m: any, i: number) => (
+                              <li key={i} style={{ fontSize: '13px', fontWeight: 600, color: '#4c1d95', marginBottom: '2px' }}>• {m.name} ({m.dosage})</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: '11px', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>Proposed Tests</p>
+                          <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                            {aiAdvice.proposed_tests?.map((t: string, i: number) => (
+                              <li key={i} style={{ fontSize: '13px', fontWeight: 600, color: '#4c1d95', marginBottom: '2px' }}>• {t}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      <button
                         onClick={applyAiAdvice}
-                        style={{ 
-                          width: '100%', padding: '14px', borderRadius: '12px', border: 'none', 
+                        style={{
+                          width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
                           background: '#7c3aed', color: 'white', fontWeight: 800, cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                         }}
-                       >
-                         <Wand2 size={18} /> ACCEPT & APPLY PROPOSAL
-                       </button>
-                     </div>
-                    ) : (
-                      <div style={{ padding: '20px', textAlign: 'center', color: '#7c3aed' }}>
-                         <AlertTriangle size={32} style={{ margin: '0 auto 12px', color: '#ef4444' }} />
-                         <p style={{ fontWeight: 800, color: '#1e1b4b' }}>{aiAdvice?.message || "Failed to generate clinical suggestions."}</p>
-                         <p style={{ fontSize: '13px', marginTop: '8px', color: '#64748b' }}>Try adding more clinical observations or symptoms in the notes box below.</p>
-                         <button onClick={getAiAdvice} style={{ marginTop: '16px', padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Try Again</button>
-                      </div>
-                    )}
-                 </div>
-               )}
+                      >
+                        <Wand2 size={18} /> ACCEPT & APPLY PROPOSAL
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#7c3aed' }}>
+                      <AlertTriangle size={32} style={{ margin: '0 auto 12px', color: '#ef4444' }} />
+                      <p style={{ fontWeight: 800, color: '#1e1b4b' }}>{aiAdvice?.message || "Failed to generate clinical suggestions."}</p>
+                      <p style={{ fontSize: '13px', marginTop: '8px', color: '#64748b' }}>Try adding more clinical observations or symptoms in the notes box below.</p>
+                      <button onClick={getAiAdvice} style={{ marginTop: '16px', padding: '8px 16px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>Try Again</button>
+                    </div>
+                  )}
+                </div>
+              )}
 
-               <textarea 
-                className="input-field" 
-                placeholder="Type clinical notes, observations, or chief complaints..." 
+              <textarea
+                className="input-field"
+                placeholder="Type clinical notes, observations, or chief complaints..."
                 style={{ height: '140px', padding: '20px', borderRadius: '18px', fontSize: '15px', lineHeight: '1.6' }}
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-               />
-               <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button 
-                    onClick={() => {
-                      setIsAdmissionPrescribed(true);
-                      setAdmissionReason("Acute clinical condition requiring IPD monitoring");
-                      setNotes(notes + " [IPD_ADMISSION_ORDERED]");
-                    }} 
-                    style={{ 
-                      padding: '10px 20px', borderRadius: '12px', 
-                      background: isAdmissionPrescribed ? '#fbbf24' : '#fff7ed', 
-                      border: '1px solid #ffedd5', color: isAdmissionPrescribed ? 'white' : '#c2410c', 
-                      fontSize: '13px', fontWeight: 800, cursor: 'pointer', flex: 1,
-                      boxShadow: isAdmissionPrescribed ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
-                    }}
-                  >
-                    {isAdmissionPrescribed ? '✅ Admission Prescribed' : '+ IPD Admission'}
-                  </button>
-                  <button onClick={() => setNotes(notes + " [FOLLOW_UP_7D]")} style={{ padding: '10px 20px', borderRadius: '12px', background: '#eff6ff', border: '1px solid #dbeafe', color: '#3b82f6', fontSize: '13px', fontWeight: 800, cursor: 'pointer', flex: 1 }}>+ Follow-up (7D)</button>
-               </div>
-               {isAdmissionPrescribed && (
-                 <div style={{ marginTop: '16px', padding: '16px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: '16px' }}>
-                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#854d0e', marginBottom: '8px' }}>ADMISSION REASON (FOR ADMISSION DESK)</label>
-                    <input 
-                      className="input-field" 
-                      value={admissionReason} 
-                      onChange={e => setAdmissionReason(e.target.value)}
-                      placeholder="e.g. Severe Dehydration, Post-Op Care..." 
-                    />
-                 </div>
-               )}
+              />
+              <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    setIsAdmissionPrescribed(true);
+                    setAdmissionReason("Acute clinical condition requiring IPD monitoring");
+                    setNotes(notes + " [IPD_ADMISSION_ORDERED]");
+                  }}
+                  style={{
+                    padding: '10px 20px', borderRadius: '12px',
+                    background: isAdmissionPrescribed ? '#fbbf24' : '#fff7ed',
+                    border: '1px solid #ffedd5', color: isAdmissionPrescribed ? 'white' : '#c2410c',
+                    fontSize: '13px', fontWeight: 800, cursor: 'pointer', flex: 1,
+                    boxShadow: isAdmissionPrescribed ? '0 4px 12px rgba(245, 158, 11, 0.3)' : 'none'
+                  }}
+                >
+                  {isAdmissionPrescribed ? '✅ Admission Prescribed' : '+ IPD Admission'}
+                </button>
+                <button onClick={() => setNotes(notes + " [FOLLOW_UP_7D]")} style={{ padding: '10px 20px', borderRadius: '12px', background: '#eff6ff', border: '1px solid #dbeafe', color: '#3b82f6', fontSize: '13px', fontWeight: 800, cursor: 'pointer', flex: 1 }}>+ Follow-up (7D)</button>
+              </div>
+              {isAdmissionPrescribed && (
+                <div style={{ marginTop: '16px', padding: '16px', background: '#fefce8', border: '1px solid #fef08a', borderRadius: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#854d0e', marginBottom: '8px' }}>ADMISSION REASON (FOR ADMISSION DESK)</label>
+                  <input
+                    className="input-field"
+                    value={admissionReason}
+                    onChange={e => setAdmissionReason(e.target.value)}
+                    placeholder="e.g. Severe Dehydration, Post-Op Care..."
+                  />
+                </div>
+              )}
             </div>
 
             {!diagnosis && (
@@ -469,12 +552,12 @@ export default function OPDConsultationPage() {
               </div>
             )}
 
-            <button 
+            <button
               disabled={isFinishing || !diagnosis}
               onClick={finishConsultation}
-              style={{ 
-                width: '100%', padding: '28px', borderRadius: '28px', border: 'none', 
-                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)', 
+              style={{
+                width: '100%', padding: '28px', borderRadius: '28px', border: 'none',
+                background: diagnosis ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)',
                 color: 'white', fontWeight: 900, fontSize: '20px', cursor: diagnosis ? 'pointer' : 'not-allowed',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
                 boxShadow: diagnosis ? '0 20px 40px rgba(16, 185, 129, 0.2)' : 'none',
@@ -489,7 +572,7 @@ export default function OPDConsultationPage() {
                 </>
               ) : (
                 <span>
-                  <CheckCircle2 size={26} style={{ verticalAlign: 'middle', marginRight: '10px' }} /> 
+                  <CheckCircle2 size={26} style={{ verticalAlign: 'middle', marginRight: '10px' }} />
                   {diagnosis ? 'FINISH CONSULTATION' : 'DIAGNOSIS REQUIRED'}
                 </span>
               )}
@@ -534,7 +617,7 @@ export default function OPDConsultationPage() {
                   </span>
                 )}
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('lab')}
                 style={{
@@ -569,7 +652,7 @@ export default function OPDConsultationPage() {
                   </span>
                 )}
               </button>
-              
+
               <button
                 onClick={() => setActiveTab('history')}
                 style={{
@@ -608,7 +691,7 @@ export default function OPDConsultationPage() {
                   addMed={addMed}
                 />
               )}
-              
+
               {activeTab === 'lab' && (
                 <LabTab
                   diagnostics={diagnostics}
@@ -616,10 +699,10 @@ export default function OPDConsultationPage() {
                   setSelectedLabTests={setSelectedLabTests}
                 />
               )}
-              
+
               {activeTab === 'history' && (
-                <ClinicalHistoryTab 
-                  patient={patient} 
+                <ClinicalHistoryTab
+                  patient={patient}
                   pastLabs={pastLabs}
                   pastMeds={pastMeds}
                 />
@@ -643,7 +726,7 @@ export default function OPDConsultationPage() {
 
             <div style={{ backgroundColor: '#f8fafc', borderRadius: '20px', padding: '24px', marginBottom: '32px' }}>
               <h3 style={{ fontSize: '12px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px' }}>Next Steps for Patient</h3>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {prescriptions.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
@@ -656,7 +739,7 @@ export default function OPDConsultationPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {selectedLabTests.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#f5f3ff', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -668,7 +751,7 @@ export default function OPDConsultationPage() {
                     </div>
                   </div>
                 )}
-                
+
                 {isAdmissionPrescribed && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                     <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#fffbeb', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -689,7 +772,7 @@ export default function OPDConsultationPage() {
               </div>
             </div>
 
-            <button 
+            <button
               onClick={handlePostConsultClose}
               style={{ width: '100%', padding: '20px', borderRadius: '16px', border: 'none', background: '#0f172a', color: 'white', fontSize: '16px', fontWeight: 800, cursor: 'pointer', transition: 'transform 0.2s' }}
             >

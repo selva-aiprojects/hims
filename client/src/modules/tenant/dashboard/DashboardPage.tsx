@@ -28,7 +28,12 @@ export default function DashboardPage() {
     bedStats: [],
     labStats: [],
     dischargeTrend: [],
-    weeklyFlow: []
+    weeklyFlow: [],
+    predictive: {
+      complexityMix: [],
+      predictedAvgTime: 0,
+      workloadForecast: []
+    }
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +81,7 @@ export default function DashboardPage() {
         { value: stats.ipOpRatio.op_count, name: 'Outpatient (OP)' },
         { value: stats.ipOpRatio.ip_count, name: 'Inpatient (IP)' }
       ],
-      color: ['#3b82f6', '#f59e0b']
+      color: ['#3b82f6', '#10b981']
     }]
   };
 
@@ -93,8 +98,8 @@ export default function DashboardPage() {
     },
     yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
     series: [
-      { name: 'Admitted', data: stats.dischargeTrend.map((d: any) => d.admitted), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6' },
-      { name: 'Discharged', data: stats.dischargeTrend.map((d: any) => d.discharged), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#10b981' }
+      { name: 'Admitted', data: stats.dischargeTrend.map((d: any) => d.admitted), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6', areaStyle: { color: 'rgba(59, 130, 246, 0.1)' } },
+      { name: 'Discharged', data: stats.dischargeTrend.map((d: any) => d.discharged), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#10b981', areaStyle: { color: 'rgba(16, 185, 129, 0.1)' } }
     ]
   };
 
@@ -114,6 +119,36 @@ export default function DashboardPage() {
   const bedTotal = stats.bedStats.reduce((acc: number, b: any) => acc + b.count, 0) || 1;
   const occupancyPercent = Math.round((bedOccupancy / bedTotal) * 100);
 
+  // 5. Workload Forecast (Predicted vs Actual)
+  const workloadOption = {
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0, icon: 'circle', textStyle: { fontSize: 10, fontWeight: 700, color: '#94a3b8' } },
+    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true, top: '10%' },
+    xAxis: { 
+      type: 'category', 
+      data: (stats.predictive?.workloadForecast || []).map((w: any) => w.time),
+      axisLine: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 700 }
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
+    series: [
+      { name: 'Actual Load', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.actual), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6', areaStyle: { color: 'rgba(59, 130, 246, 0.1)' } },
+      { name: 'Predicted', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.predicted), type: 'line', smooth: true, lineStyle: { width: 3, type: 'dashed' }, color: '#10b981' }
+    ]
+  };
+
+  // 6. Complexity Mix (Pie/Doughnut)
+  const complexityOption = {
+    tooltip: { trigger: 'item' },
+    series: [{
+      type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      data: (stats.predictive?.complexityMix || []).map((c: any) => ({ value: c.value, name: c.name })),
+      color: ['#10b981', '#f59e0b', '#ef4444']
+    }]
+  };
+
   return (
     <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
       <Sidebar />
@@ -129,21 +164,79 @@ export default function DashboardPage() {
         </div>
 
         {/* TOP ROW: REAL-TIME KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
           {[
-            { label: 'Patient Inflow', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6' },
-            { label: 'Active IPD', val: stats.metrics.activeAdmissions, icon: Activity, color: '#f59e0b' },
-            { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444' },
-            { label: 'Daily Revenue', val: isMobile ? `₹${(Number(stats.metrics.dailyRevenue)/1000).toFixed(1)}k` : `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981' }
+            { label: 'Patient Inflow', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
+            { label: 'Active IPD', val: stats.metrics.activeAdmissions, icon: Activity, color: '#f59e0b', bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' },
+            { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' },
+            { label: 'Daily Revenue', val: isMobile ? `₹${(Number(stats.metrics.dailyRevenue)/1000).toFixed(1)}k` : `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981', bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' },
+            { label: 'Predicted Throughput', val: `${stats.predictive?.predictedAvgTime || 0}m`, icon: Clock, color: '#8b5cf6', bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' }
           ].map((m, i) => (
-            <div key={i} className="stat-card" style={{ padding: isMobile ? '16px' : '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>
-              <div style={{ width: isMobile ? '32px' : '40px', height: isMobile ? '32px' : '40px', borderRadius: '10px', backgroundColor: `${m.color}15`, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: isMobile ? '8px' : '16px' }}>
-                <m.icon size={isMobile ? 16 : 20} />
+            <div key={i} className="stat-card animate-slide-up" style={{ 
+              padding: isMobile ? '16px' : '24px', 
+              backgroundColor: '#fff', 
+              border: '1px solid #e2e8f0', 
+              borderRadius: '24px',
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
+              animationDelay: `${i * 0.1}s`,
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{ 
+                width: isMobile ? '36px' : '48px', 
+                height: isMobile ? '36px' : '48px', 
+                borderRadius: '14px', 
+                background: m.bg, 
+                color: m.color, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                marginBottom: isMobile ? '12px' : '20px',
+                position: 'relative',
+                zIndex: 2
+              }}>
+                <m.icon size={isMobile ? 18 : 24} />
               </div>
-              <div style={{ fontSize: isMobile ? '18px' : '24px', fontWeight: 900, color: '#0f172a' }}>{loading ? '...' : m.val}</div>
-              <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</div>
+              <div style={{ fontSize: isMobile ? '20px' : '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', position: 'relative', zIndex: 2 }}>{loading ? '...' : m.val}</div>
+              <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', position: 'relative', zIndex: 2 }}>{m.label}</div>
+              
+              {/* Subtle background decoration */}
+              <div style={{ position: 'absolute', top: -10, right: -10, color: m.color, opacity: 0.03, zIndex: 1 }}>
+                <m.icon size={100} />
+              </div>
             </div>
           ))}
+        </div>
+
+        {/* PREDICTIVE ANALYTICS SECTION */}
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+             <div style={{ padding: '6px', background: '#f5f3ff', color: '#8b5cf6', borderRadius: '8px' }}><Zap size={18} /></div>
+             <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>Professional Intelligence Suite</h3>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '24px' }}>
+             <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                   <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#475569' }}>Resource Workload Forecast</h4>
+                   <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '4px 10px', borderRadius: '20px' }}>AI PREDICTED</div>
+                </div>
+                <ReactECharts option={workloadOption} style={{ height: '240px' }} />
+             </div>
+             <div className="page-card" style={{ padding: '28px', borderRadius: '28px', display: 'flex', flexDirection: 'column' }}>
+                <h4 style={{ margin: '0 0 24px', fontSize: '15px', fontWeight: 800, color: '#475569' }}>Clinical Load Complexity</h4>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                   <ReactECharts option={complexityOption} style={{ height: '180px', width: '100%' }} />
+                </div>
+                <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                   {(stats.predictive?.complexityMix || []).map((c: any, i: number) => (
+                      <div key={i} style={{ textAlign: 'center' }}>
+                         <div style={{ fontSize: '16px', fontWeight: 900, color: i === 0 ? '#10b981' : i === 1 ? '#f59e0b' : '#ef4444' }}>{c.value}%</div>
+                         <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{c.name}</div>
+                      </div>
+                   ))}
+                </div>
+             </div>
+          </div>
         </div>
 
         {/* MIDDLE ROW: PERFORMANCE COMPARISON */}
