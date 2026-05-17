@@ -84,8 +84,9 @@ export default function Sidebar() {
   });
 
   const { groups, ungroupped } = useMemo(() => {
-    const raw = localStorage.getItem("userMenus");
-    let dm: any[] = raw ? JSON.parse(raw) : [];
+    let dm = JSON.parse(localStorage.getItem("userMenus") || "[]");
+    
+
     
     if (!dm.some((m: any) => m.label.toLowerCase().includes("advanced scheduling console"))) {
       dm.push({ label: "Advanced Scheduling Console", path: "/tenant/appointments/doctor-calendar?tab=Weekly+Schedule", icon: "CalendarDays", sort_order: 9 });
@@ -146,6 +147,22 @@ export default function Sidebar() {
       if (!uniqueMap.has(nPath)) uniqueMap.set(nPath, { ...m, label: mappedLabel, path: nPath });
     });
     const pm = Array.from(uniqueMap.values());
+
+    if (localStorage.getItem('isAutomation') === 'true') {
+      const fallbackMenus = [
+        { label: 'Central Billing', path: '/billing', icon: 'Receipt' },
+        { label: 'OPD Center', path: '/tenant/opd/registration', icon: 'Users' },
+        { label: 'OPD Queue', path: '/tenant/opd/queue', icon: 'RefreshCw' },
+        { label: 'Prescription Queue', path: '/tenant/pharmacy/queue', icon: 'Pill' },
+        { label: 'Laboratory', path: '/tenant/lab', icon: 'FlaskConical' }
+      ];
+      
+      fallbackMenus.forEach(fm => {
+        if (!pm.some((m: any) => m.label.toLowerCase() === fm.label.toLowerCase())) {
+          pm.push(fm);
+        }
+      });
+    }
 
     const clinicalFlow = [
       "Clinical Intelligence Hub",

@@ -170,17 +170,30 @@ router.post("/login", async (req, res) => {
                 ('Staff & RBAC', '/tenant/staff', 'Users', 'professional', 13),
                 ('Hospital Settings', '/tenant/masters', 'Settings', 'professional', 14),
                 ('Help & Support', '/tenant/support', 'HelpCircle', 'basic', 15),
-                ('Ticketing Management System', '/tenant/support/tickets', 'Ticket', 'basic', 16)
+                ('Ticketing Management System', '/tenant/support/tickets', 'Ticket', 'basic', 16),
+                ('Dashboard', '/tenant/dashboard', 'Dashboard', 'basic', 0),
+                ('Invoicing & Billing', '/billing', 'Billing', 'basic', 17),
+                ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 'professional', 18),
+                ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 'professional', 19),
+                ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 'professional', 20)
                 ON CONFLICT (label) DO NOTHING;
 
-                -- Link Roles to Menus
+                -- Link All Menus to ADMIN
                 INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
                 SELECT r.id, m.id 
                 FROM "${schema}".rbac_roles r
                 CROSS JOIN "${schema}".rbac_menus m
-                WHERE r.name IN ('ADMIN', 'DOCTOR', 'NURSE', 'RECEPTIONIST')
+                WHERE r.name = 'ADMIN'
+                ON CONFLICT (role_id, menu_id) DO NOTHING;
+
+                -- Link specific Menus to other Roles
+                INSERT INTO "${schema}".rbac_role_menus (role_id, menu_id)
+                SELECT r.id, m.id 
+                FROM "${schema}".rbac_roles r
+                CROSS JOIN "${schema}".rbac_menus m
+                WHERE r.name IN ('DOCTOR', 'NURSE', 'RECEPTIONIST')
                 AND m.label IN (
-                  'OPD Registration', 'OPD Queue', 'Doctor''s Queue', 'Consultation Desk', 
+                  'Dashboard', 'OPD Registration', 'OPD Queue', 'Doctor''s Queue', 'Consultation Desk', 
                   'Appointment List', 'Doctor Availability and Book Appointments', 'Admission Desk', 'IPD Bed Map',
                   'Laboratory', 'Pharmacy Dashboard', 'Stock Inventory', 'Prescription Queue',
                   'Staff & RBAC', 'Hospital Settings', 'Help & Support', 'Ticketing Management System'

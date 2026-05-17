@@ -14,7 +14,6 @@ test.describe('OPD Module Regression - Field Level Validation', () => {
     // 1. Navigate to OPD Center
     await auth.navigateToSidebar('OPD Center');
     await expect(page).toHaveURL(/.*opd\/registration/);
-    await page.waitForLoadState('networkidle');
 
     // 2. Register a new patient by typing their name (auto-triggers form)
     const patientName = `Test Patient ${Date.now()}`;
@@ -52,10 +51,7 @@ test.describe('OPD Module Regression - Field Level Validation', () => {
     // Try to finalize without mandatory fields
     await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();
     
-    // Should show error or be disabled if fields missing
-    // In this UI, finalize is disabled until minimal info is present
-    const btn = page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i });
-    const isDisabled = await btn.isDisabled();
-    expect(isDisabled).toBe(true);
+    // Should show error toast for missing mandatory fields
+    await expect(page.getByText(/Doctor selection are mandatory/i)).toBeVisible();
   });
 });

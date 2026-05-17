@@ -12,9 +12,9 @@ test.describe('Nexus Tier - Tenant Provisioning Regression', () => {
   test('Field Level Validation for New Tenant Provisioning', async ({ page }) => {
     // Navigate to Provision Shard page
     await page.click('text=Tenants');
-    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/.*tenants/);
     await page.click('button:has-text("+ Provision Tenant")');
-    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/.*tenants\/new/);
 
     // Try to deploy without filling required fields
     await page.click('button:has-text("DEPLOY SHARD")');
@@ -38,7 +38,7 @@ test.describe('Nexus Tier - Tenant Provisioning Regression', () => {
   test('Full Tenant Provisioning Flow with Cleanup (Optional)', async ({ page }) => {
     // Navigate to Tenants page
     await page.click('text=Tenants');
-    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/.*tenants/);
     
     // Click provision button
     const provisionBtn = page.locator('button:has-text("+ Provision Tenant")');
@@ -48,7 +48,7 @@ test.describe('Nexus Tier - Tenant Provisioning Regression', () => {
       // Alternative: direct navigation
       await page.goto('/nexus/tenants/new');
     }
-    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/.*tenants\/new/);
 
     const uniqueId = Date.now();
     const hospitalName = `Regression Hospital ${uniqueId}`;

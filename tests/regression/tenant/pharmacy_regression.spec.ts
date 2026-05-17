@@ -13,7 +13,6 @@ test.describe('Pharmacy Module Regression - Inventory & Dispensing', () => {
     // Navigate to Stock Inventory
     await auth.navigateToSidebar('Stock Inventory');
     await expect(page).toHaveURL(/.*pharmacy\/inventory/);
-    await page.waitForLoadState('networkidle');
     
     // Click Add New Stock button
     await page.click('button:has-text("+ Add New Stock")');
@@ -41,17 +40,18 @@ test.describe('Pharmacy Module Regression - Inventory & Dispensing', () => {
     
     // Save item
     await page.click('button:has-text("Save Item")');
-    await page.waitForTimeout(1000);
+    
+    // Wait for modal to close
+    await expect(page.locator('button:has-text("Save Item")')).toBeHidden({ timeout: 10000 });
     
     // Verify medicine was added to inventory
-    await expect(page.locator(`text=${medicineName}`)).toBeVisible();
+    await expect(page.locator(`text=${medicineName}`)).toBeVisible({ timeout: 5000 });
   });
 
   test('Medicine Dispensing Workflow', async ({ page }) => {
     // Navigate to Prescription Queue
     await auth.navigateToSidebar('Prescription Queue');
     await expect(page).toHaveURL(/.*pharmacy\/queue/);
-    await page.waitForLoadState('networkidle');
     
     // Find patient in queue and click Dispense
     const dispenseButtons = page.locator('button:has-text("Dispense")');

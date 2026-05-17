@@ -185,6 +185,25 @@ async function ensureIPDMasters(req) {
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".wards (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100), type VARCHAR(50), capacity INTEGER DEFAULT 0, base_charge NUMERIC DEFAULT 0)`);
   await ensureTableColumns(req, 'wards');
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".beds (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), ward_id UUID REFERENCES "${req.schemaName}".wards(id), bed_number VARCHAR(50), status VARCHAR(50) DEFAULT 'Vacant')`);
+
+  // Seed Diagnostics if missing
+  try {
+    const diags = [
+      { name: 'Complete Blood Count (CBC)', price: 450 },
+      { name: 'Chest X-Ray', price: 800 },
+      { name: 'Lipid Profile', price: 1200 },
+      { name: 'MRI Brain (Plain)', price: 8500 },
+      { name: 'ECG (Resting)', price: 350 }
+    ];
+    for (const d of diags) {
+      const existing = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".diagnostics WHERE name = '${d.name}'`);
+      if (existing.length === 0) {
+        await req.prisma.$executeRawUnsafe(`INSERT INTO "${req.schemaName}".diagnostics (name, price) VALUES ('${d.name}', ${d.price})`);
+      }
+    }
+  } catch (e) {
+    console.warn("[SEED] Could not seed diagnostics:", e.message);
+  }
 }
 
 async function ensureIPDAdmissionsTable(req) {

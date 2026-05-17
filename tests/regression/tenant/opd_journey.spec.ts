@@ -163,7 +163,6 @@ test.describe('OPD-3: Consultation Page', () => {
     await loginAndGo(page, '/tenant/opd/consultation');
     await page.evaluate(() => localStorage.removeItem('currentEncounter'));
     await page.reload();
-    await page.waitForLoadState('networkidle');
     await expect(page.getByText(/No Active Patient/i)).toBeVisible({ timeout: 10000 });
   });
 
@@ -171,7 +170,6 @@ test.describe('OPD-3: Consultation Page', () => {
     await loginAndGo(page, '/tenant/opd/consultation');
     await page.evaluate(() => localStorage.removeItem('currentEncounter'));
     await page.reload();
-    await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: /Return to Queue/i }).click();
     await expect(page).toHaveURL(/opd\/queue/);
   });

@@ -580,6 +580,7 @@ export default function OPDRegistrationPage() {
                     <button 
                      key={d.id || Math.random()} 
                      type="button"
+                     className={`doctor-card ${selectedDoctorId === d.id ? 'active' : ''}`}
                      onClick={() => setSelectedDoctorId(d.id)}
                      style={{ 
                        width: '100%',

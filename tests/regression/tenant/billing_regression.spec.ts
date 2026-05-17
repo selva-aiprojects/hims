@@ -13,7 +13,6 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
     // Navigate to Billing page
     await auth.navigateToSidebar('Central Billing');
     await expect(page).toHaveURL(/.*billing/);
-    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1500);
     
     // Verify page loaded with payment mode buttons
@@ -31,7 +30,6 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
     // Navigate to Billing
     await auth.navigateToSidebar('Central Billing');
     await expect(page).toHaveURL(/.*billing/);
-    await page.waitForLoadState('networkidle');
     
     // Test payment mode buttons
     const paymentModes = ['Cash', 'UPI', 'Card', 'Insurance'];
@@ -48,7 +46,6 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
     // Navigate to Billing
     await auth.navigateToSidebar('Central Billing');
     await expect(page).toHaveURL(/.*billing/);
-    await page.waitForLoadState('networkidle');
     
     // Verify payment mode buttons are present
     await expect(page.locator('button:has-text("Cash")')).toBeVisible();

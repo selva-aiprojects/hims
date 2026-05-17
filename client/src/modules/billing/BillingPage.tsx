@@ -187,7 +187,8 @@ export default function BillingPage() {
       price: Number(srv.price), 
       quantity: 1, 
       tax: Number(srv.tax_percent || 0),
-      discount: 0
+      discount: 0,
+      category: srv.category
     }]);
   };
 
@@ -200,7 +201,8 @@ export default function BillingPage() {
         price: Number(price), 
         quantity: 1, 
         tax: 0,
-        discount: 0
+        discount: 0,
+        category: 'Manual'
       }]);
     }
   };
@@ -402,7 +404,14 @@ export default function BillingPage() {
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Receipt size={18} />
                     </div>
-                    <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 800, margin: 0 }}>Invoice Particulars</h3>
+                    <div>
+                      <h3 style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 800, margin: 0 }}>Invoice Particulars</h3>
+                      {patient?.mrn === 'GENERAL' && (
+                        <div style={{ fontSize: '11px', color: '#0369a1', marginTop: '4px', fontWeight: 700 }}>
+                          ℹ️ Note: For Walk-in customers, please add consultation or services manually.
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px', width: isMobile ? '100%' : 'auto', justifyContent: 'flex-end' }}>
                     <select 
@@ -469,12 +478,13 @@ export default function BillingPage() {
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9' }}>
-                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DESCRIPTION</th>
-                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>UNIT PRICE</th>
-                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>QTY</th>
-                        <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>TOTAL (₹)</th>
-                      </tr>
+                        <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9' }}>
+                          <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DESCRIPTION</th>
+                          <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>UNIT PRICE</th>
+                          <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>QTY</th>
+                          <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800 }}>DISCOUNT</th>
+                          <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 800, textAlign: 'right' }}>TOTAL (₹)</th>
+                        </tr>
                     </thead>
                     <tbody>
                       {items.length > 0 ? items.map((item, idx) => (
@@ -496,9 +506,22 @@ export default function BillingPage() {
                               }}
                             />
                           </td>
+                          <td style={{ padding: '20px 16px' }}>
+                            <input 
+                              type="number" min="0" 
+                              disabled={item.category !== 'Consultation' && item.category !== 'Bed Charges'}
+                              style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700, opacity: (item.category !== 'Consultation' && item.category !== 'Bed Charges') ? 0.5 : 1 }}
+                              value={item.discount}
+                              onChange={(e) => {
+                                const next = [...items];
+                                next[idx].discount = Number(e.target.value);
+                                setItems(next);
+                              }}
+                            />
+                          </td>
                           <td style={{ padding: '20px 16px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px' }}>
-                              <span style={{ fontWeight: 800, color: '#0f172a' }}>{(item.price * item.quantity).toLocaleString()}</span>
+                              <span style={{ fontWeight: 800, color: '#0f172a' }}>{((item.price * item.quantity) - (item.discount || 0)).toLocaleString()}</span>
                               <button 
                                 onClick={() => setItems(items.filter((_, i) => i !== idx))}
                                 style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}

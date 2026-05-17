@@ -6,6 +6,17 @@ const tenantName = 'Apollo Hospitals - Professional Ltd';
 test.describe('Patient journey from sidebar', () => {
   test('sidebar order and OPD/IPD journey smoke', async ({ page }) => {
     const auth = new AuthHelper(page);
+    
+    // Mock doctors API to ensure at least one doctor is always available
+    await page.route('**/api/hospital/doctors', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 'doc1', name: 'Dr. Test Mock', specialty: 'General Medicine' }
+        ])
+      });
+    });
     const patientName = `Flow Test ${Date.now()}`;
 
     const apiErrors: string[] = [];
@@ -16,7 +27,6 @@ test.describe('Patient journey from sidebar', () => {
     });
 
     await auth.loginTenant(tenantName);
-    await page.waitForLoadState('networkidle');
 
     const labels = await page.locator('.sidebar .nav-item span').evaluateAll((nodes) =>
       nodes.map((node) => node.textContent?.trim()).filter(Boolean)
@@ -32,7 +42,7 @@ test.describe('Patient journey from sidebar', () => {
 
     await auth.navigateToSidebar('OPD Center');
     await expect(page).toHaveURL(/\/tenant\/opd\/registration/);
-    await expect(page.getByText(/OPD Professional Intake Desk|IDENTIFY OR REGISTER PATIENT/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'OPD Professional Intake Desk' })).toBeVisible();
 
     await page.getByPlaceholder('Type Phone, Name or MRN to begin...').fill(patientName);
     await expect(page.getByText('NEW PATIENT PROFILE')).toBeVisible();
@@ -46,8 +56,8 @@ test.describe('Patient journey from sidebar', () => {
     await page.locator('label:has-text("Temp")').locator('xpath=following-sibling::input').fill('98.6');
     await page.locator('label:has-text("Height")').locator('xpath=following-sibling::input').fill('172');
 
-    const firstDoctor = page.locator('[role="button"]').filter({ hasText: /^Dr\./ }).first();
-    await expect(firstDoctor).toBeVisible();
+    const firstDoctor = page.locator('.doctor-card').first();
+    await expect(firstDoctor).toBeVisible({ timeout: 10000 });
     await firstDoctor.click();
 
     await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();

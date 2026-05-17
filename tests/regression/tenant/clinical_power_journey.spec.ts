@@ -9,7 +9,15 @@ test.describe('HIMS Clinical Power Journeys', () => {
   test.beforeEach(async ({ page }) => {
     auth = new AuthHelper(page);
     await auth.loginTenant(tenantName);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
+    
+    // Heal masters to ensure data exists
+    const tenantId = await page.evaluate(() => localStorage.getItem('tenant'));
+    await page.request.get('/api/hospital/heal-all-masters', {
+      headers: {
+        'x-tenant-id': tenantId || ''
+      }
+    });
   });
 
   test('OPD Gold Flow: Registration -> Consultation -> Lab -> Pharmacy -> Billing', async ({ page }) => {
@@ -18,8 +26,7 @@ test.describe('HIMS Clinical Power Journeys', () => {
     const labTestName = 'Complete Blood Count (CBC)';
 
     // 1. DASHBOARD: Capture initial patient inflow
-    await page.goto('/tenant/dashboard');
-    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('.stat-card');
     const inflowCard = page.locator('.stat-card', { hasText: 'Patient Inflow' });
     const initialInflowText = await inflowCard.locator('div').first().innerText();
     const initialInflow = parseInt(initialInflowText) || 0;
@@ -27,18 +34,28 @@ test.describe('HIMS Clinical Power Journeys', () => {
 
     // 2. REGISTRATION
     await auth.navigateToSidebar('OPD Center');
-    await page.getByPlaceholder('Type Phone, Name or MRN to begin...').fill(patientName);
+    const searchInput = page.locator('input.high-velocity-input').first();
+    await searchInput.waitFor({ state: 'visible', timeout: 15000 });
+    await searchInput.fill(patientName);
     await page.waitForTimeout(1000);
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
     await page.locator('label:has-text("Gender")').locator('xpath=following-sibling::select').selectOption('Male');
     
     // Assign Doctor
-    const firstDoctor = page.locator('button').filter({ hasText: /Dr\./ }).first();
-    await firstDoctor.click();
+    const firstDoctor = page.locator('.doctor-card').first();
+    await expect(firstDoctor).toBeVisible({ timeout: 10000 });
+    await firstDoctor.click({ force: true });
+    await page.waitForTimeout(1000);
     
     await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();
-    await expect(page.locator('.app-toast-success')).toBeVisible({ timeout: 15000 });
+    const toast = page.locator('.app-toast-success, .app-toast-error');
+    await expect(toast).toBeVisible({ timeout: 15000 });
+    const isError = await page.locator('.app-toast-error').isVisible();
+    if (isError) {
+      const errorText = await page.locator('.app-toast-error').textContent();
+      throw new Error(`Registration failed with error: ${errorText}`);
+    }
 
     // 3. CONSULTATION
     await auth.navigateToSidebar('OPD Queue');
@@ -47,14 +64,17 @@ test.describe('HIMS Clinical Power Journeys', () => {
     
     // Handle Start Overlay
     const startBtn = page.getByRole('button', { name: /START CONSULTATION NOW/i });
-    if (await startBtn.isVisible({ timeout: 10000 })) {
+    try {
+      await startBtn.waitFor({ state: 'visible', timeout: 5000 });
       await startBtn.click();
+    } catch (e) {
+      console.log("Start overlay not found or already started.");
     }
     await expect(page.getByText('Clinical Consultation War-Room')).toBeVisible();
 
     // NEW: Verify Predictive Insights Bar
     await expect(page.getByText('Predicted Time')).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText('Complexity')).toBeVisible();
+    await expect(page.getByText('Complexity', { exact: true })).toBeVisible();
     await expect(page.getByText('Priority Level')).toBeVisible();
     
     // Add Diagnosis
@@ -62,12 +82,12 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await diagnosisInput.fill('Viral Fever');
     
     // Add Medicine
-    await page.getByPlaceholder('Search medicines, brands, or composition...').fill(medicineName);
-    await page.locator('.medicine-suggestion', { hasText: medicineName }).first().click();
+    await page.getByPlaceholder(/Search medicines.*composition/i).fill(medicineName);
+    await page.getByText(medicineName).first().click();
     
     // Add Lab Test
     await page.click('text=Lab Tests');
-    await page.getByText(labTestName).click();
+    await page.getByText(labTestName).first().click();
     
     // Finish Consultation
     await page.getByRole('button', { name: /FINISH CONSULTATION/i }).click();
@@ -96,9 +116,15 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await expect(page.locator(`text=${medicineName}`)).toBeVisible();
     await expect(page.locator(`text=${labTestName}`)).toBeVisible();
 
+    // Verify discount rules (Govt Norms)
+    const medicineRow = page.locator('tr', { hasText: medicineName });
+    await expect(medicineRow.locator('input[type="number"]').nth(1)).toBeDisabled();
+
+    const consultationRow = page.locator('tr', { hasText: 'Consultation Fee' });
+    await expect(consultationRow.locator('input[type="number"]').nth(1)).toBeEnabled();
+
     // 7. DASHBOARD: Verify inflow incremented
-    await page.goto('/tenant/dashboard');
-    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('.stat-card');
     const finalInflowCard = page.locator('.stat-card', { hasText: 'Patient Inflow' });
     const finalInflowText = await finalInflowCard.locator('div').first().innerText();
     const finalInflow = parseInt(finalInflowText) || 0;
@@ -114,8 +140,10 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await page.waitForTimeout(1000);
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
-    const firstDoctor = page.locator('button').filter({ hasText: /Dr\./ }).first();
-    await firstDoctor.click();
+    const firstDoctor = page.locator('.doctor-card').first();
+    await expect(firstDoctor).toBeVisible({ timeout: 10000 });
+    await firstDoctor.click({ force: true });
+    await page.waitForTimeout(1000);
     await page.getByRole('button', { name: /FINALIZE & ISSUE TOKEN/i }).click();
     await expect(page.locator('.app-toast-success')).toBeVisible();
 
@@ -156,10 +184,7 @@ test.describe('HIMS Clinical Power Journeys', () => {
   });
 
   test('Predictive Intelligence Dashboard Validation', async ({ page }) => {
-    await page.goto('/tenant/dashboard');
-    await page.waitForLoadState('networkidle');
-
-    // Verify Predictive Section
+    await page.waitForSelector('text=Professional Intelligence Suite');
     await expect(page.getByText(/Professional Intelligence Suite/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/Operational Accuracy/i)).toBeVisible();
     await expect(page.getByText(/Clinical Load Complexity/i)).toBeVisible();

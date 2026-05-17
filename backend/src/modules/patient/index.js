@@ -93,10 +93,7 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
     const yy = String(date.getFullYear()).slice(-2);
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     
-    // Get total count for sequence (pseudo-sequential)
-    const countRes = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".patients`);
-    const count = (countRes[0]?.count || 0) + Math.floor(Math.random() * 100) + 1;
-    const sequence = String(count).padStart(6, '0');
+    const sequence = String(Date.now()).slice(-6);
     
     const mrn = `MRN-${yy}${mm}-${sequence}`;
     

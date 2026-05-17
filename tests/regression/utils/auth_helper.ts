@@ -23,6 +23,10 @@ export class AuthHelper {
   async loginTenant(tenantName: string, username = 'admin@hims-sys.com', password = 'Admin@123') {
     await this.page.goto('/');
     await this.page.waitForSelector('label:has-text("Workspace Type")', { timeout: 10000 });
+    
+    await this.page.evaluate(() => {
+      localStorage.setItem('isAutomation', 'true');
+    });
 
     const workspaceSelect = this.page.locator('label:has-text("Workspace Type")').locator('xpath=following-sibling::select');
     await expect(workspaceSelect).toHaveCount(1);
@@ -38,10 +42,6 @@ export class AuthHelper {
     await this.page.click('button:has-text("SIGN IN TO WORKSPACE")');
 
     await this.page.waitForSelector('.sidebar', { timeout: 15000 });
-    await this.page.evaluate(() => {
-      localStorage.setItem('isAutomation', 'true');
-    });
-    await this.page.waitForLoadState('networkidle');
     await expect(this.page.locator('.sidebar')).toBeVisible();
   }
 
@@ -51,38 +51,41 @@ export class AuthHelper {
   async navigateToSidebar(label: string) {
     const sidebar = this.page.locator('.sidebar');
     
-    // Target the link directly using exact name for reliability, using .first() to avoid strict mode violations
-    const item = sidebar.getByRole('link', { name: label, exact: true }).first();
+    // Target the link directly using a substring match to avoid strict Regex edge cases with React JSX whitespace
+    const item = sidebar.locator('a.nav-item').filter({ hasText: label }).first();
     
     // Try to click directly. If it fails (hidden), we catch and open the group.
     try {
       await item.waitFor({ state: 'visible', timeout: 2000 });
       await item.click();
     } catch (e) {
-      // It's hidden (likely in a collapsed group). Let's expand groups.
       const groups = ['Clinical Operations', 'Diagnostic Services', 'Finance & Revenue', 'System Administration'];
       for (const group of groups) {
         const groupBtn = sidebar.locator('button').filter({ hasText: group });
         if (await groupBtn.isVisible()) {
-          // Open the group
           await groupBtn.click();
-          await this.page.waitForTimeout(500); // Wait for CSS transition
-          
-          if (await item.isVisible()) {
-            break; // Found our item!
-          } else {
-            // Not in this group, close it back
+          try {
+            await item.waitFor({ state: 'visible', timeout: 1000 });
+            await this.page.waitForTimeout(300); // Let layout settle
+            break;
+          } catch (e) {
             await groupBtn.click();
             await this.page.waitForTimeout(300);
           }
         }
       }
-      
-      // Now it must be visible. Force click to bypass any pointer-events interception by parent scroll containers.
+
+      if (await item.count() === 0 || !(await item.isVisible())) {
+        console.log('--- SIDEBAR HTML DUMP ---');
+        const html = await sidebar.evaluate(node => node.innerHTML);
+        console.log(html.substring(0, 5000));
+        console.log('-------------------------');
+        throw new Error(`CRITICAL: Sidebar item '${label}' NOT FOUND IN DOM AFTER EXPANDING GROUPS!`);
+      }
+
       await item.scrollIntoViewIfNeeded();
-      await item.click({ force: true });
+      await item.evaluate(node => node.click());
     }
     
-    await this.page.waitForLoadState('networkidle');
   }
 }
