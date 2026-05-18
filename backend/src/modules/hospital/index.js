@@ -99,11 +99,19 @@ async function ensureStaffColumns(req, force = false) {
     
     await req.prisma.$executeRawUnsafe(`
       DELETE FROM "${req.schemaName}".rbac_user_roles 
-      WHERE user_id IN (SELECT id FROM "${req.schemaName}".users WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')}))
+      WHERE user_id IN (
+        SELECT id FROM "${req.schemaName}".users
+        WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
+        OR (name LIKE 'Dr.%' AND email LIKE '%@apollo.com')
+        OR (name IN ('Dr. Mrutyunjaya', 'Dr. Santhanakrishnan', 'Dr. Aravind Kumar', 'Dr. Sankaran R', 'Dr. Maheswaran R'))
+        OR (email LIKE 'aravind@%')
+        OR (email LIKE 'santhan@%')
+      )
     `);
     
     await req.prisma.$executeRawUnsafe(`
-      DELETE FROM "${req.schemaName}".users 
+      UPDATE "${req.schemaName}".users
+      SET is_active = false
       WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
       OR (name LIKE 'Dr.%' AND email LIKE '%@apollo.com')
       OR (name IN ('Dr. Mrutyunjaya', 'Dr. Santhanakrishnan', 'Dr. Aravind Kumar', 'Dr. Sankaran R', 'Dr. Maheswaran R'))
@@ -140,6 +148,45 @@ async function ensureStaffColumns(req, force = false) {
     staffSyncedSchemas.add(schema);
   } catch (err) {
     console.warn(`[STAFF_HEALING] Error for ${req.schemaName}:`, err.message);
+  }
+}
+
+async function ensureDoctorScheduleTable(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".doctor_schedules (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      doctor_id UUID NOT NULL,
+      weekday INTEGER NOT NULL,
+      session_name VARCHAR(100),
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      slot_duration INTEGER DEFAULT 30,
+      consultation_type VARCHAR(50) DEFAULT 'OPD',
+      location VARCHAR(255),
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+async function ensureDefaultDoctorSchedule(req, doctorId) {
+  await ensureDoctorScheduleTable(req);
+
+  for (let weekday = 1; weekday <= 6; weekday += 1) {
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".doctor_schedules
+        (doctor_id, weekday, session_name, start_time, end_time, slot_duration, consultation_type, location, is_active)
+      SELECT '${s(doctorId)}', ${weekday}, 'Morning OPD', '09:00', '13:00', 30, 'OPD', 'Main OPD', true
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "${req.schemaName}".doctor_schedules
+        WHERE doctor_id = '${s(doctorId)}'
+          AND weekday = ${weekday}
+          AND start_time = '09:00'
+          AND end_time = '13:00'
+          AND consultation_type = 'OPD'
+      )
+    `);
   }
 }
 
@@ -236,6 +283,10 @@ async function ensureIPDAdmissionsTable(req) {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS note_type VARCHAR(50) DEFAULT 'Progress'`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS doctor_id UUID`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS doctor_name VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
 }
 
 async function ensureInsuranceInfrastructure(req) {
@@ -326,13 +377,17 @@ router.get("/heal-all-masters", async (req, res, next) => {
 router.get("/doctors", async (req, res, next) => {
   try {
     await ensureStaffColumns(req);
-    // Show only Active Doctors or users with Dr. in their name
+    // Staff creation stores roles in lowercase, while seeded doctors use uppercase.
+    // Keep the doctor lookup case-insensitive so newly added doctors appear here.
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT id, name, role, specialization, department 
       FROM "${req.schemaName}".users 
-      WHERE (role = 'DOCTOR' OR name ILIKE 'Dr.%') AND is_active = true
+      WHERE (role ILIKE 'doctor' OR name ILIKE 'Dr.%') AND is_active = true
       ORDER BY name ASC
     `);
+    for (const doctor of data) {
+      await ensureDefaultDoctorSchedule(req, doctor.id);
+    }
     console.log(`[HOSPITAL] Returning ${data.length} active doctors for schema ${req.schemaName}`);
     res.json(data);
   } catch (error) { next(error); }
@@ -468,6 +523,9 @@ router.post("/staff", async (req, res, next) => {
         ${sqlValue(license_number)}, ${experience_years || 0}, ${sqlValue(qualifications)}, true
       )
     `);
+    if (String(role || '').toLowerCase() === 'doctor') {
+      await ensureDefaultDoctorSchedule(req, id);
+    }
     res.status(201).json({ id, name, email, role });
   } catch (error) { next(error); }
 });

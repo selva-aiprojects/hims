@@ -572,7 +572,8 @@ export default function OPDRegistrationPage() {
                       const search = doctorSearchTerm ? doctorSearchTerm.toLowerCase() : "";
                       if (!search) return true;
                       const nameMatch = d.name ? d.name.toLowerCase().includes(search) : false;
-                      const specMatch = d.specialization ? d.specialization.toLowerCase().includes(search) : false;
+                      const specialization = d.specialization || d.specialty || d.department || '';
+                      const specMatch = specialization ? specialization.toLowerCase().includes(search) : false;
                       const deptMatch = d.department ? d.department.toLowerCase().includes(search) : false;
                       return nameMatch || specMatch || deptMatch;
                     })
@@ -595,7 +596,7 @@ export default function OPDRegistrationPage() {
                       </div>
                       <div style={{ flex: 1 }}>
                          <div style={{ fontWeight: 800, fontSize: '15px', color: selectedDoctorId === d.id ? '#1e40af' : '#1e293b' }}>{d.name && d.name.startsWith('Dr.') ? d.name : `Dr. ${d.name}`}</div>
-                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{d.specialization || d.department || 'General Physician'}</div>
+                         <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{d.specialization || d.specialty || d.department || 'General Physician'}</div>
                       </div>
                       {selectedDoctorId === d.id && <CheckCircle2 size={20} style={{ color: '#3b82f6', flexShrink: 0 }} />}
                     </button>
@@ -616,19 +617,25 @@ export default function OPDRegistrationPage() {
              </div>
 
             <div style={{ marginTop: 'auto' }}>
-               <button 
-                disabled={isProcessing || (!selectedPatient && !regData.name)}
-                onClick={selectedPatient ? queueExistingPatient : registerAndQueue}
-                style={{ 
-                  width: '100%', padding: '26px', borderRadius: '24px', border: 'none', 
-                  background: (selectedPatient || regData.name) && selectedDoctorId ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#cbd5e1',
-                  color: 'white', fontWeight: 900, fontSize: '18px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
-                  boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)'
-                }}
-               >
-                 {isProcessing ? 'PROCESSING...' : <><Zap size={22} fill="currentColor" /> FINALIZE & ISSUE TOKEN</>}
-               </button>
+               {(() => {
+                 const isSubmitDisabled = isProcessing || (!selectedPatient && !regData.name) || !selectedDoctorId;
+                 return (
+                   <button 
+                    type="button"
+                    disabled={isSubmitDisabled}
+                    onClick={selectedPatient ? queueExistingPatient : registerAndQueue}
+                    style={{ 
+                      width: '100%', padding: '26px', borderRadius: '24px', border: 'none', 
+                      background: !isSubmitDisabled ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#cbd5e1',
+                      color: 'white', fontWeight: 900, fontSize: '18px', cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
+                      boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)'
+                    }}
+                   >
+                     {isProcessing ? 'PROCESSING...' : <><Zap size={22} fill="currentColor" /> FINALIZE & ISSUE TOKEN</>}
+                   </button>
+                 );
+               })()}
                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', fontWeight: 700 }}><Shield size={12} /> HIPAA COMPLIANT</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748b', fontWeight: 700 }}><CheckCircle2 size={12} /> REAL-TIME SYNC</div>

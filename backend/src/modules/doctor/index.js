@@ -360,7 +360,21 @@ router.get("/:doctorId/schedules", async (req, res, next) => {
     await ensureEnterpriseTables(req);
     const { doctorId } = req.params;
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT * FROM "${req.schemaName}".doctor_schedules WHERE doctor_id = '${doctorId}'
+      SELECT
+        id,
+        doctor_id,
+        weekday,
+        session_name,
+        TO_CHAR(start_time, 'HH24:MI') as start_time,
+        TO_CHAR(end_time, 'HH24:MI') as end_time,
+        slot_duration,
+        consultation_type,
+        location,
+        is_active,
+        created_at,
+        updated_at
+      FROM "${req.schemaName}".doctor_schedules
+      WHERE doctor_id = '${doctorId}'
     `);
     res.json(data);
   } catch (error) { next(error); }
@@ -386,7 +400,20 @@ router.get("/:doctorId/leaves", async (req, res, next) => {
     await ensureEnterpriseTables(req);
     const { doctorId } = req.params;
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT * FROM "${req.schemaName}".doctor_leaves WHERE doctor_id = '${doctorId}'
+      SELECT
+        id,
+        doctor_id,
+        leave_type,
+        TO_CHAR(start_date, 'YYYY-MM-DD') as start_date,
+        TO_CHAR(end_date, 'YYYY-MM-DD') as end_date,
+        TO_CHAR(start_time, 'HH24:MI') as start_time,
+        TO_CHAR(end_time, 'HH24:MI') as end_time,
+        reason,
+        is_emergency,
+        created_at,
+        updated_at
+      FROM "${req.schemaName}".doctor_leaves
+      WHERE doctor_id = '${doctorId}'
     `);
     res.json(data);
   } catch (error) { next(error); }
@@ -420,7 +447,18 @@ router.get("/:doctorId/overrides", async (req, res, next) => {
     await ensureEnterpriseTables(req);
     const { doctorId } = req.params;
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT * FROM "${req.schemaName}".doctor_overrides WHERE doctor_id = '${doctorId}'
+      SELECT
+        id,
+        doctor_id,
+        TO_CHAR(override_date, 'YYYY-MM-DD') as override_date,
+        TO_CHAR(start_time, 'HH24:MI') as start_time,
+        TO_CHAR(end_time, 'HH24:MI') as end_time,
+        is_available,
+        reason,
+        created_at,
+        updated_at
+      FROM "${req.schemaName}".doctor_overrides
+      WHERE doctor_id = '${doctorId}'
     `);
     res.json(data);
   } catch (error) { next(error); }
@@ -457,9 +495,53 @@ router.get("/:doctorId/availability-rules", async (req, res, next) => {
     const { doctorId } = req.params;
     const { startDate, endDate } = req.query;
 
-    const schedules = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".doctor_schedules WHERE doctor_id = '${doctorId}' AND is_active = true`);
-    const leaves = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".doctor_leaves WHERE doctor_id = '${doctorId}' AND end_date >= '${startDate}' AND start_date <= '${endDate}'`);
-    const overrides = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".doctor_overrides WHERE doctor_id = '${doctorId}' AND override_date >= '${startDate}' AND override_date <= '${endDate}'`);
+    const schedules = await req.prisma.$queryRawUnsafe(`
+      SELECT
+        id,
+        doctor_id,
+        weekday,
+        session_name,
+        TO_CHAR(start_time, 'HH24:MI') as start_time,
+        TO_CHAR(end_time, 'HH24:MI') as end_time,
+        slot_duration,
+        consultation_type,
+        location,
+        is_active,
+        created_at,
+        updated_at
+      FROM "${req.schemaName}".doctor_schedules
+      WHERE doctor_id = '${doctorId}' AND is_active = true
+    `);
+    const leaves = await req.prisma.$queryRawUnsafe(`
+      SELECT
+        id,
+        doctor_id,
+        leave_type,
+        TO_CHAR(start_date, 'YYYY-MM-DD') as start_date,
+        TO_CHAR(end_date, 'YYYY-MM-DD') as end_date,
+        TO_CHAR(start_time, 'HH24:MI') as start_time,
+        TO_CHAR(end_time, 'HH24:MI') as end_time,
+        reason,
+        is_emergency,
+        created_at,
+        updated_at
+      FROM "${req.schemaName}".doctor_leaves
+      WHERE doctor_id = '${doctorId}' AND end_date >= '${startDate}' AND start_date <= '${endDate}'
+    `);
+    const overrides = await req.prisma.$queryRawUnsafe(`
+      SELECT
+        id,
+        doctor_id,
+        TO_CHAR(override_date, 'YYYY-MM-DD') as override_date,
+        TO_CHAR(start_time, 'HH24:MI') as start_time,
+        TO_CHAR(end_time, 'HH24:MI') as end_time,
+        is_available,
+        reason,
+        created_at,
+        updated_at
+      FROM "${req.schemaName}".doctor_overrides
+      WHERE doctor_id = '${doctorId}' AND override_date >= '${startDate}' AND override_date <= '${endDate}'
+    `);
     const appointments = await req.prisma.$queryRawUnsafe(`
       SELECT a.*, p.name as patient_name 
       FROM "${req.schemaName}".appointments a
@@ -487,20 +569,28 @@ router.get("/:doctorId/stats", async (req, res, next) => {
     const { doctorId } = req.params;
     const schema = req.schemaName;
 
-    // 1. Total Patients Seen
-    const patientsRes = await req.prisma.$queryRawUnsafe(`
+    // 1. Appointment overview. Appointments are the first thing a doctor sees
+    // on the workspace, while encounters are only created after consultation starts.
+    const appointmentPatientsRes = await req.prisma.$queryRawUnsafe(`
+      SELECT COUNT(DISTINCT patient_id)::integer as count
+      FROM "${schema}".appointments
+      WHERE doctor_id = '${doctorId}' AND COALESCE(status, 'Scheduled') != 'Cancelled'
+    `);
+
+    const patientsSeenRes = await req.prisma.$queryRawUnsafe(`
       SELECT COUNT(DISTINCT patient_id)::integer as count 
       FROM "${schema}".encounters 
       WHERE doctor_id = '${doctorId}'
     `);
-    const patientsSeen = patientsRes[0]?.count || 0;
+    const appointmentPatients = appointmentPatientsRes[0]?.count || 0;
+    const patientsSeen = patientsSeenRes[0]?.count || 0;
 
-    // 2. Repeat vs New Patients
+    // 2. Repeat vs New Appointment Patients
     const patientCounts = await req.prisma.$queryRawUnsafe(`
       WITH patient_visits AS (
         SELECT patient_id, COUNT(*) as visit_count
-        FROM "${schema}".encounters
-        WHERE doctor_id = '${doctorId}'
+        FROM "${schema}".appointments
+        WHERE doctor_id = '${doctorId}' AND COALESCE(status, 'Scheduled') != 'Cancelled'
         GROUP BY patient_id
       )
       SELECT 
@@ -522,14 +612,15 @@ router.get("/:doctorId/stats", async (req, res, next) => {
     `);
 
     res.json({
-      patientsSeen,
+      patientsSeen: appointmentPatients,
       newPatients,
       repeatPatients,
       business: {
         prescriptions: businessRes[0]?.prescriptions_count || 0,
         labs: businessRes[0]?.lab_orders_count || 0,
         consultations: businessRes[0]?.completed_appointments || 0,
-        revenue: businessRes[0]?.revenue || 0
+        revenue: businessRes[0]?.revenue || 0,
+        patientsSeen
       }
     });
   } catch (error) {
@@ -559,4 +650,3 @@ router.post("/:doctorId/status", async (req, res, next) => {
 });
 
 module.exports = router;
-

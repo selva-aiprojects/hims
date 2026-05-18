@@ -41,8 +41,8 @@ test.describe('Pharmacy Module Regression - Inventory & Dispensing', () => {
     // Save item
     await page.click('button:has-text("Save Item")');
     
-    // Wait for modal to close
-    await expect(page.locator('button:has-text("Save Item")')).toBeHidden({ timeout: 10000 });
+    // Wait for modal to close by checking the modal overlay is hidden
+    await expect(page.locator('div').filter({ hasText: 'Add New Medicine' }).first()).toBeHidden({ timeout: 10000 });
     
     // Verify medicine was added to inventory
     await expect(page.locator(`text=${medicineName}`)).toBeVisible({ timeout: 5000 });

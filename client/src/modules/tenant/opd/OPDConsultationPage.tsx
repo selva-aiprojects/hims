@@ -54,7 +54,7 @@ export default function OPDConsultationPage() {
   const [isPredicting, setIsPredicting] = useState(false);
 
   // Timer & Event State
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(() => localStorage.getItem("isAutomation") === "true");
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);

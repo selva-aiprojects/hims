@@ -43,15 +43,27 @@ export default function AppointmentsPage() {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
+    const currentRole = (localStorage.getItem("role") || "").toLowerCase();
+    const currentUserId = localStorage.getItem("userId") || "";
+    const isDoctorView = currentRole === "doctor";
+    const appointmentsUrl = isDoctorView && currentUserId
+      ? `${API_BASE}/api/appointments?doctorId=${encodeURIComponent(currentUserId)}`
+      : `${API_BASE}/api/appointments`;
+
     try {
       const [apptRes, docRes, patRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/appointments`, { headers }),
+        axios.get(appointmentsUrl, { headers }),
         axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
         axios.get(`${API_BASE}/api/patients?limit=100`, { headers })
       ]);
       setAppointments(apptRes.data || []);
       const allDocs = docRes.data || [];
-      setDoctors(allDocs.filter((s: any) => !s.role || s.role.toLowerCase() === 'doctor'));
+      const doctorList = allDocs.filter((s: any) => !s.role || s.role.toLowerCase() === 'doctor');
+      setDoctors(isDoctorView && currentUserId ? doctorList.filter((d: any) => d.id === currentUserId) : doctorList);
+      if (isDoctorView && currentUserId) {
+        setSelectedDoctorId(currentUserId);
+        setBookingForm(prev => ({ ...prev, doctor_id: currentUserId }));
+      }
       setPatients(patRes.data || []);
     } catch (err) { 
       console.error(err); 
@@ -82,8 +94,15 @@ export default function AppointmentsPage() {
     }
   };
 
+  const currentRole = (localStorage.getItem("role") || "").toLowerCase();
+  const currentUserId = localStorage.getItem("userId") || "";
+  const isDoctorView = currentRole === "doctor";
+  const scopedDoctorId = isDoctorView ? currentUserId : selectedDoctorId;
+
+  const formatDoctorName = (name = "") => name.toLowerCase().startsWith("dr") ? name : `Dr. ${name}`;
+
   const filteredAppointments = appointments
-    .filter(appt => !selectedDoctorId || appt.doctor_id === selectedDoctorId)
+    .filter(appt => !scopedDoctorId || appt.doctor_id === scopedDoctorId)
     .filter(appt => activeCategory === "All" || appt.status === activeCategory)
     .filter(appt => {
       const query = searchTerm.toLowerCase();
@@ -260,8 +279,8 @@ export default function AppointmentsPage() {
                       <User size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                     </div>
 
-                    <select 
-                      value={selectedDoctorId} 
+                    {!isDoctorView && <select 
+                      value={selectedDoctorId}
                       onChange={(e) => setSelectedDoctorId(e.target.value)}
                       style={{ 
                         padding: '8px 16px', 
@@ -277,8 +296,9 @@ export default function AppointmentsPage() {
                       }}
                     >
                       <option value="">All Doctors</option>
-                      {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
+                      {doctors.map(d => <option key={d.id} value={d.id}>{formatDoctorName(d.name)}</option>)}
                     </select>
+                    }
 
                     {/* View Toggle */}
                     <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
@@ -339,7 +359,7 @@ export default function AppointmentsPage() {
                         <div style={{ marginLeft: isMobile ? '12px' : '20px', flex: 1 }}>
                           <div style={{ fontWeight: 800, color: '#1e293b', fontSize: isMobile ? '14px' : '16px' }}>{appt.patient_name}</div>
                           <div style={{ fontSize: isMobile ? '11px' : '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <User size={14} /> Dr. {appt.doctor_name}
+                            <User size={14} /> {formatDoctorName(appt.doctor_name)}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '20px' }}>
@@ -424,7 +444,7 @@ export default function AppointmentsPage() {
                         </div>
                         <div>
                           <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '15px' }}>{appt.patient_name}</div>
-                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Dr. {appt.doctor_name}</div>
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{formatDoctorName(appt.doctor_name)}</div>
                         </div>
                         <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                            <span style={{ fontSize: '10px', fontWeight: 800, color: appt.status === 'Completed' ? '#10b981' : '#f59e0b' }}>{appt.status.toUpperCase()}</span>
@@ -486,7 +506,7 @@ export default function AppointmentsPage() {
                       />
                     </div>
                     <div style={{ marginLeft: '12px' }}>
-                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>Dr. {doc.name}</div>
+                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b' }}>{formatDoctorName(doc.name)}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#10b981', fontWeight: 700 }}>
                         <div style={{ width: '6px', height: '6px', background: '#10b981', borderRadius: '50%' }}></div>
                         Consulting Now
@@ -657,7 +677,7 @@ export default function AppointmentsPage() {
                       onChange={e => setBookingForm({...bookingForm, doctor_id: e.target.value})}
                     >
                       <option value="">Select Medical Professional...</option>
-                      {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.name}</option>)}
+                      {doctors.map(d => <option key={d.id} value={d.id}>{formatDoctorName(d.name)}</option>)}
                     </select>
                     <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
                       <User size={18} color="#94a3b8" />

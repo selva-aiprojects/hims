@@ -9,6 +9,7 @@ import { Users, FileText, Pill, FlaskConical, TrendingUp, UserCheck, RefreshCcw,
 export default function DoctorDashboardPage() {
   const navigate = useNavigate();
   const [userName] = useState(localStorage.getItem("userName") || "Doctor");
+  const displayName = userName.toLowerCase().startsWith('dr') ? userName : `Dr. ${userName}`;
   const [recentPatients, setRecentPatients] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({
     patientsSeen: 0,
@@ -60,7 +61,7 @@ export default function DoctorDashboardPage() {
     <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc' }}>
       <Sidebar />
       <main className="main-content" style={{ padding: '40px' }}>
-        <Header title={`Dr. ${userName}'s Workspace`} />
+        <Header title={`${displayName}'s Workspace`} />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px', marginTop: '8px' }}>
           <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#eff6ff', display: 'grid', placeItems: 'center', color: '#3b82f6', boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.1)' }}>
@@ -78,7 +79,7 @@ export default function DoctorDashboardPage() {
               <Users size={20} />
             </div>
             <div style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>{loading ? '...' : stats.patientsSeen}</div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Patients Seen</div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Appointed Patients</div>
           </div>
           
           <div className="stat-card" style={{ padding: '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px' }}>

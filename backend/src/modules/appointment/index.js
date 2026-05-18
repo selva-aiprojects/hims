@@ -3,11 +3,14 @@ const router = express.Router();
 
 router.get("/", async (req, res, next) => {
   try {
+    const { doctorId } = req.query;
+    const doctorFilter = doctorId ? `WHERE a.doctor_id = '${String(doctorId).replace(/'/g, "''")}'` : '';
     const appointments = await req.prisma.$queryRawUnsafe(`
       SELECT a.*, p.name as patient_name, u.name as doctor_name
       FROM "${req.schemaName}".appointments a
       JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
       JOIN "${req.schemaName}".users u ON a.doctor_id = u.id
+      ${doctorFilter}
       ORDER BY a.appointment_time ASC
     `);
     res.json(appointments);

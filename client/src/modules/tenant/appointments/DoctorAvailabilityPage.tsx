@@ -25,6 +25,13 @@ import { useSearchParams } from "react-router-dom";
 import { trackEvent } from "../../../utils/analytics";
 
 
+const toLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 
 export default function DoctorAvailabilityPage() {
   const [searchParams] = useSearchParams();
@@ -97,7 +104,7 @@ export default function DoctorAvailabilityPage() {
       end.setDate(end.getDate() + 7);
 
       const response = await axios.get(
-        `${API_BASE}/api/doctors/${selectedDoctor.id}/availability-rules?startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`,
+        `${API_BASE}/api/doctors/${selectedDoctor.id}/availability-rules?startDate=${toLocalDateKey(start)}&endDate=${toLocalDateKey(end)}`,
         { headers }
       );
 
@@ -235,7 +242,7 @@ export default function DoctorAvailabilityPage() {
             <div style={cardStyle}>
                <h4 style={sectionTitleStyle}>QUICK SUMMARY</h4>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <SummaryItem label="Appointments Today" value={appointments.filter(a => a.appointment_time.startsWith(new Date().toISOString().split('T')[0])).length} icon={<CalendarIcon size={16}/>} />
+                  <SummaryItem label="Appointments Today" value={appointments.filter(a => toLocalDateKey(new Date(a.appointment_time)) === toLocalDateKey(new Date())).length} icon={<CalendarIcon size={16}/>} />
                   <SummaryItem label="Active Leaves" value={leaves.filter(l => new Date(l.end_date) >= new Date()).length} icon={<ShieldAlert size={16}/>} />
                </div>
                
@@ -357,7 +364,7 @@ export default function DoctorAvailabilityPage() {
                                   <div style={timeLabelStyle}>{time}</div>
                                   {getWeekDates().map((date, dayIdx) => {
                                      const state = getSlotState({
-                                        date: date.toISOString().split('T')[0],
+                                        date: toLocalDateKey(date),
                                         time,
                                         appointments,
                                         leaves,
@@ -507,12 +514,37 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
 
   const filteredPatients = localPatients;
 
+  const createSlotOverride = async (available: boolean) => {
+    // Calculate end time (30 mins duration for a single slot override)
+    const [h, m] = time.split(':').map(Number);
+    const endM = (m + 30) % 60;
+    const endH = h + Math.floor((m + 30) / 60);
+    const endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+
+    await axios.post(`${API_BASE}/api/doctors/overrides`, {
+      doctor_id: doctor.id, 
+      override_date: toLocalDateKey(date), 
+      start_time: time, 
+      end_time: endTime,
+      is_available: available, 
+      reason: reason || (available ? 'Manual Opening' : 'Manual Block')
+    }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
+  };
+
   const handleBook = async () => {
     if (!patientId) return alert("Select patient");
+    if (state.isPast) return alert("Historical slots cannot be booked.");
     setLoading(true);
     try {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = toLocalDateKey(date);
       const dt = new Date(`${dateStr} ${time}`);
+
+      if (!state.isBookable) {
+        if (state.status !== 'UNAVAILABLE') {
+          return alert("This slot cannot be booked. Please choose an available slot.");
+        }
+        await createSlotOverride(true);
+      }
 
       await axios.post(`${API_BASE}/api/appointments`, {
         patient_id: patientId, doctor_id: doctor.id, appointment_time: dt.toISOString(), status: 'Scheduled'
@@ -526,14 +558,17 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
       });
 
       onSuccess(); onClose();
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err: any) { 
+      console.error(err); 
+      alert(err.response?.data?.error || "Appointment booking failed. Please try again.");
+    } finally { setLoading(false); }
   };
 
   const handleReschedule = async () => {
     if (!reschedulingAppt) return;
     setLoading(true);
     try {
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = toLocalDateKey(date);
       const dt = new Date(`${dateStr} ${time}`);
 
       await axios.patch(`${API_BASE}/api/appointments/${reschedulingAppt.id}`, {
@@ -557,22 +592,12 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
   const applyOverride = async (available: boolean) => {
     setLoading(true);
     try {
-      // Calculate end time (30 mins duration for a single slot override)
-      const [h, m] = time.split(':').map(Number);
-      const endM = (m + 30) % 60;
-      const endH = h + Math.floor((m + 30) / 60);
-      const endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
-
-      await axios.post(`${API_BASE}/api/doctors/overrides`, {
-        doctor_id: doctor.id, 
-        override_date: date.toISOString().split('T')[0], 
-        start_time: time, 
-        end_time: endTime,
-        is_available: available, 
-        reason: reason || (available ? 'Manual Opening' : 'Manual Block')
-      }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
+      await createSlotOverride(available);
       onSuccess(); onClose();
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err: any) { 
+      console.error(err); 
+      alert(err.response?.data?.error || "Failed to update slot availability.");
+    } finally { setLoading(false); }
   };
 
   const handleCancel = async () => {
@@ -600,6 +625,8 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
   };
 
   if (!open) return null;
+
+  const canQuickBook = !!patientId && !loading && (state.isBookable || (state.status === 'UNAVAILABLE' && !state.isPast));
 
   return (
     <div style={drawerOverlayStyle}>
@@ -696,13 +723,19 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
                                  </div>
                                )}
                              </div>
-                             
+                            
                              <button 
                                onClick={handleBook} 
-                               disabled={loading || !state.isBookable || !patientId} 
-                               style={{ ...primaryBtnStyle, marginTop: filteredPatients.length > 0 ? '16px' : '0', width: '100%' }}
+                               disabled={!canQuickBook} 
+                               style={{
+                                 ...primaryBtnStyle,
+                                 marginTop: filteredPatients.length > 0 ? '16px' : '0',
+                                 width: '100%',
+                                 opacity: canQuickBook ? 1 : 0.55,
+                                 cursor: canQuickBook ? 'pointer' : 'not-allowed'
+                               }}
                              >
-                                {loading ? 'Processing...' : 'Confirm Appointment'}
+                                {loading ? 'Processing...' : state.isBookable ? 'Confirm Appointment' : 'Open Slot & Book'}
                              </button>
                            </>
                          ) : (
@@ -723,7 +756,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
                     {!state.isBookable && (
                       <div style={{ fontSize: '11px', color: '#e11d48', marginTop: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <AlertCircle size={12}/> 
-                        {state.isPast ? 'Historical slots cannot be modified.' : 'This slot is currently unavailable for booking.'}
+                        {state.isPast ? 'Historical slots cannot be modified.' : state.status === 'UNAVAILABLE' ? 'This is outside regular hours. Booking will open this slot first.' : 'This slot is currently unavailable for booking.'}
                       </div>
                     )}
                  </div>
