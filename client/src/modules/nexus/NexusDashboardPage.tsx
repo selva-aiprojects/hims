@@ -147,7 +147,7 @@ export default function NexusDashboardPage() {
               <p>System telemetry & history</p>
             </div>
           </div>
-          <div className="action-card" onClick={() => navigate('/nexus/support')}>
+          <div className="action-card" onClick={() => navigate('/nexus/tickets')}>
             <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 20px -5px rgba(245, 158, 11, 0.5)' }}>
                <Icons.Settings />
             </div>

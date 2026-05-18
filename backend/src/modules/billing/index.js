@@ -1,6 +1,35 @@
 const express = require("express");
 const router = express.Router();
 
+async function ensureBillingTables(req) {
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".invoices (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID NOT NULL,
+      encounter_id UUID,
+      bill_type VARCHAR(50),
+      payment_mode VARCHAR(50),
+      subtotal NUMERIC DEFAULT 0,
+      tax_total NUMERIC DEFAULT 0,
+      total NUMERIC DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'PAID',
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".invoice_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      invoice_id UUID NOT NULL,
+      description TEXT,
+      quantity NUMERIC DEFAULT 1,
+      unit_price NUMERIC DEFAULT 0,
+      tax_percent NUMERIC DEFAULT 0,
+      amount NUMERIC DEFAULT 0,
+      discount_amount NUMERIC DEFAULT 0,
+      source_queue_id UUID,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+}
+
 /**
  * Professional Billing Engine (Hybrid Model)
  * Supports Fixed (Lab/Pharmacy) and Flexible (Consultation/Ward) billing.
@@ -22,6 +51,7 @@ router.get("/queue/:patientId", async (req, res, next) => {
 // 2. Fetch Billing History (Invoices)
 router.get("/history", async (req, res, next) => {
   try {
+    await ensureBillingTables(req);
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT i.*, i.total as total_amount, p.name as patient_name, p.mrn as patient_mrn
       FROM "${req.schemaName}".invoices i
@@ -35,6 +65,7 @@ router.get("/history", async (req, res, next) => {
 // 2. Fetch existing invoices
 router.get("/", async (req, res, next) => {
   try {
+    await ensureBillingTables(req);
     const { type } = req.query;
     const filter = type ? `WHERE i.bill_type = '${type}'` : '';
     const data = await req.prisma.$queryRawUnsafe(`
@@ -51,6 +82,7 @@ router.get("/", async (req, res, next) => {
 // 3. Create Final Invoice (Consumes Queue Items)
 router.post("/", async (req, res, next) => {
   try {
+    await ensureBillingTables(req);
     const { patientId, encounterId, billType, items, totalAmount, paymentMode, status } = req.body;
     
     if (!patientId) {

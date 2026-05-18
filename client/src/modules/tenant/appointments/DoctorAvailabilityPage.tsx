@@ -1012,13 +1012,21 @@ const OverridesTab = ({ doctor, overrides, onUpdate }: any) => {
 };
 
 const AnalyticsPanel = ({ stats }: any) => {
+  const revenue = stats.business?.revenue || 0;
+  const patientsSeen = stats.patientsSeen || 0;
+  const repeatPatients = stats.repeatPatients || 0;
+  const retention = patientsSeen > 0 ? (repeatPatients / patientsSeen) * 100 : 0;
+  
+  const utilization = stats.utilization || 0;
+  const avgWait = stats.avgWait || 0;
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
       {[
-        { label: 'Utilization', value: `${Math.round(stats.utilization)}%`, color: '#0ea5e9', icon: <Zap size={20} /> },
-        { label: 'Patient Retention', value: `${Math.round(stats.retention)}%`, color: '#10b981', icon: <Activity size={20} /> },
-        { label: 'Average Wait', value: `${Math.round(stats.avgWait)}m`, color: '#f59e0b', icon: <Timer size={20} /> },
-        { label: 'Revenue', value: `₹${(stats.revenue / 100000).toFixed(1)}L`, color: '#8b5cf6', icon: <TrendingUp size={20} /> }
+        { label: 'Utilization', value: `${Math.round(utilization)}%`, color: '#0ea5e9', icon: <Zap size={20} /> },
+        { label: 'Patient Retention', value: `${Math.round(retention)}%`, color: '#10b981', icon: <Activity size={20} /> },
+        { label: 'Average Wait', value: `${Math.round(avgWait)}m`, color: '#f59e0b', icon: <Timer size={20} /> },
+        { label: 'Revenue', value: `₹${(revenue / 100000).toFixed(1)}L`, color: '#8b5cf6', icon: <TrendingUp size={20} /> }
       ].map(s => (
         <div key={s.label} style={cardStyle}>
           <div style={{ color: s.color, marginBottom: '12px' }}>{s.icon}</div>

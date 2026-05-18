@@ -139,7 +139,7 @@ export default function DoctorDashboardPage() {
         <div style={{ marginTop: '40px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
              <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a', margin: 0 }}>My Recent Patient Records</h3>
-             <button onClick={() => navigate('/tenant/opd/doctor-queue')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 800, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+             <button onClick={() => navigate('/tenant/opd/queue')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontWeight: 800, fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
                VIEW FULL QUEUE <ChevronRight size={14} />
              </button>
           </div>

@@ -34,11 +34,11 @@ export default function InsurancePage() {
   const fetchData = async () => {
     try {
       const [claimsRes, provRes, planRes, mapRes, patRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/hospital/insurance/claims`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/insurance/providers`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/insurance/plans`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/insurance/patient-mapping`, { headers }),
-        axios.get(`${API_BASE}/api/hospital/masters/patients`, { headers })
+        axios.get(`${API_BASE}/api/insurance/claims`, { headers }),
+        axios.get(`${API_BASE}/api/insurance/providers`, { headers }),
+        axios.get(`${API_BASE}/api/insurance/plans`, { headers }),
+        axios.get(`${API_BASE}/api/insurance/patient-mapping`, { headers }),
+        axios.get(`${API_BASE}/api/patients`, { headers })
       ]);
       setClaims(claimsRes.data);
       setProviders(provRes.data);
@@ -52,7 +52,7 @@ export default function InsurancePage() {
   const handleAddProvider = async (e: any) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/api/hospital/insurance/providers`, newProv, { headers });
+      await axios.post(`${API_BASE}/api/insurance/providers`, newProv, { headers });
       setShowProvModal(false);
       fetchData();
     } catch (err) { alert("Failed to add provider"); }
@@ -61,7 +61,7 @@ export default function InsurancePage() {
   const handleAddPlan = async (e: any) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/api/hospital/insurance/plans`, newPlan, { headers });
+      await axios.post(`${API_BASE}/api/insurance/plans`, newPlan, { headers });
       setShowPlanModal(false);
       fetchData();
     } catch (err) { alert("Failed to add plan"); }
@@ -70,7 +70,7 @@ export default function InsurancePage() {
   const handleAddMapping = async (e: any) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE}/api/hospital/insurance/patient-mapping`, newMap, { headers });
+      await axios.post(`${API_BASE}/api/insurance/patient-mapping`, newMap, { headers });
       setShowMapModal(false);
       fetchData();
     } catch (err) { alert("Failed to map patient policy"); }

@@ -29,6 +29,28 @@ async function ensureInsuranceTables(req) {
       remarks TEXT,
       created_at TIMESTAMP DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_plans (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      provider_id UUID NOT NULL,
+      plan_name VARCHAR(255) NOT NULL,
+      description TEXT,
+      base_coverage NUMERIC DEFAULT 0,
+      copay_percent NUMERIC DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_patient_mapping (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID NOT NULL,
+      provider_id UUID NOT NULL,
+      plan_id UUID NOT NULL,
+      policy_number VARCHAR(100) NOT NULL,
+      total_limit NUMERIC DEFAULT 0,
+      remaining_limit NUMERIC DEFAULT 0,
+      copay_percent NUMERIC DEFAULT 0,
+      valid_till DATE,
+      status VARCHAR(20) DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT NOW()
+    );
   `);
 
   // Self-healing columns
@@ -104,6 +126,64 @@ router.put("/claims/:id", async (req, res, next) => {
     `);
 
     res.json({ message: "Claim status updated successfully." });
+  } catch (error) { next(error); }
+});
+
+// 5. Fetch Plans
+router.get("/plans", async (req, res, next) => {
+  try {
+    await ensureInsuranceTables(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT p.*, pr.name as provider_name 
+      FROM "${req.schemaName}".insurance_plans p
+      JOIN "${req.schemaName}".insurance_providers pr ON p.provider_id = pr.id
+      ORDER BY p.plan_name ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// 6. Create Plan
+router.post("/plans", async (req, res, next) => {
+  try {
+    await ensureInsuranceTables(req);
+    const { provider_id, plan_name, description, base_coverage, copay_percent } = req.body;
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".insurance_plans (provider_id, plan_name, description, base_coverage, copay_percent)
+      VALUES ('${provider_id}', '${plan_name.replace(/'/g, "''")}', '${(description || '').replace(/'/g, "''")}', ${base_coverage || 0}, ${copay_percent || 0})
+      RETURNING id
+    `);
+    res.status(201).json({ id: result[0].id, message: "Plan created." });
+  } catch (error) { next(error); }
+});
+
+// 7. Fetch Patient Mappings
+router.get("/patient-mapping", async (req, res, next) => {
+  try {
+    await ensureInsuranceTables(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT m.*, p.name as patient_name, p.mrn, pr.name as provider_name, pl.plan_name
+      FROM "${req.schemaName}".insurance_patient_mapping m
+      JOIN "${req.schemaName}".patients p ON m.patient_id = p.id
+      JOIN "${req.schemaName}".insurance_providers pr ON m.provider_id = pr.id
+      JOIN "${req.schemaName}".insurance_plans pl ON m.plan_id = pl.id
+      ORDER BY m.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+// 8. Create Patient Mapping
+router.post("/patient-mapping", async (req, res, next) => {
+  try {
+    await ensureInsuranceTables(req);
+    const { patient_id, provider_id, plan_id, policy_number, total_limit, copay_percent, valid_till } = req.body;
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".insurance_patient_mapping (patient_id, provider_id, plan_id, policy_number, total_limit, remaining_limit, copay_percent, valid_till)
+      VALUES ('${patient_id}', '${provider_id}', '${plan_id}', '${policy_number}', ${total_limit || 0}, ${total_limit || 0}, ${copay_percent || 0}, ${valid_till ? `'${valid_till}'` : 'NULL'})
+      RETURNING id
+    `);
+    res.status(201).json({ id: result[0].id, message: "Policy mapped." });
   } catch (error) { next(error); }
 });
 
