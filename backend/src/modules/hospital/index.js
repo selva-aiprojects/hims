@@ -596,12 +596,21 @@ router.post("/encounters", async (req, res, next) => {
 router.put("/encounters/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { diagnosis, status, notes } = req.body;
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".encounters 
-      SET diagnosis = '${s(diagnosis)}', status = '${s(status)}', notes = '${s(notes)}'
-      WHERE id = '${id}'
-    `);
+    const { diagnosis, status, notes, vitals } = req.body;
+    
+    let query = `UPDATE "${req.schemaName}".encounters SET `;
+    const updates = [];
+    if (diagnosis !== undefined) updates.push(`diagnosis = '${s(diagnosis)}'`);
+    if (status !== undefined) updates.push(`status = '${s(status)}'`);
+    if (notes !== undefined) updates.push(`notes = '${s(notes)}'`);
+    if (vitals !== undefined) updates.push(`vitals = '${JSON.stringify(vitals)}'`);
+    
+    if (updates.length === 0) return res.json({ success: true });
+    
+    query += updates.join(', ');
+    query += ` WHERE id = '${id}'`;
+    
+    await req.prisma.$executeRawUnsafe(query);
     res.json({ success: true });
   } catch (error) { next(error); }
 });

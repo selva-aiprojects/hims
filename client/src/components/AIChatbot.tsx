@@ -61,13 +61,27 @@ const AIChatbot: React.FC = () => {
   }
 
   return (
-    <div style={{ 
-      position: 'fixed', 
-      bottom: '30px', 
-      right: '30px', 
-      zIndex: 999999,
-      fontFamily: 'sans-serif'
-    }}>
+    <>
+      <style>{`
+        @keyframes chatbot-float {
+          0% { transform: translateY(0px); }
+          50% { transform: translateY(-10px); }
+          100% { transform: translateY(0px); }
+        }
+        .chatbot-floating {
+          animation: chatbot-float 4s ease-in-out infinite;
+        }
+        .chatbot-floating:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+      <div style={{ 
+        position: 'fixed', 
+        bottom: '30px', 
+        right: '30px', 
+        zIndex: 999999,
+        fontFamily: 'sans-serif'
+      }}>
       {/* Chat Window */}
       {isOpen && (
         <div style={{
@@ -181,6 +195,7 @@ const AIChatbot: React.FC = () => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
+          className="chatbot-floating"
           style={{
             width: '64px',
             height: '64px',
@@ -200,6 +215,7 @@ const AIChatbot: React.FC = () => {
         </button>
       )}
     </div>
+    </>
   );
 };
 

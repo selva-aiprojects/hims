@@ -10,6 +10,9 @@ export default function OPDQueuePage() {
   const navigate = useNavigate();
   const [encounters, setEncounters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vitalsModalEncounter, setVitalsModalEncounter] = useState<any>(null);
+  const [vitalsData, setVitalsData] = useState({ bp: "", heartRate: "", temp: "" });
+  const [isSavingVitals, setIsSavingVitals] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
@@ -45,6 +48,26 @@ export default function OPDQueuePage() {
     const now = new Date().getTime();
     const diff = Math.floor((now - start) / 60000);
     return diff > 60 ? `${Math.floor(diff/60)}h ${diff%60}m` : `${diff}m`;
+  };
+
+  const saveVitals = async () => {
+    if (!vitalsModalEncounter) return;
+    setIsSavingVitals(true);
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+    try {
+      await axios.put(`${API_BASE}/api/hospital/encounters/${vitalsModalEncounter.id}`, { vitals: vitalsData }, { headers });
+      setVitalsModalEncounter(null);
+      setVitalsData({ bp: "", heartRate: "", temp: "" });
+      fetchEncounters();
+    } catch (err) {
+      console.error(err);
+      alert("Error saving vitals.");
+    } finally {
+      setIsSavingVitals(false);
+    }
   };
 
   return (
@@ -136,20 +159,36 @@ export default function OPDQueuePage() {
                      </div>
                    </div>
 
-                   <button 
-                    onClick={() => {
-                      localStorage.setItem("currentEncounter", JSON.stringify(enc));
-                      navigate(`/tenant/opd/consultation`);
-                    }}
-                    style={{ 
-                      width: '100%',
-                      padding: '12px', background: '#0f172a', color: 'white', border: 'none', 
-                      borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
-                    }}
-                  >
-                    Start Consult <ArrowRight size={14} />
-                  </button>
+                    {!enc.vitals?.bp ? (
+                      <button 
+                        onClick={() => {
+                          setVitalsModalEncounter(enc);
+                        }}
+                        style={{ 
+                          width: '100%',
+                          padding: '12px', background: '#3b82f6', color: 'white', border: 'none', 
+                          borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                        }}
+                      >
+                        Capture Vitals <Activity size={14} />
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          localStorage.setItem("currentEncounter", JSON.stringify(enc));
+                          navigate(`/tenant/opd/consultation`);
+                        }}
+                        style={{ 
+                          width: '100%',
+                          padding: '12px', background: '#0f172a', color: 'white', border: 'none', 
+                          borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                        }}
+                      >
+                        Start Consult <ArrowRight size={14} />
+                      </button>
+                    )}
                  </div>
                ))}
                {encounters.length === 0 && (
@@ -217,19 +256,34 @@ export default function OPDQueuePage() {
                         </div>
                     </td>
                     <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                      <button 
-                        onClick={() => {
-                          localStorage.setItem("currentEncounter", JSON.stringify(enc));
-                          navigate(`/tenant/opd/consultation`);
-                        }}
-                        style={{ 
-                          padding: '10px 20px', background: '#0f172a', color: 'white', border: 'none', 
-                          borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
-                          display: 'inline-flex', alignItems: 'center', gap: '8px', transition: '0.2s'
-                        }}
-                      >
-                        Start Consult <ArrowRight size={14} />
-                      </button>
+                      {!enc.vitals?.bp ? (
+                        <button 
+                          onClick={() => {
+                            setVitalsModalEncounter(enc);
+                          }}
+                          style={{ 
+                            padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', 
+                            borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: '8px', transition: '0.2s'
+                          }}
+                        >
+                          Capture Vitals <Activity size={14} />
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            localStorage.setItem("currentEncounter", JSON.stringify(enc));
+                            navigate(`/tenant/opd/consultation`);
+                          }}
+                          style={{ 
+                            padding: '10px 20px', background: '#0f172a', color: 'white', border: 'none', 
+                            borderRadius: '12px', fontWeight: 700, fontSize: '12px', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', gap: '8px', transition: '0.2s'
+                          }}
+                        >
+                          Start Consult <ArrowRight size={14} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -243,6 +297,71 @@ export default function OPDQueuePage() {
             </table>
           )}
         </div>
+
+        {/* Vitals Modal */}
+        {vitalsModalEncounter && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '400px',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+            }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 900 }}>Capture Vitals</h3>
+              <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 24px' }}>
+                Entering vitals for <span style={{ fontWeight: 700, color: '#0f172a' }}>{vitalsModalEncounter.patient_name}</span>
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>BLOOD PRESSURE</label>
+                  <input 
+                    placeholder="e.g. 120/80"
+                    value={vitalsData.bp}
+                    onChange={e => setVitalsData({...vitalsData, bp: e.target.value})}
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>TEMPERATURE (°F)</label>
+                  <input 
+                    placeholder="e.g. 98.6"
+                    value={vitalsData.temp}
+                    onChange={e => setVitalsData({...vitalsData, temp: e.target.value})}
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#64748b', marginBottom: '6px' }}>HEART RATE (BPM)</label>
+                  <input 
+                    placeholder="e.g. 72"
+                    value={vitalsData.heartRate}
+                    onChange={e => setVitalsData({...vitalsData, heartRate: e.target.value})}
+                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px', fontWeight: 600 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={() => setVitalsModalEncounter(null)}
+                  style={{ flex: 1, padding: '12px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={saveVitals}
+                  disabled={isSavingVitals}
+                  style={{ flex: 2, padding: '12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {isSavingVitals ? 'Saving...' : 'Save Vitals'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
