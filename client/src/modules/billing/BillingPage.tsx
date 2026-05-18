@@ -211,7 +211,7 @@ export default function BillingPage() {
 
   const setWalkInPatient = () => {
     setPatient({
-      id: "WALK-IN",
+      id: "00000000-0000-0000-0000-000000000000",
       name: "Walk-in Customer",
       mrn: "GENERAL",
       gender: "N/A",

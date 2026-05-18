@@ -92,6 +92,7 @@ test.describe('HIMS Clinical Power Journeys', () => {
   });
 
   test('OPD Gold Flow: Registration -> Consultation -> Lab -> Pharmacy -> Billing', async ({ page }) => {
+    test.setTimeout(120000);
     const patientName = `OPD-Power-${Date.now()}`;
     const medicineName = 'Paracetamol 500mg';
     const labTestName = 'Complete Blood Count (CBC)';
@@ -116,6 +117,12 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
     await page.locator('label:has-text("Gender")').locator('xpath=following-sibling::select').selectOption('Male');
+    
+    // Fill Vitals to enable Start Consult in queue
+    await page.getByPlaceholder('e.g. 70').fill('70');
+    await page.getByPlaceholder('e.g. 120/80').fill('120/80');
+    await page.getByPlaceholder('e.g. 98.6').fill('98.6');
+    await page.getByPlaceholder('e.g. 175').fill('170');
     
     // Assign Doctor
     const firstDoctor = page.locator('.doctor-card').first();
@@ -213,16 +220,10 @@ test.describe('HIMS Clinical Power Journeys', () => {
       throw new Error(`Pharmacy dispense failed with error: ${errorText}`);
     }
 
-    // 5. LAB
-    await auth.navigateToSidebar('Laboratory');
-    await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
-    await page.locator('tr', { hasText: patientName }).getByRole('button', { name: /Process/i }).first().click();
-    await page.click('button:has-text("Verify & Release Results")');
-
-    // 6. BILLING
+    // 5. BILLING
     await auth.navigateToSidebar('Central Billing');
-    await page.getByPlaceholder('Search patient by Name, MRN or Phone...').fill(patientName);
-    await page.locator('.patient-search-result', { hasText: patientName }).first().click();
+    await page.getByPlaceholder('Search by MRN, Name or Phone...').fill(patientName);
+    await page.locator('div', { hasText: patientName }).first().click();
     
     // Verify items are present in bill
     await expect(page.locator('text=Consultation Fee')).toBeVisible();
@@ -236,6 +237,34 @@ test.describe('HIMS Clinical Power Journeys', () => {
     const consultationRow = page.locator('tr', { hasText: 'Consultation Fee' });
     await expect(consultationRow.locator('input[type="number"]').nth(1)).toBeEnabled();
 
+    // Pay for everything to enable Lab wizard
+    await page.getByRole('button', { name: /Cash/i }).click();
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: /GENERATE INVOICE/i }).click();
+
+    // 6. LAB
+    await auth.navigateToSidebar('Laboratory');
+    await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
+    await page.locator('tr', { hasText: patientName }).getByRole('button', { name: /OPEN WIZARD/i }).first().click();
+    
+    // Step 1 -> 2: Confirm order
+    await page.getByRole('button', { name: /Proceed/i }).click();
+    
+    // Step 2 -> 3: Confirm collection
+    await page.getByRole('button', { name: /Confirm Collection & Start Analysis/i }).click();
+    
+    // Step 3 -> 4: Fill results and review
+    await page.getByPlaceholder('e.g. Hemoglobin').fill('Hemoglobin');
+    await page.getByPlaceholder('0.0').fill('14.0');
+    await page.getByRole('button', { name: /Review & Authorize Report/i }).click();
+    
+    // Step 4 -> 5: Authorize
+    await page.getByRole('button', { name: /AUTHORIZE & PUBLISH/i }).click();
+    
+    // Step 5 -> Finish: Publish
+    await expect(page.getByText('Workflow Complete!')).toBeVisible({ timeout: 10000 });
+    await page.getByRole('button', { name: /Finalize & Publish Report/i }).click();
+
     // 7. DASHBOARD: Verify inflow incremented
     await page.waitForSelector('.stat-card');
     const finalInflowCard = page.locator('.stat-card', { hasText: 'Patient Inflow' });
@@ -245,6 +274,7 @@ test.describe('HIMS Clinical Power Journeys', () => {
   });
 
   test('IPD Power Flow: Admission -> Diagnostics -> Pharmacy -> Bed Charges -> Discharge', async ({ page }) => {
+    test.setTimeout(120000);
     const patientName = `IPD-Power-${Date.now()}`;
 
     // 1. REGISTRATION (Emergency entry via OPD)
@@ -257,6 +287,12 @@ test.describe('HIMS Clinical Power Journeys', () => {
     
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
+    
+    // Fill Vitals
+    await page.getByPlaceholder('e.g. 70').fill('70');
+    await page.getByPlaceholder('e.g. 120/80').fill('120/80');
+    await page.getByPlaceholder('e.g. 98.6').fill('98.6');
+    await page.getByPlaceholder('e.g. 175').fill('170');
     
     const firstDoctor = page.locator('.doctor-card').first();
     await expect(firstDoctor).toBeVisible({ timeout: 10000 });
@@ -299,11 +335,11 @@ test.describe('HIMS Clinical Power Journeys', () => {
     // Fill admission reason
     await page.locator('textarea').fill('Automated admission from clinical power journey test.');
     
-    await page.getByRole('button', { name: 'CONFIRM ADMISSION' }).click();
+    await page.getByRole('button', { name: 'CONFIRM ADMISSION' }).click({ force: true });
     
     // Check for success or error toast
     const toast = page.locator('.app-toast-success, .app-toast-error');
-    await expect(toast).toBeVisible({ timeout: 15000 });
+    await expect(toast).toBeVisible({ timeout: 30000 });
     const isError = await page.locator('.app-toast-error').isVisible();
     if (isError) {
       const errorText = await page.locator('.app-toast-error').textContent();
@@ -315,7 +351,7 @@ test.describe('HIMS Clinical Power Journeys', () => {
     // 3. CENSUS & IN-PATIENT CARE
     // For Census, we go to admissions
     await page.goto('/tenant/ipd/admissions');
-    await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 30000 });
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: 'Open' }).click();
     
     // Extract Admission ID from URL

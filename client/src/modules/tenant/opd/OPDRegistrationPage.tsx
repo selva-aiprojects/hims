@@ -246,7 +246,11 @@ export default function OPDRegistrationPage() {
   };
 
   const queueExistingPatient = async () => {
-    if (!selectedPatient || !selectedDoctorId) return;
+    if (!selectedDoctorId) {
+      showToast("Doctor selection is mandatory.", "error");
+      return;
+    }
+    if (!selectedPatient) return;
     setIsProcessing(true);
     try {
       await axios.post(`${API_BASE}/api/hospital/encounters`, {
@@ -616,16 +620,15 @@ export default function OPDRegistrationPage() {
 
             <div style={{ marginTop: 'auto' }}>
                {(() => {
-                 const isSubmitDisabled = isProcessing || (!selectedPatient && !regData.name) || !selectedDoctorId;
                  return (
                    <button 
                     type="button"
-                    disabled={isSubmitDisabled}
+                    disabled={isProcessing}
                     onClick={selectedPatient ? queueExistingPatient : registerAndQueue}
                     style={{ 
                       width: '100%', padding: '26px', borderRadius: '24px', border: 'none', 
-                      background: !isSubmitDisabled ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#cbd5e1',
-                      color: 'white', fontWeight: 900, fontSize: '18px', cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                      background: !isProcessing ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : '#cbd5e1',
+                      color: 'white', fontWeight: 900, fontSize: '18px', cursor: isProcessing ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '14px',
                       boxShadow: '0 20px 40px rgba(15, 23, 42, 0.2)'
                     }}

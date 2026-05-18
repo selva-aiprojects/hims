@@ -597,7 +597,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
       }
 
       await axios.post(`${API_BASE}/api/appointments`, {
-        patient_id: patientId, doctor_id: doctor.id, appointment_time: dt.toISOString(), status: 'Scheduled'
+        patient_id: patientId, doctor_id: doctor.id, appointment_time: `${dateStr}T${time}:00`, status: 'Scheduled'
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
 
       trackEvent('appointment_booked', {

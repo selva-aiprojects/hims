@@ -21,10 +21,10 @@ router.post("/", async (req, res, next) => {
   try {
     const { patient_id, doctor_id, appointment_time, status } = req.body;
     
-    // Server-side validation for doctor availability
-    const dateObj = new Date(appointment_time);
-    const dateStr = dateObj.toISOString().split('T')[0];
-    const timeStr = dateObj.toTimeString().split(' ')[0].substring(0, 5); // HH:mm
+    // Parse date and time directly from string to avoid timezone shifts
+    const dateStr = appointment_time.split('T')[0];
+    const timeStr = appointment_time.split('T')[1].substring(0, 5);
+    const dateObj = new Date(`${dateStr}T${timeStr}:00`);
     const weekday = dateObj.getDay();
 
     // 1. Check for Overrides (Highest priority)

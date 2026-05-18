@@ -104,7 +104,7 @@ test.describe('appointment scheduling fixes', () => {
       data: {
         patient_id: patientOneData.id,
         doctor_id: doctorOneData.id,
-        appointment_time: `${apptDate} 09:00`,
+        appointment_time: `${apptDate}T09:00`,
         status: 'Scheduled',
       },
     });
@@ -115,7 +115,7 @@ test.describe('appointment scheduling fixes', () => {
       data: {
         patient_id: patientTwoData.id,
         doctor_id: doctorTwoData.id,
-        appointment_time: `${apptDate} 09:30`,
+        appointment_time: `${apptDate}T09:30`,
         status: 'Scheduled',
       },
     });

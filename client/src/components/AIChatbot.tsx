@@ -78,7 +78,7 @@ const AIChatbot: React.FC = () => {
       <div style={{ 
         position: 'fixed', 
         bottom: '30px', 
-        right: '30px', 
+        left: '300px', 
         zIndex: 999999,
         fontFamily: 'sans-serif'
       }}>

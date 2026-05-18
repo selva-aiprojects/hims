@@ -34,8 +34,11 @@ export default function PrescriptionQueue({ embedded = false }: { embedded?: boo
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
     try {
+      const role = localStorage.getItem("role");
+      const userId = localStorage.getItem("userId");
+      const url = `${API_BASE}/api/hospital/pharmacy/prescriptions${role === 'doctor' || role === 'DOCTOR' ? `?doctorId=${userId}` : ''}`;
       const [preRes, invRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions`, { headers }),
+        axios.get(url, { headers }),
         axios.get(`${API_BASE}/api/hospital/pharmacy/inventory`, { headers })
       ]);
       setPrescriptions(preRes.data);

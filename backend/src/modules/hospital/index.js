@@ -1290,6 +1290,9 @@ router.post("/pharmacy/inventory", async (req, res, next) => {
 router.get("/pharmacy/prescriptions", async (req, res, next) => {
   try {
     await ensureOrderColumns(req);
+    const { doctorId } = req.query;
+    const doctorFilter = doctorId ? `WHERE e.doctor_id = '${doctorId}'` : '';
+    
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT p.*, pat.name as patient_name, pat.mrn, pat.id as patient_id,
              COALESCE(u.name, 'IPD Staff') as doctor_name
@@ -1297,6 +1300,7 @@ router.get("/pharmacy/prescriptions", async (req, res, next) => {
       LEFT JOIN "${req.schemaName}".encounters e ON p.encounter_id = e.id
       LEFT JOIN "${req.schemaName}".patients pat ON e.patient_id = pat.id
       LEFT JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      ${doctorFilter}
       ORDER BY p.created_at DESC
     `);
     res.json(data);
