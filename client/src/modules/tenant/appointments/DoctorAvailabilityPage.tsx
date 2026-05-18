@@ -51,6 +51,7 @@ export default function DoctorAvailabilityPage() {
   
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [timeSlots, setTimeSlots] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -77,8 +78,22 @@ export default function DoctorAvailabilityPage() {
         axios.get(`${API_BASE}/api/hospital/doctors`, { headers })
       ]);
       console.log(`[DEBUG] Loaded ${docRes.data?.length || 0} doctors.`);
-      setDoctors(docRes.data || []);
-      if (docRes.data?.length > 0) setSelectedDoctor(docRes.data[0]);
+      const doctorList = docRes.data || [];
+      setDoctors(doctorList);
+      
+      const loggedInRole = localStorage.getItem("role");
+      const loggedInUserId = localStorage.getItem("userId");
+      
+      if (loggedInRole === 'doctor' || loggedInRole === 'Doctor') {
+        const currentDoc = doctorList.find((d: any) => d.id === loggedInUserId);
+        if (currentDoc) {
+          setSelectedDoctor(currentDoc);
+        } else if (doctorList.length > 0) {
+          setSelectedDoctor(doctorList[0]);
+        }
+      } else if (doctorList.length > 0) {
+        setSelectedDoctor(doctorList[0]);
+      }
     } catch (err) { console.error("[DEBUG] Initialization Error:", err); }
     finally { setLoading(false); }
   };
@@ -110,10 +125,41 @@ export default function DoctorAvailabilityPage() {
       );
 
       setAppointments(response.data.appointments || []);
-      setSchedules(response.data.schedules || []);
+      const scheds = response.data.schedules || [];
+      setSchedules(scheds);
       setLeaves(response.data.leaves || []);
       setOverrides(response.data.overrides || []);
       setDoctorStatus(response.data.status);
+
+      // Generate dynamic time slots based on doctor's schedule
+      if (scheds.length > 0) {
+        let minHour = 24;
+        let maxHour = 0;
+        scheds.forEach((s: any) => {
+          const startH = parseInt(s.start_time.split(':')[0]);
+          const endH = parseInt(s.end_time.split(':')[0]);
+          if (startH < minHour) minHour = startH;
+          if (endH > maxHour) maxHour = endH;
+        });
+        
+        // Fallback if data is weird or span is 0
+        if (minHour >= maxHour) { minHour = 8; maxHour = 20; }
+        
+        const slots = [];
+        for (let h = minHour; h < maxHour; h++) {
+          slots.push(`${h.toString().padStart(2, '0')}:00`);
+          slots.push(`${h.toString().padStart(2, '0')}:30`);
+        }
+        setTimeSlots(slots);
+      } else {
+        // Default slots if no schedule defined yet
+        const slots = [];
+        for (let h = 8; h < 20; h++) {
+          slots.push(`${h.toString().padStart(2, '0')}:00`);
+          slots.push(`${h.toString().padStart(2, '0')}:30`);
+        }
+        setTimeSlots(slots);
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -133,11 +179,7 @@ export default function DoctorAvailabilityPage() {
     } catch (err) { console.error(err); }
   };
 
-  const timeSlots = Array.from({ length: 24 }, (_, i) => {
-    const hour = Math.floor(i / 2) + 8;
-    const minute = (i % 2) * 30;
-    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-  });
+
 
   const getWeekDates = () => {
     const dates = [];
@@ -211,17 +253,23 @@ export default function DoctorAvailabilityPage() {
                   <div style={avatarStyle}><User size={24} /></div>
                    <div style={{ flex: 1 }}>
                       <label style={{ ...labelStyle, marginBottom: '4px', color: '#4f46e5' }}>SELECTED DOCTOR</label>
-                      {doctors.length > 0 ? (
-                        <select 
-                          value={selectedDoctor?.id || ""} 
-                          onChange={(e) => setSelectedDoctor(doctors.find(d => d.id === e.target.value))}
-                          style={{ ...doctorSelectStyle, border: '1px solid #e2e8f0', padding: '8px', borderRadius: '8px', background: '#f8fafc', color: '#1e293b', fontWeight: 800 }}
-                        >
-                           <option value="" disabled>Select a doctor...</option>
-                           {doctors.map(d => <option key={d.id} value={d.id}>{d.name.toLowerCase().startsWith('dr') ? d.name : `Dr. ${d.name}`}</option>)}
-                        </select>
+                      {localStorage.getItem("role") === 'doctor' || localStorage.getItem("role") === 'Doctor' ? (
+                        <div style={{ ...doctorSelectStyle, padding: '8px', background: '#f1f5f9', borderRadius: '8px', color: '#0f172a', fontWeight: 800 }}>
+                          {selectedDoctor?.name || 'Loading...'}
+                        </div>
                       ) : (
-                        <div style={{ fontSize: '13px', color: '#be123c', fontWeight: 700 }}>No Doctors Loaded</div>
+                        doctors.length > 0 ? (
+                          <select 
+                            value={selectedDoctor?.id || ""} 
+                            onChange={(e) => setSelectedDoctor(doctors.find(d => d.id === e.target.value))}
+                            style={{ ...doctorSelectStyle, border: '1px solid #e2e8f0', padding: '8px', borderRadius: '8px', background: '#f8fafc', color: '#1e293b', fontWeight: 800 }}
+                          >
+                             <option value="" disabled>Select a doctor...</option>
+                             {doctors.map(d => <option key={d.id} value={d.id}>{d.name.toLowerCase().startsWith('dr') ? d.name : `Dr. ${d.name}`}</option>)}
+                          </select>
+                        ) : (
+                          <div style={{ fontSize: '13px', color: '#be123c', fontWeight: 700 }}>No Doctors Loaded</div>
+                        )
                       )}
                       <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginTop: '4px' }}>{selectedDoctor?.specialization || 'Clinical Staff'}</div>
                    </div>

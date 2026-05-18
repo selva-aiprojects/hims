@@ -305,7 +305,7 @@ export default function BillingPage() {
           <Header title="Consolidated Billing & Revenue Center" />
         </div>
 
-        <div style={{ padding: isMobile ? '16px' : '24px 40px', maxWidth: '1600px', margin: '0 auto' }}>
+        <div className="print-document" style={{ padding: isMobile ? '16px' : '24px 40px', maxWidth: '1600px', margin: '0 auto' }}>
           
           {/* Print Only Header */}
           <div className="print-only" style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>

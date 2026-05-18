@@ -76,7 +76,7 @@ export default function ConsultationPage() {
   };
 
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout print-document">
       <style>{`
         @media print {
           .no-print, sidebar, header, nav, button, .submit-btn, .dashboard-layout > div:first-child {

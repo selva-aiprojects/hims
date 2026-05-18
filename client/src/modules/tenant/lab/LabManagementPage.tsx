@@ -175,7 +175,7 @@ export default function LabManagementPage() {
 
   if (activeOrder) {
     return (
-      <div className="dashboard-layout">
+      <div className="dashboard-layout print-document">
         <style>{`
           @media print {
             .no-print, sidebar, header, nav, button, .wizard-back-btn, .dashboard-layout > div:first-child {
@@ -581,7 +581,7 @@ export default function LabManagementPage() {
   }
 
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout print-document">
       <Sidebar />
       <main className="main-content">
         <Header title="Diagnostics Command Center" />

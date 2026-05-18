@@ -63,7 +63,7 @@ export default function DischargeSummariesPage() {
   };
 
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout print-document">
       <Sidebar />
       <main className="main-content">
         <Header title="Discharge Summaries Hub" />
