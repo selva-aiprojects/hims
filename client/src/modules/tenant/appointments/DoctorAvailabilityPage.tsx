@@ -896,7 +896,7 @@ const gridScrollStyle = {
   scrollbarWidth: 'thin' as const,
   scrollbarColor: '#e2e8f0 transparent'
 };
-const calendarGridStyle = { display: 'grid', gridTemplateColumns: '100px repeat(7, 1fr)', background: 'white', minHeight: '800px' };
+const calendarGridStyle = { display: 'grid', gridTemplateColumns: '100px repeat(7, 1fr)', background: 'white', alignContent: 'start' };
 const drawerOverlayStyle: any = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)', zIndex: 3000, display: 'flex', justifyContent: 'flex-end' };
 const drawerStyle: any = { width: '450px', height: '100%', background: 'white', padding: '40px', boxShadow: '-10px 0 30px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' };
 const closeBtnStyle = { background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' };
@@ -976,15 +976,24 @@ const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
 const LeaveTab = ({ doctor, leaves, onUpdate }: any) => {
   const [showAdd, setShowAdd] = useState(false);
   const [newLeave, setNewLeave] = useState({ leave_type: 'VACATION', start_date: '', end_date: '', reason: '', is_emergency: false });
+  const { showToast } = useToast();
 
   const handleAdd = async () => {
+    if (!newLeave.start_date || !newLeave.end_date) {
+      showToast("Please select both start and end dates.", "warning");
+      return;
+    }
     try {
       await axios.post(`${API_BASE}/api/doctors/leaves`, { ...newLeave, doctor_id: doctor.id }, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" }
       });
+      showToast("Leave recorded successfully!", "success");
       setShowAdd(false);
       onUpdate();
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+      console.error(err); 
+      showToast("Failed to record leave.", "error");
+    }
   };
 
   return (
