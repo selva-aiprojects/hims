@@ -77,9 +77,45 @@ export default function ConsultationPage() {
 
   return (
     <div className="dashboard-layout">
-      <Sidebar />
+      <style>{`
+        @media print {
+          .no-print, sidebar, header, nav, button, .submit-btn, .dashboard-layout > div:first-child {
+            display: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          .dashboard-layout {
+            display: block !important;
+            background: white !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+          }
+          section {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 10px 0 !important;
+          }
+          input, textarea {
+            border: none !important;
+            background: transparent !important;
+            padding: 0 !important;
+          }
+        }
+      `}</style>
+
+      <div className="no-print">
+        <Sidebar />
+      </div>
+      
       <main className="main-content">
-        <Header title="Clinical Consultation" />
+        <div className="no-print">
+          <Header title="Clinical Consultation" />
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -147,9 +183,17 @@ export default function ConsultationPage() {
                 onClick={submit}
                 disabled={loading}
                 className="submit-btn"
-                style={{ background: 'var(--primary-dark)' }}
+                style={{ background: 'var(--primary-dark)', width: '100%' }}
               >
-                {loading ? "Saving..." : <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Icons.Check /> Finish & Bill</div>}
+                {loading ? "Saving..." : <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}><Icons.Check /> Finish & Bill</div>}
+              </button>
+              
+              <button 
+                onClick={() => window.print()}
+                className="no-print"
+                style={{ width: '100%', padding: '12px', borderRadius: '12px', background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 700, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '12px' }}
+              >
+                Print Record
               </button>
             </section>
           </aside>

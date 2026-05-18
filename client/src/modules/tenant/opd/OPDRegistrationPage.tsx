@@ -30,10 +30,8 @@ export default function OPDRegistrationPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // Initialize with a fallback doctor so the user is NEVER blocked
-  const [doctors, setDoctors] = useState<any[]>([
-    { id: 'emerg-01', name: 'Clinical Duty Officer', specialization: 'Emergency Desk' }
-  ]);
+  // Initialize with empty array so test waits for real seeded doctors
+  const [doctors, setDoctors] = useState<any[]>([]);
   const [recentQueue, setRecentQueue] = useState<any[]>([]);
 
   // Comprehensive Form State

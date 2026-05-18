@@ -8,16 +8,87 @@ test.describe('HIMS Clinical Power Journeys', () => {
 
   test.beforeEach(async ({ page }) => {
     auth = new AuthHelper(page);
+    console.log("=== STARTING TEST WITH NEW CODE ===");
     await auth.loginTenant(tenantName);
     await page.waitForLoadState('domcontentloaded');
     
     // Heal masters to ensure data exists
     const tenantId = await page.evaluate(() => localStorage.getItem('tenant'));
-    await page.request.get('/api/hospital/heal-all-masters', {
-      headers: {
-        'x-tenant-id': tenantId || ''
+    const headers = { 'x-tenant-id': tenantId || '' };
+    const backendUrl = 'http://localhost:4000';
+    
+    await page.request.get(`${backendUrl}/api/hospital/heal-all-masters`, { headers });
+    
+    // Seed stock for Paracetamol 500mg to prevent FEFO dispense failures
+    try {
+      const invRes = await page.request.get(`${backendUrl}/api/hospital/pharmacy/inventory`, { headers });
+      const inventory = await invRes.json();
+      let medicine = inventory.find((m: any) => m.name === 'Paracetamol 500mg');
+      
+      if (!medicine) {
+        // Create medicine if it doesn't exist
+        const createRes = await page.request.post(`${backendUrl}/api/hospital/pharmacy/inventory`, {
+          headers,
+          data: {
+            name: 'Paracetamol 500mg',
+            category: 'Tablet',
+            quantity: 0,
+            price: 5,
+            expiryDate: '2027-12-31'
+          }
+        });
+        // Fetch inventory again to get the ID
+        const invRes2 = await page.request.get(`${backendUrl}/api/hospital/pharmacy/inventory`, { headers });
+        const inventory2 = await invRes2.json();
+        medicine = inventory2.find((m: any) => m.name === 'Paracetamol 500mg');
       }
-    });
+      
+      if (medicine) {
+        // Add inward stock (FEFO requires active stock in pharmacy_inwards)
+        await page.request.post(`${backendUrl}/api/hospital/pharmacy/inwards`, {
+          headers,
+          data: {
+            medicine_id: medicine.id,
+            quantity: 100,
+            batch_number: 'BATCH-001',
+            invoice_number: 'INV-001',
+            mrp: 5,
+            purchase_price: 3,
+            expiry_date: '2027-12-31',
+            uom: 'Tablet'
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to seed pharmacy stock:", e);
+    }
+
+    // Seed Ward and Beds for IPD test to prevent admission failures
+    try {
+      const wardRes = await page.request.get(`${backendUrl}/api/hospital/masters/wards`, { headers });
+      const wards = await wardRes.json();
+      let ward = wards.find((w: any) => w.name === 'General Ward');
+      
+      if (!ward) {
+        const createWardRes = await page.request.post(`${backendUrl}/api/hospital/masters/wards`, {
+          headers,
+          data: {
+            name: 'General Ward',
+            type: 'General',
+            capacity: 10,
+            base_charge: 1000
+          }
+        });
+        ward = await createWardRes.json();
+      }
+      
+      if (ward && ward.id) {
+        // Provision beds
+        await page.request.post(`${backendUrl}/api/hospital/ipd/wards/${ward.id}/provision-beds`, { headers });
+      }
+    } catch (e) {
+      console.warn("Failed to seed ward and beds:", e);
+    }
   });
 
   test('OPD Gold Flow: Registration -> Consultation -> Lab -> Pharmacy -> Billing', async ({ page }) => {
@@ -77,7 +148,7 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await expect(page.getByText('Clinical Consultation War-Room')).toBeVisible();
 
     // NEW: Verify Predictive Insights Bar
-    await expect(page.getByText('Predicted Time')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('Predicted Time', { exact: true })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Complexity', { exact: true })).toBeVisible();
     await expect(page.getByText('Priority Level')).toBeVisible();
     
@@ -107,14 +178,40 @@ test.describe('HIMS Clinical Power Journeys', () => {
     
     // Finish Consultation
     await page.getByRole('button', { name: /FINISH CONSULTATION/i }).click();
-    await expect(page.locator('.app-toast-success')).toBeVisible({ timeout: 15000 });
+    
+    // Wait for the Post-Consultation Modal or Success Toast (App changed to show modal)
+    const modalHeader = page.getByText('Consultation Finished');
+    const successToast = page.locator('.app-toast-success');
+    
+    try {
+      await Promise.race([
+        modalHeader.waitFor({ state: 'visible', timeout: 15000 }).then(() => 'modal'),
+        successToast.waitFor({ state: 'visible', timeout: 15000 }).then(() => 'toast')
+      ]).then(async (winner) => {
+        if (winner === 'modal') {
+          console.log("Modal found, clicking close button");
+          await page.getByRole('button', { name: /Close & Return to Queue/i }).click();
+        } else {
+          console.log("Toast found");
+        }
+      });
+    } catch (e) {
+      throw new Error("Neither success toast nor completion modal appeared after finishing consultation.");
+    }
 
     // 4. PHARMACY
     await auth.navigateToSidebar('Prescription Queue');
     await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: /Dispense/i }).click();
     await page.click('button:has-text("Validate & Dispense")');
-    await expect(page.locator('.app-toast-success')).toBeVisible();
+    
+    const pharmacyToast = page.locator('.app-toast-success, .app-toast-error');
+    await expect(pharmacyToast).toBeVisible({ timeout: 15000 });
+    const isPharmacyError = await page.locator('.app-toast-error').isVisible();
+    if (isPharmacyError) {
+      const errorText = await page.locator('.app-toast-error').textContent();
+      throw new Error(`Pharmacy dispense failed with error: ${errorText}`);
+    }
 
     // 5. LAB
     await auth.navigateToSidebar('Laboratory');
@@ -153,9 +250,14 @@ test.describe('HIMS Clinical Power Journeys', () => {
     // 1. REGISTRATION (Emergency entry via OPD)
     await auth.navigateToSidebar('OPD Center');
     await page.getByPlaceholder('Type Phone, Name or MRN to begin...').fill(patientName);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500); // Wait for form to auto-expand
+    
+    // Wait for the new patient form to appear
+    await expect(page.getByText('NEW PATIENT PROFILE')).toBeVisible({ timeout: 5000 });
+    
     await page.locator('label:has-text("Full Name")').locator('xpath=following-sibling::input').fill(patientName);
     await page.locator('label:has-text("Phone Number")').locator('xpath=following-sibling::input').fill(`9${Date.now().toString().slice(-9)}`);
+    
     const firstDoctor = page.locator('.doctor-card').first();
     await expect(firstDoctor).toBeVisible({ timeout: 10000 });
     await firstDoctor.click({ force: true });
@@ -216,12 +318,33 @@ test.describe('HIMS Clinical Power Journeys', () => {
     await expect(page.locator('tr', { hasText: patientName })).toBeVisible({ timeout: 15000 });
     await page.locator('tr', { hasText: patientName }).getByRole('button', { name: 'Open' }).click();
     
+    // Extract Admission ID from URL
+    await page.waitForURL(/\/tenant\/ipd\/admissions\/.+/);
+    const currentUrl = page.url();
+    const admissionId = currentUrl.split('/').pop();
+    console.log(`Extracted Admission ID: ${admissionId}`);
+
     // Add Service Charge (Doctor Round)
     await page.click('text=Add Service Charge');
     await page.getByLabel('Service Category').selectOption('Doctor Visit');
     await page.getByPlaceholder('Charge Amount').fill('1000');
     await page.click('button:has-text("Post Charge")');
     await expect(page.locator('.app-toast-success')).toBeVisible();
+
+    // Perform Clearances (Required by new Structured Discharge Checklist)
+    const currentTenantId = await page.evaluate(() => localStorage.getItem('tenant'));
+    await page.request.post(`/api/hospital/ipd/admissions/${admissionId}/clearance`, {
+      data: { type: 'pharmacy', status: true },
+      headers: { 'x-tenant-id': currentTenantId || '' }
+    });
+    await page.request.post(`/api/hospital/ipd/admissions/${admissionId}/clearance`, {
+      data: { type: 'billing', status: true },
+      headers: { 'x-tenant-id': currentTenantId || '' }
+    });
+    await page.request.post(`/api/hospital/ipd/admissions/${admissionId}/clearance`, {
+      data: { type: 'clinical', status: true },
+      headers: { 'x-tenant-id': currentTenantId || '' }
+    });
 
     // 4. DISCHARGE
     await page.getByRole('button', { name: /Discharge Patient/i }).click();

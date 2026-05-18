@@ -23,6 +23,7 @@ import Sidebar from "../../../components/Sidebar";
 import { getSlotState } from "../../../utils/schedulingEngine";
 import { useSearchParams } from "react-router-dom";
 import { trackEvent } from "../../../utils/analytics";
+import { useToast } from "../../../components/ToastProvider";
 
 
 const toLocalDateKey = (date: Date) => {
@@ -486,6 +487,7 @@ const StatusBadge = ({ status, delay }: any) => {
 };
 
 const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess, reschedulingAppt, setReschedulingAppt }: any) => {
+  const { showToast } = useToast();
   const [patientId, setPatientId] = useState("");
   const [patientSearch, setPatientSearch] = useState("");
   const [loading, setLoading] = useState(false);
@@ -557,10 +559,12 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
         is_off_hours: state.status === 'UNAVAILABLE'
       });
 
-      onSuccess(); onClose();
+      showToast("Appointment booked successfully!", "success");
+      onSuccess(); 
+      onClose();
     } catch (err: any) { 
       console.error(err); 
-      alert(err.response?.data?.error || "Appointment booking failed. Please try again.");
+      showToast(err.response?.data?.error || "Appointment booking failed. Please try again.", "error");
     } finally { setLoading(false); }
   };
 

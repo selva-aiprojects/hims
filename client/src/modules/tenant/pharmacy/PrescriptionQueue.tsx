@@ -75,7 +75,10 @@ export default function PrescriptionQueue({ embedded = false }: { embedded?: boo
       showToast("Medication dispensed & billing queue updated!", "success");
       setActivePrescription(null);
       fetchData();
-    } catch (err) { showToast("Dispensing failed. Check stock levels.", "error"); }
+    } catch (err: any) { 
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || "Dispensing failed.";
+      showToast(msg, "error"); 
+    }
   };
 
   return (

@@ -78,6 +78,7 @@ export default function BillingPage() {
     claimType: "Cashless",
     claimNumber: ""
   });
+  const [generatedInvoiceId, setGeneratedInvoiceId] = useState<string | null>(null);
 
   const headers = { 
     Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -113,6 +114,7 @@ export default function BillingPage() {
   useEffect(() => {
     if (patient?.id) fetchPatientQueue();
     else setItems([]);
+    setGeneratedInvoiceId(null); // Reset on patient or tab change
   }, [patient, activeTab]);
 
   const fetchMasters = async () => {
@@ -248,8 +250,10 @@ export default function BillingPage() {
         }, { headers });
       }
 
-      alert("Billing Processed Successfully!");
-      navigate("/tenant/dashboard");
+      setGeneratedInvoiceId(billRes.data.id);
+      alert("Billing Processed Successfully! You can now print the invoice.");
+      // Stay on page as requested by user
+      fetchStats(); // Refresh collection stats
     } catch (err) {
       console.error(err);
       alert("Error processing bill");
@@ -260,12 +264,57 @@ export default function BillingPage() {
 
   return (
     <div className="dashboard-layout" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
-      <Sidebar />
+      <style>{`
+        @media print {
+          .no-print, sidebar, header, nav, button, .dashboard-layout > div:first-child {
+            display: none !important;
+          }
+          .print-only {
+            display: block !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+          }
+          .dashboard-layout {
+            display: block !important;
+            background: white !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+          }
+          .printable-content {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+          }
+        }
+        .print-only {
+          display: none;
+        }
+      `}</style>
+
+      <div className="no-print">
+        <Sidebar />
+      </div>
+      
       <main style={{ flex: 1, overflowY: 'auto', position: 'relative', width: '100%' }}>
-        <Header title="Consolidated Billing & Revenue Center" />
+        <div className="no-print">
+          <Header title="Consolidated Billing & Revenue Center" />
+        </div>
 
         <div style={{ padding: isMobile ? '16px' : '24px 40px', maxWidth: '1600px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px' }}>
+          
+          {/* Print Only Header */}
+          <div className="print-only" style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
+            <h1 style={{ margin: '0 0 5px 0', fontSize: '28px' }}>HOSPITAL INVOICE</h1>
+            <p style={{ margin: '0', fontSize: '14px' }}>Date: {new Date().toLocaleDateString()}</p>
+            {generatedInvoiceId && <p style={{ margin: '5px 0 0 0', fontWeight: 'bold' }}>Invoice ID: {generatedInvoiceId}</p>}
+          </div>
+
+          <div className="no-print" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: '16px', background: '#e0e7ff', display: 'grid', placeItems: 'center', color: '#4338ca', boxShadow: '0 10px 15px -3px rgba(67, 56, 202, 0.1)' }}>
               <Wallet size={24} />
             </div>
@@ -274,7 +323,7 @@ export default function BillingPage() {
           </div>
           
           {/* TOP STATS */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
+          <div className="no-print" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
             {[
               { label: 'Today\'s Collection', value: totals.net.toLocaleString(), icon: TrendingUp, color: '#10b981', sub: `${stats.invoiceCount} Invoices` },
               { label: 'Insurance Pending', value: stats.pendingInsurance.toLocaleString(), icon: ShieldCheck, color: '#3b82f6', sub: 'Awaiting Settlement' },
@@ -294,7 +343,7 @@ export default function BillingPage() {
           </div>
 
           {/* CONTEXT TABS */}
-          <div style={{ 
+          <div className="no-print" style={{ 
             display: 'flex', 
             gap: '8px', 
             marginBottom: '32px', 
@@ -334,11 +383,11 @@ export default function BillingPage() {
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 400px', gap: '32px', alignItems: 'start' }}>
             
             {/* LEFT: PATIENT & ITEMS */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div className="printable-content" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
               
               {/* PATIENT SEARCH */}
               <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                <div className="no-print" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
                   <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#4f46e5', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Search size={18} />
                   </div>
@@ -346,7 +395,7 @@ export default function BillingPage() {
                 </div>
 
                 {!patient ? (
-                  <div style={{ position: 'relative', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
+                  <div className="no-print" style={{ position: 'relative', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
                       <input 
                         placeholder="Search by MRN, Name or Phone..."
@@ -388,6 +437,7 @@ export default function BillingPage() {
                       <div style={{ fontSize: '13px', color: '#166534', opacity: 0.8 }}>MRN: {patient.mrn} • {patient.gender} • {patient.age}Y</div>
                     </div>
                     <button 
+                      className="no-print"
                       onClick={() => setPatient(null)}
                       style={{ padding: '8px 16px', borderRadius: '10px', background: 'white', border: '1px solid #bbf7d0', color: '#ef4444', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
                     >
@@ -399,7 +449,7 @@ export default function BillingPage() {
 
               {/* BILLING ITEMS */}
               <div style={{ background: 'white', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '32px', gap: '16px' }}>
+                <div className="no-print" style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '32px', gap: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Receipt size={18} />
@@ -449,6 +499,7 @@ export default function BillingPage() {
                             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>TAX: {item.tax}% • {item.source_module || 'MANUAL'}</div>
                           </div>
                           <button 
+                            className="no-print"
                             onClick={() => setItems(items.filter((_, i) => i !== idx))}
                             style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
                           >
@@ -460,6 +511,7 @@ export default function BillingPage() {
                             <span style={{ fontSize: '12px', color: '#64748b' }}>Qty:</span>
                             <input 
                               type="number" min="1" 
+                              className="no-print"
                               style={{ width: '50px', padding: '6px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700 }}
                               value={item.quantity}
                               onChange={(e) => {
@@ -468,6 +520,7 @@ export default function BillingPage() {
                                 setItems(next);
                               }}
                             />
+                            <span className="print-only">{item.quantity}</span>
                           </div>
                           <div style={{ fontWeight: 800, color: '#0f172a' }}>₹ {(item.price * item.quantity).toLocaleString()}</div>
                         </div>
@@ -497,6 +550,7 @@ export default function BillingPage() {
                           <td style={{ padding: '20px 16px' }}>
                             <input 
                               type="number" min="1" 
+                              className="no-print"
                               style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700 }}
                               value={item.quantity}
                               onChange={(e) => {
@@ -505,10 +559,12 @@ export default function BillingPage() {
                                 setItems(next);
                               }}
                             />
+                            <span className="print-only">{item.quantity}</span>
                           </td>
                           <td style={{ padding: '20px 16px' }}>
                             <input 
                               type="number" min="0" 
+                              className="no-print"
                               disabled={item.category !== 'Consultation' && item.category !== 'Bed Charges'}
                               style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center', fontWeight: 700, opacity: (item.category !== 'Consultation' && item.category !== 'Bed Charges') ? 0.5 : 1 }}
                               value={item.discount}
@@ -518,11 +574,13 @@ export default function BillingPage() {
                                 setItems(next);
                               }}
                             />
+                            <span className="print-only">{item.discount}</span>
                           </td>
                           <td style={{ padding: '20px 16px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '16px' }}>
                               <span style={{ fontWeight: 800, color: '#0f172a' }}>{((item.price * item.quantity) - (item.discount || 0)).toLocaleString()}</span>
                               <button 
+                                className="no-print"
                                 onClick={() => setItems(items.filter((_, i) => i !== idx))}
                                 style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
                               >
@@ -533,7 +591,7 @@ export default function BillingPage() {
                         </tr>
                       )) : (
                         <tr>
-                          <td colSpan={4} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                          <td colSpan={5} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
                             No items added to invoice.
                           </td>
                         </tr>
@@ -580,7 +638,7 @@ export default function BillingPage() {
                 </div>
 
                 {/* PAYMENT MODES */}
-                <div style={{ marginBottom: '32px' }}>
+                <div className="no-print" style={{ marginBottom: '32px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '16px' }}>Select Payment Method</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     {[
@@ -608,21 +666,39 @@ export default function BillingPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <button 
-                    disabled={loading || items.length === 0}
-                    onClick={finalizeBilling}
-                    style={{ 
-                      width: '100%', padding: '18px', borderRadius: '16px', background: '#10b981', color: 'white', 
-                      border: 'none', fontWeight: 900, fontSize: '16px', cursor: 'pointer',
-                      boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.4)', transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-                  >
-                    {loading ? 'PROCESSING...' : 'GENERATE INVOICE'}
-                  </button>
+                  {!generatedInvoiceId ? (
+                    <button 
+                      disabled={loading || items.length === 0}
+                      onClick={finalizeBilling}
+                      style={{ 
+                        width: '100%', padding: '18px', borderRadius: '16px', background: '#10b981', color: 'white', 
+                        border: 'none', fontWeight: 900, fontSize: '16px', cursor: 'pointer',
+                        boxShadow: '0 10px 15px -3px rgba(16, 185, 129, 0.4)', transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    >
+                      {loading ? 'PROCESSING...' : 'GENERATE INVOICE'}
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => window.print()}
+                      style={{ 
+                        width: '100%', padding: '18px', borderRadius: '16px', background: '#3b82f6', color: 'white', 
+                        border: 'none', fontWeight: 900, fontSize: '16px', cursor: 'pointer',
+                        boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.4)', transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                    >
+                      <Printer size={18} style={{ marginRight: '8px' }} />
+                      PRINT INVOICE
+                    </button>
+                  )}
+                  
                   <button 
                     onClick={() => window.print()}
+                    className="no-print"
                     style={{ width: '100%', padding: '14px', borderRadius: '16px', background: 'rgba(255,255,255,0.05)', color: '#94a3b8', border: '1px solid rgba(255,255,255,0.1)', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                   >
                     <Printer size={16} />
@@ -633,7 +709,7 @@ export default function BillingPage() {
 
               {/* INSURANCE CARD (Contextual) */}
               {paymentMode === 'Insurance' && (
-                <div style={{ background: 'white', padding: '32px', borderRadius: '28px', border: '1px solid #e2e8f0' }}>
+                <div className="no-print" style={{ background: 'white', padding: '32px', borderRadius: '28px', border: '1px solid #e2e8f0' }}>
                   <h4 style={{ margin: '0 0 20px', fontSize: '16px', fontWeight: 800 }}>TPA / Claim Context</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div>

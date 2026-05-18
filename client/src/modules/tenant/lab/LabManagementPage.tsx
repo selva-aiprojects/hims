@@ -14,7 +14,8 @@ import {
   User,
   Plus,
   Trash2,
-  FileText
+  FileText,
+  Printer
 } from 'lucide-react';
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
@@ -175,9 +176,44 @@ export default function LabManagementPage() {
   if (activeOrder) {
     return (
       <div className="dashboard-layout">
-        <Sidebar />
+        <style>{`
+          @media print {
+            .no-print, sidebar, header, nav, button, .wizard-back-btn, .dashboard-layout > div:first-child {
+              display: none !important;
+            }
+            .print-only {
+              display: block !important;
+            }
+            body {
+              background: white !important;
+              color: black !important;
+            }
+            .dashboard-layout {
+              display: block !important;
+              background: white !important;
+            }
+            main {
+              padding: 0 !important;
+              margin: 0 !important;
+              width: 100% !important;
+            }
+            .printable-content {
+              border: none !important;
+              box-shadow: none !important;
+              padding: 0 !important;
+            }
+          }
+          .print-only {
+            display: none;
+          }
+        `}</style>
+
+        <div className="no-print">
+          <Sidebar />
+        </div>
+        
         <main className="main-content" style={{ background: '#f8fafc' }}>
-          <div style={{ padding: '24px 16px' }}>
+          <div className="no-print" style={{ padding: '24px 16px' }}>
             {/* Wizard Header */}
             <div className="flex-responsive" style={{ marginBottom: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -221,263 +257,286 @@ export default function LabManagementPage() {
                 ))}
               </div>
             </div>
+          </div>
 
-            {/* Wizard Content */}
-            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <div style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.05)' }}>
-                
-                {wizardStep === 1 && (
-                  <div className="wizard-step-content animate-in">
-                    <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                      <div style={{ width: '64px', height: '64px', background: '#eff6ff', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#3b82f6' }}>
-                        <ClipboardCheck size={32} />
-                      </div>
-                      <h3 style={{ fontSize: '20px', fontWeight: 900 }}>Order Validation</h3>
-                      <p style={{ color: '#64748b', fontSize: '14px' }}>Verify patient identification and billing status.</p>
+          {/* Wizard Content */}
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+            
+            {/* Print Only Header */}
+            <div className="print-only" style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
+              <h1 style={{ margin: '0 0 5px 0', fontSize: '28px' }}>LABORATORY REPORT</h1>
+              <p style={{ margin: '0', fontSize: '14px' }}>Date: {new Date().toLocaleDateString()}</p>
+              <p style={{ margin: '5px 0 0 0', fontWeight: 'bold' }}>Patient: {activeOrder.patient_name} (MRN: {activeOrder.mrn || 'N/A'})</p>
+              <p style={{ margin: '2px 0 0 0' }}>Investigation: {activeOrder.test_name}</p>
+            </div>
+
+            <div className="printable-content" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.05)' }}>
+              
+              {wizardStep === 1 && (
+                <div className="wizard-step-content animate-in">
+                  <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                    <div style={{ width: '64px', height: '64px', background: '#eff6ff', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#3b82f6' }}>
+                      <ClipboardCheck size={32} />
                     </div>
+                    <h3 style={{ fontSize: '20px', fontWeight: 900 }}>Order Validation</h3>
+                    <p style={{ color: '#64748b', fontSize: '14px' }}>Verify patient identification and billing status.</p>
+                  </div>
 
-                    <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 1fr', background: '#f8fafc', padding: '24px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
-                      <div>
-                        <h4 style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px' }}>Patient & Encounter</h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                          <div style={{ width: '32px', height: '32px', background: 'white', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}><User size={16} color="#64748b" /></div>
-                          <div>
-                            <div style={{ fontWeight: 800, fontSize: '14px' }}>{activeOrder.patient_name}</div>
-                            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>MRN: {activeOrder.mrn || 'N/A'}</div>
-                          </div>
+                  <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 1fr', background: '#f8fafc', padding: '24px', borderRadius: '20px', border: '1px solid #f1f5f9' }}>
+                    <div>
+                      <h4 style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px' }}>Patient & Encounter</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', background: 'white', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0' }}><User size={16} color="#64748b" /></div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '14px' }}>{activeOrder.patient_name}</div>
+                          <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>MRN: {activeOrder.mrn || 'N/A'}</div>
                         </div>
                       </div>
-                      <div>
-                        <h4 style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px' }}>Investigation Details</h4>
-                        <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{activeOrder.test_name}</div>
-                        <span style={{ fontSize: '10px', fontWeight: 900, background: activeOrder.priority === 'Urgent' ? '#fee2e2' : '#f1f5f9', color: activeOrder.priority === 'Urgent' ? '#ef4444' : '#64748b', padding: '2px 8px', borderRadius: '6px' }}>{activeOrder.priority?.toUpperCase()}</span>
-                      </div>
                     </div>
-
-                    <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
-                       {!activeOrder.is_paid ? (
-                          <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '16px', border: '1px solid #fef3c7', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
-                             <AlertCircle size={20} color="#f59e0b" />
-                             <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e' }}>Awaiting Payment Collection.</div>
-                             <button onClick={() => navigate('/billing', { state: { labOrderId: activeOrder.id } })} className="button-primary" style={{ background: '#f59e0b', padding: '8px 16px' }}>Go to Billing</button>
-                          </div>
-                       ) : (
-                          <button onClick={moveToNextStep} className="wizard-next-btn">
-                            Proceed <ChevronRight size={18} />
-                          </button>
-                       )}
+                    <div>
+                      <h4 style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px' }}>Investigation Details</h4>
+                      <div style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', marginBottom: '4px' }}>{activeOrder.test_name}</div>
+                      <span style={{ fontSize: '10px', fontWeight: 900, background: activeOrder.priority === 'Urgent' ? '#fee2e2' : '#f1f5f9', color: activeOrder.priority === 'Urgent' ? '#ef4444' : '#64748b', padding: '2px 8px', borderRadius: '6px' }}>{activeOrder.priority?.toUpperCase()}</span>
                     </div>
                   </div>
-                )}
 
-                {wizardStep === 2 && (
-                  <div className="wizard-step-content animate-in">
-                    <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                      <div style={{ width: '80px', height: '80px', background: '#eff6ff', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: '#3b82f6' }}>
-                        <Beaker size={40} />
-                      </div>
-                      <h3 style={{ fontSize: '22px', fontWeight: 900 }}>Sample Collection</h3>
-                      <p style={{ color: '#64748b' }}>Confirm that the required biological samples have been successfully collected.</p>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
-                       <div style={{ background: '#f0f9ff', padding: '24px', borderRadius: '20px', border: '1px solid #bae6fd' }}>
-                          <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 800 }}>Sample Requirements</h4>
-                          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                             <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#0369a1' }}>
-                                <CheckCircle2 size={16} /> Standard Container (EDTA/Vial)
-                             </li>
-                             <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#0369a1' }}>
-                                <CheckCircle2 size={16} /> Barcode Labelling Required
-                             </li>
-                          </ul>
-                       </div>
-                       <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
-                          <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 800 }}>Technician Checklist</h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>
-                                <input type="checkbox" defaultChecked /> Verify Patient Identity (Double)
-                             </label>
-                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>
-                                <input type="checkbox" defaultChecked /> Confirm Sample Quality
-                             </label>
-                          </div>
-                       </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-                      <button onClick={() => setWizardStep(1)} className="wizard-back-btn">Back</button>
-                      <button onClick={moveToNextStep} className="wizard-next-btn">
-                        Confirm Collection & Start Analysis <FlaskConical size={20} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {wizardStep === 3 && (
-                  <div className="wizard-step-content animate-in">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                      <div>
-                        <h3 style={{ fontSize: '22px', fontWeight: 900 }}>Analytical Findings</h3>
-                        <p style={{ color: '#64748b', margin: '4px 0 0' }}>Record technical parameters and clinical observations.</p>
-                      </div>
-                      <button 
-                        onClick={() => setTestResults([...testResults, { param: '', value: '', unit: '', normalRange: '' }])}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: '12px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
-                      >
-                        <Plus size={18} /> Add Parameter
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
-                      {testResults.map((res, idx) => (
-                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px 48px', gap: '12px', alignItems: 'center', background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>PARAMETER</label>
-                            <input 
-                              placeholder="e.g. Hemoglobin" 
-                              value={res.param} 
-                              onChange={e => {
-                                const n = [...testResults]; n[idx].param = e.target.value; setTestResults(n);
-                              }} 
-                              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>VALUE</label>
-                            <input 
-                              placeholder="0.0" 
-                              value={res.value} 
-                              onChange={e => {
-                                const n = [...testResults]; n[idx].value = e.target.value; setTestResults(n);
-                              }} 
-                              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>UNIT</label>
-                            <input 
-                              placeholder="g/dL" 
-                              value={res.unit} 
-                              onChange={e => {
-                                const n = [...testResults]; n[idx].unit = e.target.value; setTestResults(n);
-                              }} 
-                              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>NORMAL RANGE</label>
-                            <input 
-                              placeholder="12 - 16" 
-                              value={res.normalRange} 
-                              onChange={e => {
-                                const n = [...testResults]; n[idx].normalRange = e.target.value; setTestResults(n);
-                              }} 
-                              style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
-                            />
-                          </div>
-                          <button 
-                            onClick={() => {
-                              if (testResults.length > 1) {
-                                const n = [...testResults]; n.splice(idx, 1); setTestResults(n);
-                              }
-                            }}
-                            style={{ alignSelf: 'flex-end', height: '40px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          >
-                            <Trash2 size={18} />
-                          </button>
+                  <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
+                     {!activeOrder.is_paid ? (
+                        <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '16px', border: '1px solid #fef3c7', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+                           <AlertCircle size={20} color="#f59e0b" />
+                           <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e' }}>Awaiting Payment Collection.</div>
+                           <button onClick={() => navigate('/billing', { state: { labOrderId: activeOrder.id } })} className="button-primary" style={{ background: '#f59e0b', padding: '8px 16px' }}>Go to Billing</button>
                         </div>
-                      ))}
-                    </div>
-
-                    <div style={{ marginBottom: '32px' }}>
-                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Clinical Technician Observations</label>
-                       <textarea 
-                          placeholder="Note any abnormalities, sample quality issues, or clinical findings..."
-                          style={{ width: '100%', padding: '16px', borderRadius: '20px', border: '1px solid #e2e8f0', height: '120px', fontSize: '14px', outline: 'none' }}
-                          value={technicianNote}
-                          onChange={e => setTechnicianNote(e.target.value)}
-                       />
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-                      <button onClick={() => setWizardStep(2)} className="wizard-back-btn">Back</button>
-                      <button onClick={moveToNextStep} className="wizard-next-btn">
-                        Review & Authorize Report <ClipboardCheck size={20} />
-                      </button>
-                    </div>
+                     ) : (
+                        <button onClick={moveToNextStep} className="wizard-next-btn">
+                          Proceed <ChevronRight size={18} />
+                        </button>
+                     )}
                   </div>
-                )}
+                </div>
+              )}
 
-                {wizardStep === 4 && (
-                  <div className="wizard-step-content animate-in">
-                    <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-                      <div style={{ width: '80px', height: '80px', background: '#ecfdf5', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: '#10b981' }}>
-                        <CheckCircle2 size={40} />
-                      </div>
-                      <h3 style={{ fontSize: '22px', fontWeight: 900 }}>Technical Validation</h3>
-                      <p style={{ color: '#64748b' }}>Final review of test findings before report authorization.</p>
+              {wizardStep === 2 && (
+                <div className="wizard-step-content animate-in">
+                  <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                    <div style={{ width: '80px', height: '80px', background: '#eff6ff', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: '#3b82f6' }}>
+                      <Beaker size={40} />
                     </div>
-
-                    <div style={{ background: '#f8fafc', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', marginBottom: '32px' }}>
-                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead>
-                             <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
-                                <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>PARAMETER</th>
-                                <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>VALUE / UNIT</th>
-                                <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>NORMAL RANGE</th>
-                                <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>STATUS</th>
-                             </tr>
-                          </thead>
-                          <tbody>
-                             {testResults.map((r, i) => (
-                               <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '12px', fontWeight: 700, color: '#0f172a' }}>{r.param}</td>
-                                  <td style={{ padding: '12px', fontWeight: 800, color: '#3b82f6' }}>{r.value} <span style={{ fontSize: '11px', color: '#64748b' }}>{r.unit}</span></td>
-                                  <td style={{ padding: '12px', fontWeight: 600, color: '#64748b' }}>{r.normalRange}</td>
-                                  <td style={{ padding: '12px' }}><CheckCircle2 size={16} color="#10b981" /></td>
-                               </tr>
-                             ))}
-                          </tbody>
-                       </table>
-                       {technicianNote && (
-                         <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px dashed #e2e8f0' }}>
-                            <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Technician Notes</div>
-                            <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600, fontStyle: 'italic' }}>"{technicianNote}"</div>
-                         </div>
-                       )}
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-                      <button onClick={() => setWizardStep(3)} className="wizard-back-btn">Modify Findings</button>
-                      <button onClick={submitFinalResults} disabled={isSubmitting} className="wizard-next-btn" style={{ background: '#10b981' }}>
-                        {isSubmitting ? 'AUTHORIZING...' : 'AUTHORIZE & PUBLISH'} <Send size={20} />
-                      </button>
-                    </div>
+                    <h3 style={{ fontSize: '22px', fontWeight: 900 }}>Sample Collection</h3>
+                    <p style={{ color: '#64748b' }}>Confirm that the required biological samples have been successfully collected.</p>
                   </div>
-                )}
 
-                {wizardStep === 5 && (
-                  <div className="wizard-step-content animate-in">
-                    <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                      <div style={{ width: '100px', height: '100px', background: '#f0fdf4', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px', border: '1px solid #dcfce7' }}>
-                        <div style={{ width: '70px', height: '70px', background: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                          <CheckCircle2 size={40} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+                     <div style={{ background: '#f0f9ff', padding: '24px', borderRadius: '20px', border: '1px solid #bae6fd' }}>
+                        <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 800 }}>Sample Requirements</h4>
+                        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                           <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#0369a1' }}>
+                              <CheckCircle2 size={16} /> Standard Container (EDTA/Vial)
+                           </li>
+                           <li style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#0369a1' }}>
+                              <CheckCircle2 size={16} /> Barcode Labelling Required
+                           </li>
+                        </ul>
+                     </div>
+                     <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+                        <h4 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 800 }}>Technician Checklist</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+                              <input type="checkbox" defaultChecked /> Verify Patient Identity (Double)
+                           </label>
+                           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', fontWeight: 600, color: '#475569' }}>
+                              <input type="checkbox" defaultChecked /> Confirm Sample Quality
+                           </label>
                         </div>
-                      </div>
-                      <h3 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>Workflow Complete!</h3>
-                      <p style={{ color: '#64748b', fontSize: '16px', maxWidth: '400px', margin: '12px auto 40px' }}>The diagnostic findings have been authorized and are ready for publishing to the patient portal.</p>
-                      
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
-                        <button onClick={publishAndBill} className="wizard-next-btn" style={{ background: '#0f172a', padding: '16px 48px' }}>
-                           Finalize & Publish Report
+                     </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                    <button onClick={() => setWizardStep(1)} className="wizard-back-btn">Back</button>
+                    <button onClick={moveToNextStep} className="wizard-next-btn">
+                      Confirm Collection & Start Analysis <FlaskConical size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 3 && (
+                <div className="wizard-step-content animate-in">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+                    <div>
+                      <h3 style={{ fontSize: '22px', fontWeight: 900 }}>Analytical Findings</h3>
+                      <p style={{ color: '#64748b', margin: '4px 0 0' }}>Record technical parameters and clinical observations.</p>
+                    </div>
+                    <button 
+                      onClick={() => setTestResults([...testResults, { param: '', value: '', unit: '', normalRange: '' }])}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#eff6ff', color: '#3b82f6', border: 'none', borderRadius: '12px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      <Plus size={18} /> Add Parameter
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+                    {testResults.map((res, idx) => (
+                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px 48px', gap: '12px', alignItems: 'center', background: '#f8fafc', padding: '16px', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>PARAMETER</label>
+                          <input 
+                            placeholder="e.g. Hemoglobin" 
+                            value={res.param} 
+                            onChange={e => {
+                              const n = [...testResults]; n[idx].param = e.target.value; setTestResults(n);
+                            }} 
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>VALUE</label>
+                          <input 
+                            placeholder="0.0" 
+                            value={res.value} 
+                            onChange={e => {
+                              const n = [...testResults]; n[idx].value = e.target.value; setTestResults(n);
+                            }} 
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>UNIT</label>
+                          <input 
+                            placeholder="g/dL" 
+                            value={res.unit} 
+                            onChange={e => {
+                              const n = [...testResults]; n[idx].unit = e.target.value; setTestResults(n);
+                            }} 
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>NORMAL RANGE</label>
+                          <input 
+                            placeholder="12 - 16" 
+                            value={res.normalRange} 
+                            onChange={e => {
+                              const n = [...testResults]; n[idx].normalRange = e.target.value; setTestResults(n);
+                            }} 
+                            style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 600 }} 
+                          />
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (testResults.length > 1) {
+                              const n = [...testResults]; n.splice(idx, 1); setTestResults(n);
+                            }
+                          }}
+                          style={{ alignSelf: 'flex-end', height: '40px', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Trash2 size={18} />
                         </button>
                       </div>
+                    ))}
+                  </div>
+
+                  <div style={{ marginBottom: '32px' }}>
+                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 800, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>Clinical Technician Observations</label>
+                     <textarea 
+                        placeholder="Note any abnormalities, sample quality issues, or clinical findings..."
+                        style={{ width: '100%', padding: '16px', borderRadius: '20px', border: '1px solid #e2e8f0', height: '120px', fontSize: '14px', outline: 'none' }}
+                        value={technicianNote}
+                        onChange={e => setTechnicianNote(e.target.value)}
+                     />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                    <button onClick={() => setWizardStep(2)} className="wizard-back-btn">Back</button>
+                    <button onClick={moveToNextStep} className="wizard-next-btn">
+                      Review & Authorize Report <ClipboardCheck size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 4 && (
+                <div className="wizard-step-content animate-in">
+                  <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                    <div style={{ width: '80px', height: '80px', background: '#ecfdf5', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: '#10b981' }}>
+                      <CheckCircle2 size={40} />
+                    </div>
+                    <h3 style={{ fontSize: '22px', fontWeight: 900 }}>Technical Validation</h3>
+                    <p style={{ color: '#64748b' }}>Final review of test findings before report authorization.</p>
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '32px', borderRadius: '24px', border: '1px solid #e2e8f0', marginBottom: '32px' }}>
+                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                           <tr style={{ textAlign: 'left', borderBottom: '2px solid #e2e8f0' }}>
+                              <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>PARAMETER</th>
+                              <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>VALUE / UNIT</th>
+                              <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>NORMAL RANGE</th>
+                              <th style={{ padding: '12px', fontSize: '12px', color: '#94a3b8' }}>STATUS</th>
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {testResults.map((r, i) => (
+                             <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '12px', fontWeight: 700, color: '#0f172a' }}>{r.param}</td>
+                                <td style={{ padding: '12px', fontWeight: 800, color: '#3b82f6' }}>{r.value} <span style={{ fontSize: '11px', color: '#64748b' }}>{r.unit}</span></td>
+                                <td style={{ padding: '12px', fontWeight: 600, color: '#64748b' }}>{r.normalRange}</td>
+                                <td style={{ padding: '12px' }}><CheckCircle2 size={16} color="#10b981" /></td>
+                             </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                     {technicianNote && (
+                       <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px dashed #e2e8f0' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Technician Notes</div>
+                          <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600, fontStyle: 'italic' }}>"{technicianNote}"</div>
+                       </div>
+                     )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                    <button onClick={() => setWizardStep(3)} className="wizard-back-btn">Modify Findings</button>
+                    <button 
+                      onClick={() => window.print()}
+                      className="no-print"
+                      style={{ padding: '16px 32px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '16px', fontWeight: 800, fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <Printer size={18} /> Print Report
+                    </button>
+                    <button onClick={submitFinalResults} disabled={isSubmitting} className="wizard-next-btn" style={{ background: '#10b981' }}>
+                      {isSubmitting ? 'AUTHORIZING...' : 'AUTHORIZE & PUBLISH'} <Send size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {wizardStep === 5 && (
+                <div className="wizard-step-content animate-in">
+                  <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                    <div style={{ width: '100px', height: '100px', background: '#f0fdf4', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px', border: '1px solid #dcfce7' }}>
+                      <div style={{ width: '70px', height: '70px', background: '#10b981', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                        <CheckCircle2 size={40} />
+                      </div>
+                    </div>
+                    <h3 style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a' }}>Workflow Complete!</h3>
+                    <p style={{ color: '#64748b', fontSize: '16px', maxWidth: '400px', margin: '12px auto 40px' }}>The diagnostic findings have been authorized and are ready for publishing to the patient portal.</p>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                      <button 
+                        onClick={() => window.print()}
+                        className="no-print"
+                        style={{ padding: '16px 32px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '16px', fontWeight: 800, fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                      >
+                        <Printer size={18} /> Print Report
+                      </button>
+                      <button onClick={publishAndBill} className="wizard-next-btn" style={{ background: '#0f172a', padding: '16px 48px' }}>
+                         Finalize & Publish Report
+                      </button>
                     </div>
                   </div>
-                )}
+                </div>
+              )}
 
-              </div>
             </div>
           </div>
         </main>
