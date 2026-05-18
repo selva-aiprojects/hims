@@ -273,6 +273,12 @@ async function ensureIPDAdmissionsTable(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS encounter_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS admitted_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS discharged_at TIMESTAMP`);
+  
+  // Self-healing for Discharge Checklist & Transfers
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS pharmacy_cleared BOOLEAN DEFAULT FALSE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS billing_cleared BOOLEAN DEFAULT FALSE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS clinical_cleared BOOLEAN DEFAULT FALSE`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_admissions ADD COLUMN IF NOT EXISTS original_admitted_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".ipd_notes (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1102,29 +1108,98 @@ router.post("/ipd/admissions/:id/discharge", async (req, res, next) => {
     const adm = adms[0];
     if (!adm) return res.status(404).json({ error: "Admission not found" });
 
-    // 2. Calculate Days and Room Charges
+    // 2. CHECK CLEARANCES (Discharge Checklist)
+    if (!adm.pharmacy_cleared || !adm.billing_cleared || !adm.clinical_cleared) {
+      return res.status(400).json({ error: "Cannot discharge. All clearances (Pharmacy, Billing, Clinical) must be completed." });
+    }
+
+    // 3. Calculate Days and Room Charges
     const stayMs = new Date().getTime() - new Date(adm.admitted_at).getTime();
     const days = Math.max(1, Math.ceil(stayMs / (1000 * 60 * 60 * 24)));
     const roomCharge = days * (adm.daily_charge || adm.base_charge || 1000);
 
-    // 3. Post Room Charges to Billing Queue
+    // 4. Post Room Charges to Billing Queue
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
       VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days in ${adm.ward_id})', 1, ${roomCharge})
     `);
 
-    // 4. Create Discharge Summary
+    // 5. Create Discharge Summary
     await ensureDischargeTable(req);
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".discharge_summaries (admission_id, patient_id, summary_text, discharge_type, status)
       VALUES ('${id}', '${adm.patient_id}', '${s(summary)}', '${s(dischargeType)}', 'Final')
     `);
 
-    // 5. Free the Bed & Update Admission Status
+    // 6. Free the Bed & Update Admission Status
     await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Vacant' WHERE id = '${adm.bed_id}'`);
     await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".ipd_admissions SET status = 'Discharged', discharged_at = NOW() WHERE id = '${id}'`);
 
     res.json({ success: true, message: "Patient discharged and bill finalized." });
+  } catch (error) { next(error); }
+});
+
+router.post("/ipd/admissions/:id/transfer", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { newBedId, newWardId } = req.body;
+    await ensureIPDAdmissionsTable(req);
+    await ensureBillingQueue(req);
+
+    const adms = await req.prisma.$queryRawUnsafe(`
+      SELECT a.*, w.base_charge, w.name as ward_name
+      FROM "${req.schemaName}".ipd_admissions a
+      JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
+      WHERE a.id = '${id}'
+    `);
+    const adm = adms[0];
+    if (!adm) return res.status(404).json({ error: "Admission not found" });
+
+    const stayMs = new Date().getTime() - new Date(adm.admitted_at).getTime();
+    const days = Math.max(1, Math.ceil(stayMs / (1000 * 60 * 60 * 24)));
+    const roomCharge = days * (adm.daily_charge || adm.base_charge || 1000);
+
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
+      VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days in ${s(adm.ward_name)})', 1, ${roomCharge})
+    `);
+
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Vacant' WHERE id = '${adm.bed_id}'`);
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Occupied' WHERE id = '${newBedId}'`);
+
+    const newWards = await req.prisma.$queryRawUnsafe(`SELECT base_charge FROM "${req.schemaName}".wards WHERE id = '${newWardId}'`);
+    const newCharge = newWards[0]?.base_charge || 1000;
+
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".ipd_admissions 
+      SET ward_id = '${newWardId}', 
+          bed_id = '${newBedId}', 
+          daily_charge = ${newCharge},
+          admitted_at = NOW() 
+      WHERE id = '${id}'
+    `);
+
+    res.json({ success: true, message: "Patient transferred successfully." });
+  } catch (error) { next(error); }
+});
+
+router.post("/ipd/admissions/:id/clearance", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { type, status } = req.body;
+    
+    if (!['pharmacy', 'billing', 'clinical'].includes(type)) {
+      return res.status(400).json({ error: "Invalid clearance type" });
+    }
+
+    const field = `${type}_cleared`;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".ipd_admissions 
+      SET ${field} = ${status} 
+      WHERE id = '${id}'
+    `);
+
+    res.json({ success: true, message: `${type} clearance updated.` });
   } catch (error) { next(error); }
 });
 
@@ -1238,7 +1313,27 @@ router.post("/pharmacy/dispense", async (req, res, next) => {
     await ensureBillingQueue(req);
 
     for (const item of items) {
-      // 1. Decrement Stock
+      // 1. FEFO Stock Decrement (First Expired, First Out)
+      let qtyNeeded = parseInt(item.quantity) || 0;
+      
+      const batches = await req.prisma.$queryRawUnsafe(`
+        SELECT id, current_stock 
+        FROM "${req.schemaName}".pharmacy_inwards 
+        WHERE medicine_id = '${item.drugId}' AND current_stock > 0 AND is_blocked = FALSE
+        ORDER BY expiry_date ASC
+      `);
+
+      for (const batch of batches) {
+        if (qtyNeeded <= 0) break;
+        const consume = Math.min(qtyNeeded, batch.current_stock);
+        await req.prisma.$executeRawUnsafe(`
+          UPDATE "${req.schemaName}".pharmacy_inwards 
+          SET current_stock = current_stock - ${consume} 
+          WHERE id = '${batch.id}'
+        `);
+        qtyNeeded -= consume;
+      }
+
       await req.prisma.$executeRawUnsafe(`
         UPDATE "${req.schemaName}".medicines 
         SET stock_quantity = GREATEST(0, stock_quantity - ${item.quantity}) 
@@ -1324,6 +1419,8 @@ async function ensureInwardsTable(req) {
       remarks TEXT
     )
   `);
+  // Schema Healing: Add current_stock for FEFO tracking
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".pharmacy_inwards ADD COLUMN IF NOT EXISTS current_stock INTEGER DEFAULT 0`);
 }
 
 router.get("/pharmacy/inwards", async (req, res, next) => {
@@ -1350,13 +1447,13 @@ router.post("/pharmacy/inwards", async (req, res, next) => {
     // 1. Record the Inward Entry
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".pharmacy_inwards 
-      (inward_no, supplier_id, medicine_id, batch_number, invoice_number, quantity, uom, purchase_price, mrp, mfd_date, expiry_date, remarks)
+      (inward_no, supplier_id, medicine_id, batch_number, invoice_number, quantity, current_stock, uom, purchase_price, mrp, mfd_date, expiry_date, remarks)
       VALUES (
         '${s(finalInwardNo)}',
         ${supplier_id ? `'${supplier_id}'` : 'NULL'}, 
         ${medicine_id ? `'${medicine_id}'` : 'NULL'}, 
         '${s(batch_number)}', '${s(invoice_number)}', 
-        ${parseInt(quantity) || 0}, '${s(uom)}', 
+        ${parseInt(quantity) || 0}, ${parseInt(quantity) || 0}, '${s(uom)}', 
         ${parseFloat(purchase_price) || 0}, ${parseFloat(mrp) || 0},
         ${sqlValue(mfd_date)}, ${sqlValue(expiry_date)}, '${s(remarks || '')}'
       )

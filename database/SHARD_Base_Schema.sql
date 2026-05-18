@@ -240,6 +240,7 @@ CREATE TABLE pharmacy_inwards (
   batch_number VARCHAR(100),
   invoice_number VARCHAR(100),
   quantity INTEGER DEFAULT 0,
+  current_stock INTEGER DEFAULT 0, -- Added for FEFO
   uom VARCHAR(50),
   purchase_price NUMERIC DEFAULT 0,
   mrp NUMERIC DEFAULT 0,
@@ -535,6 +536,8 @@ CREATE TABLE invoices (
   tax_total NUMERIC DEFAULT 0,
   total NUMERIC DEFAULT 0,
   status VARCHAR(50) DEFAULT 'Unpaid',
+  insurance_claim_amount NUMERIC DEFAULT 0, -- Added for Co-pay
+  patient_copay_amount NUMERIC DEFAULT 0, -- Added for Co-pay
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -874,6 +877,11 @@ CREATE TABLE ipd_admissions (
   status VARCHAR(20) DEFAULT 'Active', -- Active | Discharged
   admitted_at TIMESTAMP DEFAULT NOW(),
   discharged_at TIMESTAMP,
+  -- Discharge Checklist & Transfers
+  pharmacy_cleared BOOLEAN DEFAULT FALSE,
+  billing_cleared BOOLEAN DEFAULT FALSE,
+  clinical_cleared BOOLEAN DEFAULT FALSE,
+  original_admitted_at TIMESTAMP DEFAULT NOW(),
   -- Age validation constraints
   age_appropriate BOOLEAN DEFAULT true,
   validation_warnings TEXT[] DEFAULT '{}',

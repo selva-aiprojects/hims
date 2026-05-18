@@ -28,6 +28,9 @@ async function ensureBillingTables(req) {
       created_at TIMESTAMP DEFAULT NOW()
     );
   `);
+  // Self-healing columns for Co-pay
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoices ADD COLUMN IF NOT EXISTS insurance_claim_amount NUMERIC DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoices ADD COLUMN IF NOT EXISTS patient_copay_amount NUMERIC DEFAULT 0`);
 }
 
 /**
@@ -108,10 +111,28 @@ router.post("/", async (req, res, next) => {
     const totalDiscount = normalizedItems.reduce((acc, it) => acc + (parseFloat(it.discount_amount) || 0), 0);
     const finalTotal = subtotal + taxTotal - totalDiscount;
 
-    // B. Create Invoice Header
+    // B. Check for Insurance Co-pay
+    let copayPercent = 0;
+    try {
+      const mappings = await req.prisma.$queryRawUnsafe(`
+        SELECT copay_percent 
+        FROM "${req.schemaName}".insurance_patient_mapping 
+        WHERE patient_id = '${patientId}' AND status = 'active'
+      `);
+      if (mappings.length > 0) {
+        copayPercent = mappings[0].copay_percent || 0;
+      }
+    } catch (e) {
+      console.log("[BILLING] No insurance mapping table or error:", e.message);
+    }
+
+    const patientCopayAmount = finalTotal * (copayPercent / 100);
+    const insuranceClaimAmount = finalTotal - patientCopayAmount;
+
+    // C. Create Invoice Header
     const invHeader = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".invoices (patient_id, encounter_id, bill_type, payment_mode, subtotal, tax_total, total, status)
-      VALUES ('${patientId}', ${encounterId ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${finalTotal}, '${status || 'PAID'}')
+      INSERT INTO "${req.schemaName}".invoices (patient_id, encounter_id, bill_type, payment_mode, subtotal, tax_total, total, status, insurance_claim_amount, patient_copay_amount)
+      VALUES ('${patientId}', ${encounterId ? `'${encounterId}'` : 'NULL'}, '${billType}', '${paymentMode}', ${subtotal}, ${taxTotal}, ${finalTotal}, '${status || 'PAID'}', ${insuranceClaimAmount}, ${patientCopayAmount})
       RETURNING id
     `);
     
