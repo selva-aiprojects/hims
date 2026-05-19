@@ -54,7 +54,7 @@ export default function ConsultationPage() {
     try {
       const res = await axios.post(`${API_BASE}/api/consultation`, {
         patientId,
-        doctorId: "doc1",
+        doctorId: localStorage.getItem("userId") || "",
         diagnosis,
         prescriptions: [{ drugName: drug, dosage: "1-0-1" }],
       }, {

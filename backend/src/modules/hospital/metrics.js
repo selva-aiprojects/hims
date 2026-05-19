@@ -140,13 +140,31 @@ router.get("/stats", async (req, res, next) => {
     const activeHours = utilizationRes[0]?.active_hours || 0;
     const utilizationPercent = Math.min(100, Math.round((activeHours / 8) * 100)); // Assuming 8h shift for index
 
+    // 10. BILLING KPIs (Live)
+    let billingKpis = { dailyCollection: 0, pendingInsurance: 0, todayInvoices: 0, outstandingDues: 0 };
+    try {
+      const [dailyColl, pendingIns, todayInv, outstanding] = await Promise.all([
+        req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as val FROM "${schema}".invoices WHERE status = 'Paid' AND created_at > NOW() - INTERVAL '24 hours'`),
+        req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as val FROM "${schema}".invoices WHERE payment_mode = 'Insurance' AND status IN ('Unpaid', 'Pending')`),
+        req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as val FROM "${schema}".invoices WHERE created_at > NOW() - INTERVAL '24 hours'`),
+        req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as val FROM "${schema}".invoices WHERE status IN ('Unpaid', 'Partial') AND created_at > NOW() - INTERVAL '30 days'`),
+      ]);
+      billingKpis = {
+        dailyCollection: Math.round(dailyColl[0]?.val || 0),
+        pendingInsurance: Math.round(pendingIns[0]?.val || 0),
+        todayInvoices: todayInv[0]?.val || 0,
+        outstandingDues: Math.round(outstanding[0]?.val || 0),
+      };
+    } catch (e) { /* invoices table may not exist in all shards yet */ }
+
     res.json({
       metrics: {
         patientInflow: patientCount[0]?.count || 0,
         activeAdmissions: admissionCount[0]?.count || 0,
         pendingBills: billCount[0]?.count || 0,
         dailyRevenue: revenue[0]?.sum || 0,
-        lastPatient: lastPatientRes[0]?.name || 'N/A'
+        lastPatient: lastPatientRes[0]?.name || 'N/A',
+        ...billingKpis,
       },
       ipOpRatio: ipOpRatio[0],
       stockAlerts,

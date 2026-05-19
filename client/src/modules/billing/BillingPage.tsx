@@ -57,6 +57,16 @@ export default function BillingPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
+  // Hospital Settings (live)
+  const [hospitalSettings, setHospitalSettings] = useState<any>({
+    name: localStorage.getItem('tenantName') || 'Hospital',
+    email: '',
+    phone: '',
+    address: '',
+    logoUrl: localStorage.getItem('theme_logo_url') || '',
+    tagline: 'Quality Healthcare Services',
+  });
+  
   // Patient Context
   const [patient, setPatient] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -65,7 +75,7 @@ export default function BillingPage() {
   // Master Data & Billing Items
   const [services, setServices] = useState<any[]>([]);
   const [items, setItems] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>({ dailyCollection: 0, pendingInsurance: 0, invoiceCount: 0 });
+  const [stats, setStats] = useState<any>({ dailyCollection: 0, pendingInsurance: 0, invoiceCount: 0, outstandingDues: 0 });
   const [insuranceProviders, setInsuranceProviders] = useState<any[]>([]);
   
   // Payment State
@@ -86,6 +96,7 @@ export default function BillingPage() {
 
   // 1. Initial Data Fetch & Patient Resolution
   useEffect(() => {
+    fetchHospitalSettings();
     fetchMasters();
     fetchStats();
     resolvePatientContext();
@@ -134,13 +145,21 @@ export default function BillingPage() {
     } catch (err) { console.error(err); }
   };
 
+  const fetchHospitalSettings = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/hospital/settings`, { headers });
+      setHospitalSettings(prev => ({ ...prev, ...res.data }));
+    } catch (err) { console.error('Failed to fetch hospital settings', err); }
+  };
+
   const fetchStats = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/hospital/metrics/stats`, { headers });
       setStats({
         dailyCollection: res.data.metrics?.dailyCollection || 0,
         pendingInsurance: res.data.metrics?.pendingInsurance || 0,
-        invoiceCount: res.data.metrics?.todayInvoices || 0
+        invoiceCount: res.data.metrics?.todayInvoices || 0,
+        outstandingDues: res.data.metrics?.outstandingDues || 0,
       });
     } catch (err) { console.error(err); }
   };
@@ -317,7 +336,7 @@ export default function BillingPage() {
                   {[
                     { label: 'Today\'s Collection', value: stats.dailyCollection.toLocaleString(), icon: TrendingUp, color: '#10b981', sub: `${stats.invoiceCount} Invoices` },
                     { label: 'Insurance Pending', value: stats.pendingInsurance.toLocaleString(), icon: ShieldCheck, color: '#3b82f6', sub: 'Awaiting Settlement' },
-                    { label: 'Outstanding Dues', value: '45,200', icon: History, color: '#f59e0b', sub: 'Past 30 Days' }
+                    { label: 'Outstanding Dues', value: stats.outstandingDues.toLocaleString(), icon: History, color: '#f59e0b', sub: 'Past 30 Days' }
                   ].map((s, i) => (
                     <div key={i} style={{ background: 'white', padding: isMobile ? '16px' : '24px', borderRadius: '20px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px' }}>
                       <div style={{ width: isMobile ? '40px' : '56px', height: isMobile ? '40px' : '56px', borderRadius: '16px', background: `${s.color}10`, color: s.color, display: 'flex', alignItems: 'center', justifyItems: 'center', justifyContent: 'center' }}>
@@ -792,13 +811,13 @@ export default function BillingPage() {
                       </div>
                       <div>
                         <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', margin: '0 0 4px 0' }}>
-                          {localStorage.getItem("tenantName") || "Healthezee Hospital Group"}
+                          {hospitalSettings.name}
                         </h2>
                         <p style={{ margin: 0, fontSize: '12px', color: '#475569', fontWeight: 500 }}>
-                          Primary Operations & Diagnostic Wing • HIMS Medical Networks
+                          {hospitalSettings.tagline}
                         </p>
                         <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#64748b' }}>
-                          Contact: billing@{localStorage.getItem("tenant") || "hims"}.healthezee.com | +91 99999 88888
+                          {hospitalSettings.email && `${hospitalSettings.email}`}{hospitalSettings.phone && ` | ${hospitalSettings.phone}`}
                         </p>
                       </div>
                     </div>
@@ -973,13 +992,13 @@ export default function BillingPage() {
             </div>
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: 900, color: '#000000', margin: '0 0 4px 0' }}>
-                {localStorage.getItem("tenantName") || "Healthezee Hospital Group"}
+                {hospitalSettings.name}
               </h2>
               <p style={{ margin: 0, fontSize: '12px', color: '#000000', fontWeight: 600 }}>
-                Primary Operations & Diagnostic Wing • HIMS Medical Networks
+                {hospitalSettings.tagline}
               </p>
               <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#000000' }}>
-                Contact: billing@{localStorage.getItem("tenant") || "hims"}.healthezee.com | +91 99999 88888
+                {hospitalSettings.email}{hospitalSettings.phone && ` | ${hospitalSettings.phone}`}
               </p>
             </div>
           </div>
@@ -1128,7 +1147,7 @@ export default function BillingPage() {
 
         {/* Footer Brand */}
         <div style={{ textAlign: 'center', marginTop: '48px', borderTop: '1px solid #000000', paddingTop: '12px', color: '#000000', fontSize: '10px', fontWeight: 800 }}>
-          POWERED BY HEALTHEZEE® CLINICAL NETWORK • SECURE ELECTRONIC RECORD
+          {hospitalSettings.name} • SECURE ELECTRONIC RECORD
         </div>
       </div>
 

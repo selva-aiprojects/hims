@@ -380,6 +380,30 @@ router.get("/heal-all-masters", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// --- HOSPITAL SETTINGS (Live tenant info from nexus registry) ---
+router.get("/settings", async (req, res, next) => {
+  try {
+    const tenantId = req.headers['x-tenant-id'] || '';
+    let tenantRow = null;
+    try {
+      const rows = await req.prisma.$queryRawUnsafe(`
+        SELECT name, admin_email, ui_settings FROM nexus.tenants WHERE id = '${tenantId}' LIMIT 1
+      `);
+      tenantRow = rows[0] || null;
+    } catch (e) { /* nexus may be in different DB in some setups */ }
+
+    const ui = tenantRow?.ui_settings || {};
+    res.json({
+      name: tenantRow?.name || 'Hospital',
+      email: ui.contactEmail || tenantRow?.admin_email || '',
+      phone: ui.contactPhone || '',
+      address: ui.address || '',
+      logoUrl: ui.logoUrl || '',
+      tagline: ui.tagline || 'Quality Healthcare Services',
+    });
+  } catch (error) { next(error); }
+});
+
 // --- DOCTOR LIST (Clinical Staff Only) ---
 router.get("/doctors", async (req, res, next) => {
   try {
@@ -760,7 +784,7 @@ router.post("/ipd/admissions", async (req, res, next) => {
     // 3. Push Admission Fee to Billing Queue
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
-      VALUES ('${patientId}', 'IPD', '${admId}', 'Admission Charges', 1, 1500)
+      VALUES ('${patientId}', 'IPD', '${admId}', 'Admission Charges', 1, ${dailyCharge || 0})
     `);
 
     res.status(201).json({ id: admId });

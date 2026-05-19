@@ -31,7 +31,7 @@ export default function AppointmentsPage() {
     try {
       await axios.post(`${API_BASE}/api/appointments`, {
         patientId,
-        doctorId: "doc1",
+        doctorId: localStorage.getItem("userId") || "",
         time: new Date(),
       }, {
         headers: {
