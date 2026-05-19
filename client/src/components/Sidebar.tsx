@@ -37,7 +37,8 @@ const Icons: Record<string, any> = {
   "Staff & Access": Users,
   "Support & Tickets": LifeBuoy,
   Calendar: Calendar,
-  "Clinical Intelligence": TrendingUp
+  "Clinical Intelligence": TrendingUp,
+  "Patient Register": ClipboardList
 };
 
 const normalizePath = (label: string, originalPath: string) => {
@@ -66,6 +67,7 @@ const normalizePath = (label: string, originalPath: string) => {
     "message board": "/tenant/communication",
     "clinical archives": "/tenant/archives",
     "clinical & financial archives": "/tenant/archives",
+    "patient register": "/tenant/clinical/patient-register",
     "mail & communications": "/tenant/mail",
     "support & tickets": "/tenant/support",
     "ticketing management system": "/tenant/support/tickets"
@@ -93,6 +95,9 @@ export default function Sidebar() {
     }
     if (!dm.some((m: any) => m.label.toLowerCase().includes("clinical & financial archives"))) {
       dm.push({ label: "Clinical & Financial Archives", path: "/tenant/archives", icon: "History", sort_order: 10 });
+    }
+    if (!dm.some((m: any) => m.label.toLowerCase().includes("patient register"))) {
+      dm.push({ label: "Patient Register", path: "/tenant/clinical/patient-register", icon: "Patient Register", sort_order: 11 });
     }
 
     const labelMap: Record<string, string> = {
@@ -137,7 +142,8 @@ export default function Sidebar() {
       "message board": "Message Board",
       "mail management": "Mail & Communications",
       "ticketing management system": "Support & Tickets",
-      "help & support": "Support & Tickets"
+      "help & support": "Support & Tickets",
+      "patient register": "Patient Register"
     };
 
     const uniqueMap = new Map();
@@ -168,6 +174,7 @@ export default function Sidebar() {
       "Clinical Intelligence Hub",
       "Doctor's Schedule", "Appointment List", 
       "OPD Center", "OPD Queue", "Consultation Desk", 
+      "Patient Register",
       "IPD Admission Hub", "Bed Management", "Discharge Summaries",
       "Clinical & Financial Archives"
     ];

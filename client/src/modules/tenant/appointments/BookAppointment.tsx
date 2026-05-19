@@ -17,11 +17,20 @@ export default function BookAppointment() {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [doctorOnLeave, setDoctorOnLeave] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const token = localStorage.getItem("token");
+  const tenantId = localStorage.getItem("tenant");
+
+  // Guard: Redirect to login if session is missing
+  if (!token || !tenantId) {
+    window.location.href = '/login';
+  }
+
   const headers = {
-    Authorization: `Bearer ${localStorage.getItem("token") || "eyJJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoidGVzdEBleGFtcGxlLmNvbSIsInRlbmFudElkIjoiNzE4MjBkYjMtZjhmMS00Mjk0LThjMTEtMWRjNjZhYjEwNTZlIiwidHlwZSI6InRlbmFudCIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3ODIzMjM5MSwiZXhwIjoxNzc0MjYxMTkxfQ.v_fteZvcOrWXeuDC_uwfQU6liZTToZ5meXrs09JZdM8"}`,
-    "x-tenant-id": localStorage.getItem("tenant") || "71820db3-f8f1-4294-8c11-1dc66ab1056e"
+    Authorization: `Bearer ${token}`,
+    "x-tenant-id": tenantId || ""
   };
 
   useEffect(() => {
@@ -35,7 +44,54 @@ export default function BookAppointment() {
         axios.get(`${API_BASE}/api/patients?limit=200`, { headers })
       ]);
       setDoctors(docRes.data || []);
-      setPatients(patRes.data || []);
+      const pats = patRes.data || [];
+      setPatients(pats);
+
+      const params = new URLSearchParams(window.location.search);
+      const preselectedPatientId = params.get('patientId');
+      if (preselectedPatientId && pats.length > 0) {
+        const found = pats.find((p: any) => p.id === preselectedPatientId);
+        if (found) {
+          setSelectedPatient(found);
+        }
+      }
+
+      const preselectedDoctorId = params.get('doctorId');
+      const preselectedDateStr = params.get('date');
+      const preselectedTimeStr = params.get('time');
+
+      if (preselectedDoctorId && docRes.data) {
+        const docFound = docRes.data.find((d: any) => d.id === preselectedDoctorId);
+        if (docFound) {
+          setSelectedDoctor(docFound);
+          if (preselectedDateStr) {
+            const dateObj = new Date(preselectedDateStr);
+            setSelectedDate(dateObj);
+            fetchDoctorAvailability(docFound, dateObj);
+            
+            if (preselectedTimeStr) {
+              setSelectedTime(preselectedTimeStr);
+              if (preselectedPatientId && pats.length > 0) {
+                const patFound = pats.find((p: any) => p.id === preselectedPatientId);
+                if (patFound) {
+                  setSelectedPatient(patFound);
+                  setCurrentStep('confirm');
+                } else {
+                  setCurrentStep('select-patient' as BookingStep);
+                }
+              } else {
+                setCurrentStep('select-patient' as BookingStep);
+              }
+            } else {
+              setCurrentStep('select-time');
+            }
+          } else {
+            setCurrentStep('select-date');
+          }
+        }
+      } else if (preselectedPatientId) {
+        setCurrentStep('select-doctor');
+      }
     } catch (error) {
       console.error('Error fetching initial data:', error);
     }
@@ -43,36 +99,50 @@ export default function BookAppointment() {
 
   const fetchDoctorAvailability = async (doctor: Doctor, date: Date) => {
     try {
+      const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
       const response = await axios.get(
-        `${API_BASE}/api/doctors/${doctor.id}/availability-rules?startDate=${date.toISOString().split('T')[0]}&endDate=${date.toISOString().split('T')[0]}`,
+        `${API_BASE}/api/doctors/${doctor.id}/availability-rules?startDate=${dateStr}&endDate=${dateStr}`,
         { headers }
       );
       
       const weekday = date.getDay();
       const daySchedule = getScheduleForDay(response.data.schedules || [], weekday);
+      const leaves = response.data.leaves || [];
+      const overrides = response.data.overrides || [];
+      const dayAppointments = response.data.appointments || [];
+
+      // Check if doctor is on leave for this date
+      const onLeave = leaves.some((l: any) => {
+        const start = l.start_date?.substring(0, 10);
+        const end = l.end_date?.substring(0, 10);
+        return dateStr >= start && dateStr <= end;
+      });
+      setDoctorOnLeave(onLeave);
       
-      if (daySchedule.length > 0) {
-        const dayAppointments = response.data.appointments || [];
-        const allSlots: TimeSlot[] = [];
-        
-        daySchedule.forEach((schedule: any) => {
-          const slots = generateTimeSlots(
-            schedule.start_time,
-            schedule.end_time,
-            schedule.slot_duration,
-            dayAppointments
-          );
-          allSlots.push(...slots);
-        });
-        
-        const uniqueSlots = allSlots.filter((slot, index, self) =>
-          index === self.findIndex((s) => s.time === slot.time)
-        ).sort((a, b) => a.time.localeCompare(b.time));
-        
-        setAvailableSlots(uniqueSlots.filter(slot => slot.available));
-      } else {
+      if (onLeave || daySchedule.length === 0) {
         setAvailableSlots([]);
+        return;
       }
+
+      const allSlots: TimeSlot[] = [];
+      daySchedule.forEach((schedule: any) => {
+        const slots = generateTimeSlots(
+          schedule.start_time,
+          schedule.end_time,
+          schedule.slot_duration,
+          dayAppointments,
+          dateStr,
+          leaves,
+          overrides
+        );
+        allSlots.push(...slots);
+      });
+      
+      const uniqueSlots = allSlots.filter((slot, index, self) =>
+        index === self.findIndex((s) => s.time === slot.time)
+      ).sort((a, b) => a.time.localeCompare(b.time));
+      
+      setAvailableSlots(uniqueSlots.filter(slot => slot.available));
     } catch (error) {
       console.error('Error fetching availability:', error);
       setAvailableSlots([]);
@@ -81,7 +151,11 @@ export default function BookAppointment() {
 
   const handleDoctorSelect = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
-    setCurrentStep('select-patient' as BookingStep);
+    if (selectedPatient) {
+      setCurrentStep('select-date');
+    } else {
+      setCurrentStep('select-patient' as BookingStep);
+    }
   };
 
   const handlePatientSelect = (patient: Patient) => {
@@ -93,6 +167,8 @@ export default function BookAppointment() {
     if (isPastDate(date)) return;
     
     setSelectedDate(date);
+    setDoctorOnLeave(false);
+    setAvailableSlots([]);
     if (selectedDoctor) {
       fetchDoctorAvailability(selectedDoctor, date);
     }
@@ -109,12 +185,13 @@ export default function BookAppointment() {
 
     setLoading(true);
     try {
-      const appointmentDateTime = new Date(`${selectedDate.toISOString().split('T')[0]} ${selectedTime}`);
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const appointmentTimeStr = `${dateStr}T${selectedTime}:00`;
       
       await axios.post(`${API_BASE}/api/appointments`, {
         patient_id: selectedPatient.id,
         doctor_id: selectedDoctor.id,
-        appointment_time: appointmentDateTime.toISOString(),
+        appointment_time: appointmentTimeStr,
         status: 'Scheduled'
       }, { headers });
 
@@ -449,9 +526,20 @@ export default function BookAppointment() {
       ) : (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <Clock size={48} style={{ color: '#94a3b8', margin: '0 auto 16px' }} />
-          <div style={{ fontSize: '16px', color: '#64748b' }}>
-            No available time slots for this date.
-          </div>
+          {doctorOnLeave ? (
+            <>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: '#be123c', marginBottom: '8px' }}>
+                Dr. {selectedDoctor?.name} is on leave this day
+              </div>
+              <div style={{ fontSize: '14px', color: '#64748b', marginBottom: '16px' }}>
+                Please choose a different date or contact the doctor's schedule admin.
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: '16px', color: '#64748b', marginBottom: '16px' }}>
+              No available slots — all slots are booked or blocked for this date.
+            </div>
+          )}
           <button
             onClick={() => setCurrentStep('select-date')}
             style={{
@@ -462,8 +550,7 @@ export default function BookAppointment() {
               borderRadius: '8px',
               fontSize: '14px',
               fontWeight: 600,
-              cursor: 'pointer',
-              marginTop: '16px'
+              cursor: 'pointer'
             }}
           >
             Choose Different Date

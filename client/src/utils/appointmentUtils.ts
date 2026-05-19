@@ -1,10 +1,42 @@
 import { TimeSlot, Appointment, ScheduleRule } from '../types/appointment';
 
+/**
+ * Returns true if the given time string (HH:MM) falls within a leave or block override.
+ */
+const isTimeBlocked = (
+  timeString: string,
+  dateStr: string,
+  leaves: any[],
+  overrides: any[]
+): boolean => {
+  // Check leaves — if doctor is on full-day leave, all slots are blocked
+  const onLeave = leaves.some(l => {
+    const start = l.start_date?.substring(0, 10);
+    const end = l.end_date?.substring(0, 10);
+    return dateStr >= start && dateStr <= end;
+  });
+  if (onLeave) return true;
+
+  // Check overrides — a manual block override takes priority over schedule
+  const blockedByOverride = overrides.some(o => {
+    if (o.override_date?.substring(0, 10) !== dateStr) return false;
+    if (o.is_available) return false; // it's an "open" override, not a block
+    const slotMins = parseInt(timeString.split(':')[0]) * 60 + parseInt(timeString.split(':')[1]);
+    const startMins = parseInt(o.start_time.split(':')[0]) * 60 + parseInt(o.start_time.split(':')[1]);
+    const endMins = parseInt(o.end_time.split(':')[0]) * 60 + parseInt(o.end_time.split(':')[1]);
+    return slotMins >= startMins && slotMins < endMins;
+  });
+  return blockedByOverride;
+};
+
 export const generateTimeSlots = (
   startTime: string,
   endTime: string,
   duration: number,
-  appointments: Appointment[]
+  appointments: Appointment[],
+  dateStr: string = '',
+  leaves: any[] = [],
+  overrides: any[] = []
 ): TimeSlot[] => {
   const slots: TimeSlot[] = [];
   const [startHour, startMin] = startTime.split(':').map(Number);
@@ -21,10 +53,12 @@ export const generateTimeSlots = (
       const aptTimeString = `${aptTime.getHours().toString().padStart(2, '0')}:${aptTime.getMinutes().toString().padStart(2, '0')}`;
       return aptTimeString === timeString;
     });
+
+    const blocked = isTimeBlocked(timeString, dateStr, leaves, overrides);
     
     slots.push({
       time: timeString,
-      available: !hasAppointment,
+      available: !hasAppointment && !blocked,
       appointment: hasAppointment ? appointments.find(apt => {
         const aptTime = new Date(apt.appointment_time);
         const aptTimeString = `${aptTime.getHours().toString().padStart(2, '0')}:${aptTime.getMinutes().toString().padStart(2, '0')}`;

@@ -451,13 +451,29 @@ export default function OPDConsultationPage() {
               </div>
             </div>
 
-            <div style={{ background: 'white', padding: '16px 24px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
-              <div style={{ width: '40px', height: '40px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '10px', display: 'grid', placeItems: 'center' }}>
+            <div style={{ background: 'white', padding: '16px 20px', borderRadius: '20px', display: 'flex', alignItems: 'flex-start', gap: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', overflow: 'hidden', minWidth: 0 }}>
+              <div style={{ width: '40px', height: '40px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '10px', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
                 <Info size={20} />
               </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Insights</p>
-                <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{predictions.reasoning}</p>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: '0 0 4px', fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Insights</p>
+                <p
+                  title={predictions.reasoning}
+                  style={{
+                    margin: 0,
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: '#64748b',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    lineHeight: '1.5',
+                    cursor: 'help'
+                  }}
+                >
+                  {predictions.reasoning}
+                </p>
               </div>
             </div>
           </div>
@@ -471,28 +487,34 @@ export default function OPDConsultationPage() {
             <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
               <h3 style={{ margin: '0 0 24px', fontSize: '14px', fontWeight: 800, color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Stethoscope size={20} /> DIAGNOSIS & CHIEF COMPLAINTS
+                <span style={{ color: '#ef4444', fontSize: '14px', marginLeft: '2px' }}>*</span>
               </h3>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '20px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                    Clinical Diagnosis
+                    <span style={{ color: '#ef4444', marginLeft: '3px' }}>*</span>
+                    <span style={{ color: '#94a3b8', fontWeight: 600, textTransform: 'none', letterSpacing: 0, marginLeft: '6px', fontSize: '10px' }}>Required to finish consultation</span>
+                  </label>
                   <input
                     className="input-field"
                     placeholder="Enter Clinical Diagnosis or select from ICD-10..."
                     style={{
                       margin: 0, fontSize: '16px', height: '56px', borderRadius: '14px', paddingRight: '40px',
-                      border: !diagnosis ? '2px solid #fed7aa' : '2px solid #e2e8f0',
-                      background: !diagnosis ? '#fffaf5' : 'white'
+                      border: !diagnosis ? '2px solid #fca5a5' : '2px solid #86efac',
+                      background: !diagnosis ? '#fff5f5' : '#f0fdf4'
                     }}
                     value={diagnosis}
                     onChange={e => setDiagnosis(e.target.value)}
                   />
                   <select
-                    style={{ position: 'absolute', right: '10px', top: '16px', opacity: 0.1, width: '30px', cursor: 'pointer' }}
+                    style={{ position: 'absolute', right: '10px', top: '38px', opacity: 0.1, width: '30px', cursor: 'pointer' }}
                     onChange={e => { if (e.target.value) setDiagnosis(e.target.value); }}
                   >
                     <option value="">Quick Select...</option>
                     {diseases.map(d => <option key={d.id} value={d.name}>{d.name} ({d.icd_code})</option>)}
                   </select>
-                  <div style={{ position: 'absolute', right: '14px', top: '18px', pointerEvents: 'none', color: '#64748b' }}>
+                  <div style={{ position: 'absolute', right: '14px', top: '42px', pointerEvents: 'none', color: '#64748b' }}>
                     <ChevronRight size={20} />
                   </div>
                 </div>
@@ -584,6 +606,10 @@ export default function OPDConsultationPage() {
                 </div>
               )}
 
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+                Chief Complaints / Clinical Notes
+                <span style={{ color: '#ef4444', marginLeft: '3px' }}>*</span>
+              </label>
               <textarea
                 className="input-field"
                 placeholder="Type clinical notes, observations, or chief complaints..."
@@ -591,6 +617,9 @@ export default function OPDConsultationPage() {
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
               />
+              <p style={{ margin: '6px 0 0', fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>
+                <span style={{ color: '#ef4444' }}>*</span> Mandatory fields required to complete the consultation
+              </p>
               <div style={{ marginTop: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => {

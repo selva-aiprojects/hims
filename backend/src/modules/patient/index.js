@@ -60,9 +60,59 @@ router.get("/", async (req, res, next) => {
   try {
     await ensurePatientColumns(req);
     const search = req.query.search || '';
-    const query = search 
-      ? `SELECT * FROM "${req.schemaName}".patients WHERE name ILIKE '%${search}%' OR phone ILIKE '%${search}%' OR mrn ILIKE '%${search}%' ORDER BY name ASC`
-      : `SELECT * FROM "${req.schemaName}".patients ORDER BY name ASC`;
+    const detailed = req.query.detailed === 'true';
+    
+    let query;
+    if (detailed) {
+      const safeSearch = search.replace(/'/g, "''");
+      const searchFilter = safeSearch 
+        ? `WHERE p.name ILIKE '%${safeSearch}%' OR p.phone ILIKE '%${safeSearch}%' OR p.mrn ILIKE '%${safeSearch}%'` 
+        : '';
+      query = `
+        SELECT 
+          p.*,
+          COALESCE(
+            (
+              SELECT u.name 
+              FROM "${req.schemaName}".encounters e
+              JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+              WHERE e.patient_id = p.id
+              GROUP BY u.name, e.doctor_id
+              ORDER BY COUNT(e.id) DESC, MAX(e.created_at) DESC
+              LIMIT 1
+            ),
+            (
+              SELECT u.name 
+              FROM "${req.schemaName}".appointments a
+              JOIN "${req.schemaName}".users u ON a.doctor_id = u.id
+              WHERE a.patient_id = p.id
+              GROUP BY u.name, a.doctor_id
+              ORDER BY COUNT(a.id) DESC, MAX(a.appointment_time) DESC
+              LIMIT 1
+            )
+          ) as primary_doctor,
+          COALESCE(
+            (
+              SELECT MAX(e.created_at) 
+              FROM "${req.schemaName}".encounters e
+              WHERE e.patient_id = p.id
+            ),
+            (
+              SELECT MAX(a.appointment_time) 
+              FROM "${req.schemaName}".appointments a
+              WHERE a.patient_id = p.id AND a.status = 'Completed'
+            )
+          ) as last_visit_date
+        FROM "${req.schemaName}".patients p
+        ${searchFilter}
+        ORDER BY p.name ASC
+      `;
+    } else {
+      const safeSearch = search.replace(/'/g, "''");
+      query = safeSearch 
+        ? `SELECT * FROM "${req.schemaName}".patients WHERE name ILIKE '%${safeSearch}%' OR phone ILIKE '%${safeSearch}%' OR mrn ILIKE '%${safeSearch}%' ORDER BY name ASC`
+        : `SELECT * FROM "${req.schemaName}".patients ORDER BY name ASC`;
+    }
     const patients = await req.prisma.$queryRawUnsafe(query);
     res.json(patients);
   } catch (error) { next(error); }

@@ -18,7 +18,10 @@ const MobilePreviewPortal = () => {
     try {
       // Reusing existing HIMS API
       const res = await axios.get(`${API_BASE}/api/appointments`, {
-        headers: { 'x-tenant-id': localStorage.getItem('tenantId') || '71820db3-f8f1-4294-8c11-1dc66ab1056e' }
+        headers: { 
+          'x-tenant-id': localStorage.getItem('tenant') || '',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+        }
       });
       setAppointments(res.data.slice(0, 5));
     } catch (e) {

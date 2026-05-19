@@ -6,6 +6,7 @@ import MastersPage from './modules/tenant/masters/MastersPage';
 import OPDRegistrationPage from './modules/tenant/opd/OPDRegistrationPage';
 import OPDQueuePage from './modules/tenant/opd/OPDQueuePage';
 import OPDConsultationPage from './modules/tenant/opd/OPDConsultationPage';
+import PatientRegisterPage from './modules/tenant/opd/PatientRegisterPage';
 import TenantAppointmentsPage from './modules/tenant/appointments/AppointmentsPage';
 import ClinicalAnalyticsDashboard from './modules/tenant/analytics/ClinicalAnalyticsDashboard';
 import HistoricalArchivesPage from './modules/tenant/dashboard/HistoricalArchivesPage';
@@ -73,6 +74,7 @@ function App() {
         <Route path="/tenant/opd/registration" element={<OPDRegistrationPage />} />
         <Route path="/tenant/opd/queue" element={<OPDQueuePage />} />
         <Route path="/tenant/opd/consultation" element={<OPDConsultationPage />} />
+        <Route path="/tenant/clinical/patient-register" element={<PatientRegisterPage />} />
         <Route path="/tenant/appointments" element={<TenantAppointmentsPage />} />
         <Route path="/tenant/archives" element={<HistoricalArchivesPage />} />
 

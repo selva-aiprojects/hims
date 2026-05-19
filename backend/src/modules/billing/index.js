@@ -31,7 +31,17 @@ async function ensureBillingTables(req) {
   // Self-healing columns for Co-pay
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoices ADD COLUMN IF NOT EXISTS insurance_claim_amount NUMERIC DEFAULT 0`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoices ADD COLUMN IF NOT EXISTS patient_copay_amount NUMERIC DEFAULT 0`);
+
+  // Self-healing columns for invoice_items
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS description TEXT`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 1`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS unit_price NUMERIC DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS tax_percent NUMERIC DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS source_queue_id UUID`);
 }
+
 
 /**
  * Professional Billing Engine (Hybrid Model)
@@ -87,9 +97,25 @@ router.post("/", async (req, res, next) => {
   try {
     await ensureBillingTables(req);
     const { patientId, encounterId, billType, items, totalAmount, paymentMode, status } = req.body;
-    
     if (!patientId) {
       return res.status(400).json({ error: "Patient selection required." });
+    }
+
+    // Ensure dummy walk-in patient exists in the target schema's patients table to satisfy constraints and joins
+    if (patientId === '00000000-0000-0000-0000-000000000000') {
+      try {
+        const patientExists = await req.prisma.$queryRawUnsafe(`
+          SELECT id FROM "${req.schemaName}".patients WHERE id = '00000000-0000-0000-0000-000000000000'
+        `);
+        if (patientExists.length === 0) {
+          await req.prisma.$executeRawUnsafe(`
+            INSERT INTO "${req.schemaName}".patients (id, mrn, name, phone, gender, age)
+            VALUES ('00000000-0000-0000-0000-000000000000', 'GENERAL', 'Walk-in Customer', '', 'N/A', 0)
+          `);
+        }
+      } catch (err) {
+        console.error("[BILLING_WALKIN_SEED_ERROR]", err.message);
+      }
     }
 
     // A. Calculate Totals and Tax

@@ -84,15 +84,58 @@ export default function DoctorAvailabilityPage() {
       const loggedInRole = localStorage.getItem("role");
       const loggedInUserId = localStorage.getItem("userId");
       
+      let firstDoctor: any = null;
       if (loggedInRole === 'doctor' || loggedInRole === 'Doctor') {
-        const currentDoc = doctorList.find((d: any) => d.id === loggedInUserId);
-        if (currentDoc) {
-          setSelectedDoctor(currentDoc);
-        } else if (doctorList.length > 0) {
-          setSelectedDoctor(doctorList[0]);
-        }
+        firstDoctor = doctorList.find((d: any) => d.id === loggedInUserId) || (doctorList.length > 0 ? doctorList[0] : null);
       } else if (doctorList.length > 0) {
-        setSelectedDoctor(doctorList[0]);
+        firstDoctor = doctorList[0];
+      }
+
+      if (firstDoctor) {
+        setSelectedDoctor(firstDoctor);
+        // Kick off both scheduling calls in parallel immediately — no waiting for re-render
+        const start = new Date(currentDate);
+        start.setDate(start.getDate() - start.getDay());
+        const end = new Date(start);
+        end.setDate(end.getDate() + 7);
+
+        const [schedRes] = await Promise.all([
+          axios.get(`${API_BASE}/api/doctors/${firstDoctor.id}/availability-rules?startDate=${toLocalDateKey(start)}&endDate=${toLocalDateKey(end)}`, { headers }),
+          axios.get(`${API_BASE}/api/doctors/${firstDoctor.id}/stats`, { headers })
+            .then(r => setStats(r.data))
+            .catch(() => {})
+        ]);
+
+        setAppointments(schedRes.data.appointments || []);
+        const scheds = schedRes.data.schedules || [];
+        setSchedules(scheds);
+        setLeaves(schedRes.data.leaves || []);
+        setOverrides(schedRes.data.overrides || []);
+        setDoctorStatus(schedRes.data.status);
+
+        if (scheds.length > 0) {
+          let minHour = 24, maxHour = 0;
+          scheds.forEach((s: any) => {
+            const startH = parseInt(s.start_time.split(':')[0]);
+            const endH = parseInt(s.end_time.split(':')[0]);
+            if (startH < minHour) minHour = startH;
+            if (endH > maxHour) maxHour = endH;
+          });
+          if (minHour >= maxHour) { minHour = 8; maxHour = 20; }
+          const slots = [];
+          for (let h = minHour; h < maxHour; h++) {
+            slots.push(`${h.toString().padStart(2, '0')}:00`);
+            slots.push(`${h.toString().padStart(2, '0')}:30`);
+          }
+          setTimeSlots(slots);
+        } else {
+          const slots = [];
+          for (let h = 8; h < 20; h++) {
+            slots.push(`${h.toString().padStart(2, '0')}:00`);
+            slots.push(`${h.toString().padStart(2, '0')}:30`);
+          }
+          setTimeSlots(slots);
+        }
       }
     } catch (err) { console.error("[DEBUG] Initialization Error:", err); }
     finally { setLoading(false); }
@@ -437,10 +480,15 @@ export default function DoctorAvailabilityPage() {
                                              <div 
                                                className="appointment-slot"
                                                onClick={() => {
-                                                 setSelectedDate(date);
-                                                 setSelectedTime(time);
-                                                 setSelectedSlotState(state);
-                                                 setShowActionDrawer(true);
+                                                 if (state.status === 'AVAILABLE' || state.status === 'DELAYED_AVAIL') {
+                                                   const dateStr = toLocalDateKey(date);
+                                                   window.location.href = `/tenant/appointments/book?doctorId=${selectedDoctor.id}&date=${dateStr}&time=${time}`;
+                                                 } else {
+                                                   setSelectedDate(date);
+                                                   setSelectedTime(time);
+                                                   setSelectedSlotState(state);
+                                                   setShowActionDrawer(true);
+                                                 }
                                                }}
                                                title={state.appointment ? `Patient: ${state.appointment.patient_name}\nMRN: ${state.appointment.patient_mrn || 'N/A'}` : state.label}
                                                style={{ 
@@ -719,7 +767,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
           ) : (
              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', flex: 1 }}>
                  <div>
-                    <label style={labelStyle}>{reschedulingAppt ? 'RESCHEDULE TO THIS SLOT' : 'QUICK BOOKING'}</label>
+                    <label style={labelStyle}>{reschedulingAppt ? 'RESCHEDULE TO THIS SLOT' : 'SCHEDULING ACTIONS'}</label>
                     {reschedulingAppt ? (
                       <div style={{ padding: '20px', background: '#eef2ff', borderRadius: '16px', border: '1px solid #4f46e5' }}>
                         <div style={{ fontSize: '12px', color: '#4f46e5', fontWeight: 700 }}>RESCHEDULING:</div>
@@ -733,82 +781,36 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
                         </button>
                       </div>
                     ) : (
-                      <>
-                         {localPatients.length > 0 || patientSearch.length > 0 ? (
-                           <>
-                             <div style={{ position: 'relative' }}>
-                               <input 
-                                 type="text"
-                                 placeholder="Type Patient Name or MRN..."
-                                 value={patientSearch}
-                                 onChange={(e) => {
-                                   setPatientSearch(e.target.value);
-                                 }}
-                                 style={{ ...inputStyle, marginBottom: filteredPatients.length > 0 ? '0' : '12px', borderBottomLeftRadius: filteredPatients.length > 0 ? '0' : '14px', borderBottomRightRadius: filteredPatients.length > 0 ? '0' : '14px' }}
-                               />
-                               {isSearching && <div style={{ position: 'absolute', right: '12px', top: '15px', fontSize: '10px', color: '#94a3b8' }}>Searching...</div>}
-                               {filteredPatients.length > 0 && (
-                                 <div style={{ 
-                                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                                   background: 'white', border: '1px solid #e2e8f0', borderTop: 'none',
-                                   maxHeight: '200px', overflowY: 'auto', borderBottomLeftRadius: '14px', borderBottomRightRadius: '14px',
-                                   boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'
-                                 }}>
-                                   {filteredPatients.map((p: any) => (
-                                     <div 
-                                       key={p.id}
-                                       onClick={() => {
-                                         setPatientId(p.id);
-                                         setPatientSearch(`${p.name} (${p.mrn || 'No MRN'})`);
-                                         setLocalPatients([]); // Clear suggestions
-                                       }}
-                                       style={{ 
-                                         padding: '12px 16px', cursor: 'pointer', fontSize: '13px', 
-                                         borderBottom: '1px solid #f8fafc',
-                                         background: patientId === p.id ? '#eef2ff' : 'white'
-                                       }}
-                                     >
-                                       <div style={{ fontWeight: 800 }}>{p.name}</div>
-                                       <div style={{ fontSize: '11px', color: '#64748b' }}>MRN: {p.mrn || 'N/A'} • {p.phone || 'No Phone'}</div>
-                                     </div>
-                                   ))}
-                                 </div>
-                               )}
-                             </div>
-                            
-                             <button 
-                               onClick={handleBook} 
-                               disabled={!canQuickBook} 
-                               style={{
-                                 ...primaryBtnStyle,
-                                 marginTop: filteredPatients.length > 0 ? '16px' : '0',
-                                 width: '100%',
-                                 opacity: canQuickBook ? 1 : 0.55,
-                                 cursor: canQuickBook ? 'pointer' : 'not-allowed'
-                               }}
-                             >
-                                {loading ? 'Processing...' : state.isBookable ? 'Confirm Appointment' : 'Open Slot & Book'}
-                             </button>
-                           </>
-                         ) : (
-                           <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                             <User size={24} style={{ color: '#94a3b8', marginBottom: '8px' }} />
-                             <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Search for a patient to begin booking.</div>
-                             <input 
-                               type="text"
-                               placeholder="Start typing name..."
-                               value={patientSearch}
-                               onChange={(e) => setPatientSearch(e.target.value)}
-                               style={{ ...inputStyle, marginTop: '12px' }}
-                             />
-                           </div>
-                         )}
-                      </>
+                      <div>
+                        <button 
+                          onClick={() => {
+                            const dateStr = toLocalDateKey(date);
+                            window.location.href = `/tenant/appointments/book?doctorId=${doctor.id}&date=${dateStr}&time=${time}`;
+                          }}
+                          style={{
+                            ...primaryBtnStyle,
+                            width: '100%',
+                            background: '#4f46e5',
+                            color: 'white',
+                            border: 'none',
+                            padding: '14px 20px',
+                            borderRadius: '12px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          Book Appointment
+                        </button>
+                      </div>
                     )}
-                    {!state.isBookable && (
-                      <div style={{ fontSize: '11px', color: '#e11d48', marginTop: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {!state.isBookable && !reschedulingAppt && (
+                      <div style={{ fontSize: '11px', color: '#e11d48', marginTop: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <AlertCircle size={12}/> 
-                        {state.isPast ? 'Historical slots cannot be modified.' : state.status === 'UNAVAILABLE' ? 'This is outside regular hours. Booking will open this slot first.' : 'This slot is currently unavailable for booking.'}
+                        {state.isPast ? 'Historical slots cannot be modified.' : 'This slot is currently outside regular hours.'}
                       </div>
                     )}
                  </div>

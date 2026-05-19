@@ -53,4 +53,24 @@ test.describe('Billing Module Regression - Invoicing & Payments', () => {
     await expect(page.locator('button:has-text("Card")')).toBeVisible();
     await expect(page.locator('button:has-text("Insurance")')).toBeVisible();
   });
+
+  test('Verify Print Layout Sections Visibility', async ({ page }) => {
+    // Navigate to Billing
+    await auth.navigateToSidebar('Central Billing');
+    await expect(page).toHaveURL(/.*billing/);
+    
+    // Verify interactive screen wrapper is visible
+    const screenSection = page.locator('.no-print-section');
+    await expect(screenSection).toBeVisible();
+    
+    // Verify printable invoice container is hidden on screen
+    const printSection = page.locator('.print-section');
+    await expect(printSection).toBeHidden();
+    
+    // Verify headers and structure in the print-only block are present in DOM
+    await expect(printSection.locator('h1:has-text("CLINICAL TAX INVOICE")')).toBeAttached();
+    await expect(printSection.locator('h3:has-text("Patient Information")')).toBeAttached();
+    await expect(printSection.locator('h3:has-text("Particulars & Itemized Charges")')).toBeAttached();
+    await expect(printSection.locator('text=POWERED BY HEALTHEZEE®')).toBeAttached();
+  });
 });

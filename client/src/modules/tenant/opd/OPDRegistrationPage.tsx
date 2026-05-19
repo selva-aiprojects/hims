@@ -125,8 +125,19 @@ export default function OPDRegistrationPage() {
       guardian_name: p.guardian_name || '',
       guardian_phone: p.guardian_phone || '',
       medical_history: p.medical_history || '',
-      allergies: p.allergies || ''
+      allergies: p.allergies || '',
+      abhaId: p.abha_id || p.abhaId || '',
+      abhaNumber: p.abha_number || p.abhaNumber || '',
+      abhaStatus: (p.abha_id || p.abhaId) ? 'LINKED' : 'NOT_LINKED',
+      abhaVerified: !!(p.abha_id || p.abhaId)
     });
+    // Auto-skip ABHA flow if patient already has ABHA linked
+    if (p.abha_id || p.abhaId) {
+      setAbhaStep('VERIFIED');
+      showToast(`ABHA already linked: ${p.abha_id || p.abhaId}`, 'success');
+    } else {
+      setAbhaStep('IDLE');
+    }
     setShowFullReg(true);
   };
 
@@ -307,7 +318,7 @@ export default function OPDRegistrationPage() {
                 <Search size={16} /> 1. IDENTIFY OR REGISTER PATIENT
               </h3>
               
-              <div style={{ position: 'relative', marginBottom: '24px' }}>
+              <div style={{ position: 'relative', marginBottom: '16px' }}>
                 <input 
                   placeholder="Type Phone, Name or MRN to begin..." 
                   className="input-field high-velocity-input" 
@@ -318,7 +329,49 @@ export default function OPDRegistrationPage() {
                 <Search style={{ position: 'absolute', left: '18px', top: '20px', color: '#3b82f6' }} size={22} />
               </div>
 
-              {/* ABHA INTEGRATION SECTION */}
+              {/* SEARCH RESULTS — shown immediately below search bar, before ABHA */}
+              {searchResults.length > 0 && (
+                <div style={{ background: 'white', border: '2px solid #3b82f6', borderRadius: '18px', overflow: 'hidden', marginBottom: '20px', boxShadow: '0 12px 20px -5px rgba(59,130,246,0.15)' }}>
+                  <div style={{ padding: '10px 20px', background: '#eff6ff', fontSize: '11px', fontWeight: 800, color: '#1d4ed8' }}>
+                    {searchResults.length} PATIENT{searchResults.length > 1 ? 'S' : ''} FOUND
+                  </div>
+                  {searchResults.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => selectPatient(p)}
+                      style={{ 
+                        width: '100%',
+                        padding: '14px 20px', 
+                        borderBottom: '1px solid #f1f5f9', 
+                        cursor: 'pointer', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        background: 'none',
+                        borderLeft: 'none',
+                        borderRight: 'none',
+                        textAlign: 'left'
+                      }}
+                      className="hover-light"
+                    >
+                       <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 800, fontSize: '15px', color: '#1e293b' }}>{p.name}</span>
+                            {(p.abha_id || p.abhaId) && (
+                              <span style={{ fontSize: '9px', background: '#0369a1', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: 800 }}>ABHA ✓</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#64748b' }}>{p.mrn} • {p.phone} • {p.blood_group || 'N/A'}</div>
+                       </div>
+                       <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>SELECT</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* ABHA INTEGRATION SECTION — only shown when no patient selected or for new patients */}
+              {!selectedPatient && (
               <div style={{ background: '#f0f9ff', padding: '24px', borderRadius: '24px', border: '1px solid #bae6fd', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                   <Shield size={20} style={{ color: '#0369a1' }} />
@@ -418,37 +471,16 @@ export default function OPDRegistrationPage() {
                 )}
                 <div style={{ fontSize: '11px', color: '#0369a1', marginTop: '12px', opacity: 0.8 }}>Verify patient identity instantly via India's National Health Stack.</div>
               </div>
+              )}
 
-              {/* SEARCH RESULTS */}
-              {searchResults.length > 0 && (
-                <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '18px', overflow: 'hidden', marginBottom: '24px', boxShadow: '0 12px 20px -5px rgba(0,0,0,0.1)' }}>
-                  {searchResults.map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => selectPatient(p)}
-                      style={{ 
-                        width: '100%',
-                        padding: '16px 24px', 
-                        borderBottom: '1px solid #f1f5f9', 
-                        cursor: 'pointer', 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        background: 'none',
-                        borderLeft: 'none',
-                        borderRight: 'none',
-                        textAlign: 'left'
-                      }}
-                      className="hover-light"
-                    >
-                       <div>
-                          <div style={{ fontWeight: 800, fontSize: '15px', color: '#1e293b' }}>{p.name}</div>
-                          <div style={{ fontSize: '12px', color: '#64748b' }}>{p.mrn} • {p.phone} • {p.blood_group || 'N/A'}</div>
-                       </div>
-                       <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '6px 12px', borderRadius: '10px', fontSize: '11px', fontWeight: 800 }}>SELECT</div>
-                    </button>
-                  ))}
+              {/* ABHA STATUS BANNER for existing patient with ABHA */}
+              {selectedPatient && abhaStep === 'VERIFIED' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f0fdf4', padding: '16px 20px', borderRadius: '16px', border: '1px solid #86efac', marginBottom: '20px' }}>
+                  <CheckCircle2 size={20} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: '#15803d' }}>ABHA Already Linked</div>
+                    <div style={{ fontSize: '11px', color: '#16a34a' }}>{regData.abhaId} — no re-verification needed</div>
+                  </div>
                 </div>
               )}
 
