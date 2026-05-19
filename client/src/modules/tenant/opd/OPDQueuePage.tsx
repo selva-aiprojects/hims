@@ -69,6 +69,39 @@ export default function OPDQueuePage() {
       setIsSavingVitals(false);
     }
   };
+  const getBPStatus = (bp: string) => {
+    if (!bp) return { label: "BP PENDING", bg: "#fff7ed", color: "#c2410c" };
+    const parts = bp.split('/');
+    if (parts.length !== 2) return { label: "BP INVALID", bg: "#fee2e2", color: "#b91c1c" };
+    const sys = parseInt(parts[0]);
+    const dia = parseInt(parts[1]);
+    if (isNaN(sys) || isNaN(dia)) return { label: "BP INVALID", bg: "#fee2e2", color: "#b91c1c" };
+
+    if (sys >= 140 || dia >= 90) {
+      return { label: "BP HIGH", bg: "#fee2e2", color: "#b91c1c" };
+    }
+    if (sys < 90 || dia < 60) {
+      return { label: "BP LOW", bg: "#fee2e2", color: "#b91c1c" };
+    }
+    if (sys >= 130 || dia >= 80) {
+      return { label: "BP ELEVATED", bg: "#ffedd5", color: "#b45309" };
+    }
+    return { label: "BP OK", bg: "#ecfdf5", color: "#10b981" };
+  };
+
+  const getTempStatus = (temp: string) => {
+    if (!temp) return { label: "TEMP PENDING", bg: "#fff7ed", color: "#c2410c" };
+    const val = parseFloat(temp);
+    if (isNaN(val)) return { label: "TEMP INVALID", bg: "#fee2e2", color: "#b91c1c" };
+
+    if (val >= 99.5) {
+      return { label: "TEMP HIGH", bg: "#fee2e2", color: "#b91c1c" };
+    }
+    if (val < 95.0) {
+      return { label: "TEMP LOW", bg: "#fee2e2", color: "#b91c1c" };
+    }
+    return { label: "TEMP OK", bg: "#ecfdf5", color: "#10b981" };
+  };
 
   return (
     <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -151,8 +184,17 @@ export default function OPDQueuePage() {
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
                      <div style={{ fontWeight: 700, color: '#475569', fontSize: '12px' }}>Dr. {enc.doctor_name}</div>
                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {enc.vitals?.bp ? (
-                          <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>VITALS OK</span>
+                        {enc.vitals && enc.vitals.bp ? (
+                          <>
+                             {(() => {
+                               const bpStat = getBPStatus(enc.vitals.bp);
+                               return <span style={{ fontSize: '10px', background: bpStat.bg, color: bpStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{bpStat.label}</span>;
+                             })()}
+                             {(() => {
+                               const tempStat = getTempStatus(enc.vitals.temp);
+                               return <span style={{ fontSize: '10px', background: tempStat.bg, color: tempStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{tempStat.label}</span>;
+                             })()}
+                           </>
                         ) : (
                           <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>PENDING VITALS</span>
                         )}
@@ -231,10 +273,16 @@ export default function OPDQueuePage() {
                     </td>
                     <td style={{ padding: '16px 24px' }}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        {enc.vitals?.bp ? (
+                        {enc.vitals && enc.vitals.bp ? (
                           <>
-                            <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>BP OK</span>
-                            <span style={{ fontSize: '10px', background: '#ecfdf5', color: '#10b981', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>TEMP OK</span>
+                            {(() => {
+                              const bpStat = getBPStatus(enc.vitals.bp);
+                              return <span style={{ fontSize: '10px', background: bpStat.bg, color: bpStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{bpStat.label}</span>;
+                            })()}
+                            {(() => {
+                              const tempStat = getTempStatus(enc.vitals.temp);
+                              return <span style={{ fontSize: '10px', background: tempStat.bg, color: tempStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{tempStat.label}</span>;
+                            })()}
                           </>
                         ) : (
                           <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>

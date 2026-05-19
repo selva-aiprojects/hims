@@ -196,6 +196,140 @@ export default function OPDConsultationPage() {
     setFilteredMeds([]);
   };
 
+  const printPrescription = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Please allow popups to print the prescription.");
+      return;
+    }
+
+    const medRows = prescriptions.map((m, idx) => `
+      <tr>
+        <td style="font-weight: 700; padding: 12px; border-bottom: 1px solid #e2e8f0;">${idx + 1}. ${m.name}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${m.dosage || ''}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${m.frequency || ''}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${m.duration || ''}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${m.instructions || ''}</td>
+      </tr>
+    `).join("");
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Prescription_${encounter?.patient_name || 'Patient'}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 40px; color: #1e293b; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; }
+            .hospital-title { font-size: 24px; font-weight: 800; color: #1e3a8a; }
+            .hospital-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+            .doctor-info { text-align: right; }
+            .doc-name { font-size: 16px; font-weight: 700; color: #1e293b; }
+            .doc-sub { font-size: 12px; color: #64748b; }
+            
+            .patient-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 30px; }
+            .info-item { font-size: 13px; color: #475569; }
+            .info-label { font-weight: 700; color: #64748b; text-transform: uppercase; font-size: 10px; margin-bottom: 2px; }
+            
+            .rx-symbol { font-size: 32px; font-weight: 800; color: #3b82f6; margin-bottom: 16px; font-family: 'Georgia', serif; }
+            .med-table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+            .med-table th { text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+            .med-table td { padding: 16px 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; color: #1e293b; }
+            
+            .notes-section { margin-bottom: 40px; }
+            .notes-title { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
+            .notes-content { font-size: 14px; line-height: 1.6; color: #334155; white-space: pre-line; }
+            
+            .footer { margin-top: 100px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .sig-line { border-top: 1px solid #94a3b8; width: 220px; text-align: center; padding-top: 8px; font-size: 12px; color: #64748b; font-weight: 600; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="hospital-title">${localStorage.getItem("tenantName") || "HEALTHEZEE CLINICS"}</div>
+              <div class="hospital-sub">Integrated Health Management System</div>
+            </div>
+            <div class="doctor-info">
+              <div class="doc-name">Dr. ${encounter?.doctor_name || 'Consultant'}</div>
+              <div class="doc-sub">Attending Practitioner</div>
+            </div>
+          </div>
+          
+          <div class="patient-card">
+            <div>
+              <div class="info-label">Patient Name</div>
+              <div class="info-item" style="font-weight: 700;">${encounter?.patient_name || ''}</div>
+            </div>
+            <div>
+              <div class="info-label">MRN / ID</div>
+              <div class="info-item">${encounter?.mrn || ''}</div>
+            </div>
+            <div>
+              <div class="info-label">Age / Gender</div>
+              <div class="info-item">${encounter?.age || ''} Y / ${encounter?.gender || ''}</div>
+            </div>
+            <div>
+              <div class="info-label">Date</div>
+              <div class="info-item">${new Date().toLocaleDateString('en-US', { dateStyle: 'long' })}</div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 40px; margin-bottom: 30px; background: #fff; padding: 12px; border-radius: 8px; border: 1px dashed #e2e8f0;">
+            <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">BP:</span> <span style="font-weight:800;">${encounter?.vitals?.bp || '--'}</span></div>
+            <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">Temp:</span> <span style="font-weight:800;">${encounter?.vitals?.temp || '--'}°F</span></div>
+            <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">Weight:</span> <span style="font-weight:800;">${encounter?.vitals?.weight || '--'}kg</span></div>
+          </div>
+          
+          <div class="rx-symbol">R<sub>x</sub></div>
+          
+          <table class="med-table">
+            <thead>
+              <tr>
+                <th style="width: 35%;">Medicine Name</th>
+                <th style="width: 15%;">Dosage</th>
+                <th style="width: 15%;">Frequency</th>
+                <th style="width: 15%;">Duration</th>
+                <th style="width: 20%;">Instructions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${medRows}
+            </tbody>
+          </table>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+            <div class="notes-section">
+              <div class="notes-title">Diagnosis</div>
+              <div class="notes-content" style="font-weight: 700;">${diagnosis}</div>
+            </div>
+            <div class="notes-section">
+              <div class="notes-title">Clinical Findings & Advice</div>
+              <div class="notes-content">${notes || 'Routine checkup and consultation.'}</div>
+            </div>
+          </div>
+          
+          <div class="footer">
+            <div>
+              <div style="font-size: 11px; color: #94a3b8;">Printed via HIMS Portal</div>
+            </div>
+            <div class="sig-line">
+              Authorized Signature / Stamp
+            </div>
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const finishConsultation = async () => {
     if (!diagnosis) { showToast("Clinical Diagnosis is mandatory to finish.", "error"); return; }
     setIsFinishing(true);
@@ -878,6 +1012,31 @@ export default function OPDConsultationPage() {
                 )}
               </div>
             </div>
+
+            {prescriptions.length > 0 && (
+              <button
+                onClick={printPrescription}
+                style={{
+                  width: '100%',
+                  padding: '20px',
+                  borderRadius: '16px',
+                  border: '2px solid #3b82f6',
+                  background: 'white',
+                  color: '#3b82f6',
+                  fontSize: '16px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.1)'
+                }}
+              >
+                <FileText size={20} /> Print Prescription
+              </button>
+            )}
 
             <button
               onClick={handlePostConsultClose}

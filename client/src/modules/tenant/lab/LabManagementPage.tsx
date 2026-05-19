@@ -67,6 +67,7 @@ export default function LabManagementPage() {
     else if (status === 'sample collected') setWizardStep(2);
     else if (status === 'in progress') setWizardStep(3);
     else if (status === 'completed' || status === 'authorized') setWizardStep(4);
+    else if (status === 'published') setWizardStep(5);
     else setWizardStep(1);
 
     // Initialize results if they exist
@@ -142,7 +143,10 @@ export default function LabManagementPage() {
       await axios.post(`${API_BASE}/api/hospital/lab/orders/${activeOrder.id}/publish`, {}, { headers });
       alert("Report published successfully!");
       
-      if (window.confirm("Would you like to proceed to billing for this patient?")) {
+      const role = (localStorage.getItem("role") || "").toLowerCase();
+      const canBill = role !== "doctor";
+      
+      if (canBill && window.confirm("Would you like to proceed to billing for this patient?")) {
         navigate('/billing', { state: { 
           billType: 'LAB', 
           totalAmount: Number(activeOrder.price || 0),
@@ -170,7 +174,7 @@ export default function LabManagementPage() {
     urgent: orders.filter(o => o.priority === 'Urgent' && (o.status || '').toLowerCase() !== 'published').length,
     pending: orders.filter(o => (o.status || 'Pending').toLowerCase() === 'pending').length,
     active: orders.filter(o => ['sample collected', 'in progress'].includes((o.status || '').toLowerCase())).length,
-    completed: orders.filter(o => ['completed', 'authorized'].includes((o.status || '').toLowerCase())).length
+    completed: orders.filter(o => ['completed', 'authorized', 'published'].includes((o.status || '').toLowerCase())).length
   };
 
   if (activeOrder) {
@@ -305,7 +309,9 @@ export default function LabManagementPage() {
                         <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '16px', border: '1px solid #fef3c7', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
                            <AlertCircle size={20} color="#f59e0b" />
                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e' }}>Awaiting Payment Collection.</div>
-                           <button onClick={() => navigate('/billing', { state: { labOrderId: activeOrder.id } })} className="button-primary" style={{ background: '#f59e0b', padding: '8px 16px' }}>Go to Billing</button>
+                           {((localStorage.getItem("role") || "").toLowerCase() !== "doctor") && (
+                              <button onClick={() => navigate('/billing', { state: { labOrderId: activeOrder.id } })} className="button-primary" style={{ background: '#f59e0b', padding: '8px 16px' }}>Go to Billing</button>
+                           )}
                         </div>
                      ) : (
                         <button onClick={moveToNextStep} className="wizard-next-btn">

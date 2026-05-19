@@ -101,7 +101,7 @@ function App() {
         <Route path="/tenant/communication" element={<MessageBoardPage />} />
         <Route path="/tenant/mail" element={<MailManagementPage />} />
         <Route path="/tenant/billing/insurance" element={<InsurancePage />} />
-        <Route path="/billing" element={<BillingPage />} />
+        <Route path="/billing" element={<RoleGuard allowedRoles={['admin', 'receptionist', 'staff', 'billing']} moduleName="Billing Desk"><BillingPage /></RoleGuard>} />
         <Route path="/appointments" element={<AppointmentsPage />} />
         <Route path="/patients" element={<PatientsPage />} />
         

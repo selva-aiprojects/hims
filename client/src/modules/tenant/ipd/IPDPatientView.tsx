@@ -99,7 +99,10 @@ export default function IPDPatientView() {
       setShowDischargeConfirm(false);
       showToast("Patient discharged successfully.", "success");
       
-      if (confirm(`Patient discharged! Bed is now vacant.\n\nProceed to the Billing Center to finalize the discharge invoice?`)) {
+      const role = (localStorage.getItem("role") || "").toLowerCase();
+      const canBill = role !== "doctor";
+      
+      if (canBill && confirm(`Patient discharged! Bed is now vacant.\n\nProceed to the Billing Center to finalize the discharge invoice?`)) {
         navigate(`/billing?type=DISCHARGE&patientId=${data?.admission.patient_id}`);
       } else {
         navigate('/tenant/ipd/admissions');
@@ -325,12 +328,14 @@ export default function IPDPatientView() {
                   </div>
                 </div>
                 <p style={{ color: '#475569', fontSize: '12px', margin: '0 0 16px' }}>+ Lab, Pharmacy & clinical charges to be added at discharge</p>
-                <button
-                  onClick={() => navigate('/billing', { state: { billType: 'IPD', totalAmount: los * Number(adm.daily_charge), patientName: adm.patient_name, encounterId: adm.encounter_id } })}
-                  style={{ width: '100%', padding: '14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer' }}
-                >
-                  View Detailed Bill
-                </button>
+                {((localStorage.getItem("role") || "").toLowerCase() !== "doctor") && (
+                  <button
+                    onClick={() => navigate('/billing', { state: { billType: 'IPD', totalAmount: los * Number(adm.daily_charge), patientName: adm.patient_name, encounterId: adm.encounter_id } })}
+                    style={{ width: '100%', padding: '14px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '14px', fontWeight: 800, cursor: 'pointer' }}
+                  >
+                    View Detailed Bill
+                  </button>
+                )}
               </div>
 
               <div style={{ background: 'white', padding: '24px', borderRadius: '24px', border: '1px solid #e2e8f0' }}>

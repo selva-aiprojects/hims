@@ -194,5 +194,17 @@ router.post("/", async (req, res, next) => {
     next(error); 
   }
 });
+router.get("/invoices/:id/items", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".invoice_items 
+      WHERE invoice_id = '${id}'
+      ORDER BY created_at ASC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
 
 module.exports = router;
+// Trigger reload for nodemon

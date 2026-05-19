@@ -50,4 +50,5 @@ export interface DoctorAvailability {
   schedule: ScheduleRule[];
 }
 
-export type BookingStep = 'select-doctor' | 'select-date' | 'select-time' | 'confirm' | 'success';
+export type BookingStep = 'select-doctor' | 'select-patient' | 'select-date' | 'select-time' | 'confirm' | 'success';
+

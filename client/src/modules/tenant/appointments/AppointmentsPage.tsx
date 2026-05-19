@@ -72,6 +72,20 @@ export default function AppointmentsPage() {
     }
   };
 
+  const updateAppointmentStatus = async (appointmentId: string, status: string) => {
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+    try {
+      await axios.patch(`${API_BASE}/api/appointments/${appointmentId}`, { status }, { headers });
+      fetchAppointments();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || "Failed to update appointment status");
+    }
+  };
+
   useEffect(() => { 
     fetchAppointments(); 
   }, []);
@@ -398,7 +412,16 @@ export default function AppointmentsPage() {
                                 {["View Details", "Edit Schedule", "Cancel Visit", "Mark Completed"].map(action => (
                                   <div 
                                     key={action}
-                                    onClick={() => setShowActionMenu(null)}
+                                    onClick={() => {
+                                      setShowActionMenu(null);
+                                      if (action === "Mark Completed") {
+                                        updateAppointmentStatus(appt.id, "Completed");
+                                      } else if (action === "Cancel Visit") {
+                                        updateAppointmentStatus(appt.id, "Cancelled");
+                                      } else {
+                                        alert(`${action} feature is coming soon.`);
+                                      }
+                                    }}
                                     style={{ 
                                       padding: '10px 12px', 
                                       fontSize: '12px', 

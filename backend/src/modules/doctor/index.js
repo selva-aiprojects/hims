@@ -394,6 +394,37 @@ router.post("/schedules", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.put("/schedules/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { weekday, session_name, start_time, end_time, slot_duration, consultation_type, location, is_active } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".doctor_schedules
+      SET weekday = ${weekday},
+          session_name = '${session_name.replace(/'/g, "''")}',
+          start_time = '${start_time}',
+          end_time = '${end_time}',
+          slot_duration = ${slot_duration},
+          consultation_type = '${consultation_type}',
+          location = '${(location || '').replace(/'/g, "''")}',
+          is_active = ${is_active},
+          updated_at = NOW()
+      WHERE id = '${id}'
+    `);
+    res.json({ message: "Schedule updated successfully" });
+  } catch (error) { next(error); }
+});
+
+router.delete("/schedules/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await req.prisma.$executeRawUnsafe(`
+      DELETE FROM "${req.schemaName}".doctor_schedules WHERE id = '${id}'
+    `);
+    res.sendStatus(204);
+  } catch (error) { next(error); }
+});
+
 // Leaves
 router.get("/:doctorId/leaves", async (req, res, next) => {
   try {

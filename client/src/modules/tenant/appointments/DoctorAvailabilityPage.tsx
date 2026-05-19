@@ -911,16 +911,45 @@ const primaryBtnStyle: any = { padding: '16px', borderRadius: '16px', background
 const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const [showAdd, setShowAdd] = useState(false);
+  const [editingSchedId, setEditingSchedId] = useState<string | null>(null);
   const [newSched, setNewSched] = useState({
     weekday: 1, session_name: 'Morning OPD', start_time: '09:00', end_time: '13:00', slot_duration: 30, consultation_type: 'OPD', is_active: true
   });
 
-  const handleAdd = async () => {
+  const handleAddOrUpdate = async () => {
     try {
-      await axios.post(`${API_BASE}/api/doctors/schedules`, { ...newSched, doctor_id: doctor.id }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" }
-      });
+      const headers = { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" };
+      if (editingSchedId) {
+        await axios.put(`${API_BASE}/api/doctors/schedules/${editingSchedId}`, { ...newSched, doctor_id: doctor.id }, { headers });
+      } else {
+        await axios.post(`${API_BASE}/api/doctors/schedules`, { ...newSched, doctor_id: doctor.id }, { headers });
+      }
       setShowAdd(false);
+      setEditingSchedId(null);
+      setNewSched({ weekday: 1, session_name: 'Morning OPD', start_time: '09:00', end_time: '13:00', slot_duration: 30, consultation_type: 'OPD', is_active: true });
+      onUpdate();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditClick = (s: any) => {
+    setNewSched({
+      weekday: s.weekday,
+      session_name: s.session_name,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      slot_duration: s.slot_duration || 30,
+      consultation_type: s.consultation_type || 'OPD',
+      is_active: s.is_active ?? true
+    });
+    setEditingSchedId(s.id);
+    setShowAdd(true);
+  };
+
+  const handleDeleteClick = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this recurring schedule session?")) return;
+    try {
+      const headers = { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" };
+      await axios.delete(`${API_BASE}/api/doctors/schedules/${id}`, { headers });
       onUpdate();
     } catch (err) { console.error(err); }
   };
@@ -929,7 +958,16 @@ const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
     <div style={cardStyle}>
        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <h3 style={{ margin: 0 }}>Doctor Recurring Schedule</h3>
-          <button onClick={() => setShowAdd(true)} style={quickBtnStyle('#0ea5e9')}><Plus size={16} /> Add Session</button>
+          <button 
+            onClick={() => { 
+              setEditingSchedId(null); 
+              setNewSched({ weekday: 1, session_name: 'Morning OPD', start_time: '09:00', end_time: '13:00', slot_duration: 30, consultation_type: 'OPD', is_active: true });
+              setShowAdd(true); 
+            }} 
+            style={quickBtnStyle('#0ea5e9')}
+          >
+            <Plus size={16} /> Add Session
+          </button>
        </div>
 
        <div style={{ overflowX: 'auto' }}>
@@ -940,6 +978,7 @@ const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
                    <th style={thStyle}>Session</th>
                    <th style={thStyle}>Hours</th>
                    <th style={thStyle}>Type</th>
+                   <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
                 </tr>
              </thead>
              <tbody>
@@ -949,6 +988,22 @@ const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
                       <td style={tdStyle}>{s.session_name}</td>
                       <td style={{ ...tdStyle, fontWeight: 800 }}>{s.start_time} - {s.end_time}</td>
                       <td style={tdStyle}><span style={badgeStyle}>{s.consultation_type}</span></td>
+                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                           <button 
+                             onClick={() => handleEditClick(s)} 
+                             style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #3b82f6', background: '#3b82f60d', color: '#3b82f6', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
+                           >
+                             Edit
+                           </button>
+                           <button 
+                             onClick={() => handleDeleteClick(s.id)} 
+                             style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ef4444', background: '#ef44440d', color: '#ef4444', cursor: 'pointer', fontWeight: 600, fontSize: '12px' }}
+                           >
+                             Delete
+                           </button>
+                        </div>
+                      </td>
                    </tr>
                 ))}
              </tbody>
@@ -957,17 +1012,67 @@ const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
 
        {showAdd && (
           <div style={inlineFormStyle}>
-             <h4 style={{ marginTop: 0 }}>Define Timing Window</h4>
-             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                <select value={newSched.weekday} onChange={(e) => setNewSched({ ...newSched, weekday: parseInt(e.target.value) })} style={inputStyle}>
-                   {weekdays.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                </select>
-                <input type="text" placeholder="Session Name" value={newSched.session_name} onChange={(e) => setNewSched({ ...newSched, session_name: e.target.value })} style={inputStyle} />
-                <div style={{ display: 'flex', gap: '8px' }}>
-                   <input type="time" value={newSched.start_time} onChange={(e) => setNewSched({ ...newSched, start_time: e.target.value })} style={inputStyle} />
-                   <input type="time" value={newSched.end_time} onChange={(e) => setNewSched({ ...newSched, end_time: e.target.value })} style={inputStyle} />
+             <h4 style={{ marginTop: 0, fontSize: '16px', fontWeight: 800, color: '#1e293b' }}>
+               {editingSchedId ? 'Edit Timing Window' : 'Define Timing Window'}
+             </h4>
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={labelStyle}>Day of Week</label>
+                  <select value={newSched.weekday} onChange={(e) => setNewSched({ ...newSched, weekday: parseInt(e.target.value) })} style={inputStyle}>
+                     {weekdays.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
                 </div>
-                <button onClick={handleAdd} style={primaryBtnStyle}>Save Window</button>
+                <div>
+                  <label style={labelStyle}>Session Name</label>
+                  <input type="text" placeholder="Session Name" value={newSched.session_name} onChange={(e) => setNewSched({ ...newSched, session_name: e.target.value })} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Hours</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                     <input type="time" value={newSched.start_time} onChange={(e) => setNewSched({ ...newSched, start_time: e.target.value })} style={inputStyle} />
+                     <input type="time" value={newSched.end_time} onChange={(e) => setNewSched({ ...newSched, end_time: e.target.value })} style={inputStyle} />
+                  </div>
+                </div>
+                <div>
+                  <label style={labelStyle}>Slot Duration (Mins)</label>
+                  <select value={newSched.slot_duration} onChange={(e) => setNewSched({ ...newSched, slot_duration: parseInt(e.target.value) })} style={inputStyle}>
+                     <option value={15}>15 Mins</option>
+                     <option value={30}>30 Mins</option>
+                     <option value={45}>45 Mins</option>
+                     <option value={60}>60 Mins</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Consultation Type</label>
+                  <select value={newSched.consultation_type} onChange={(e) => setNewSched({ ...newSched, consultation_type: e.target.value })} style={inputStyle}>
+                     <option value="OPD">OPD</option>
+                     <option value="IPD">IPD</option>
+                     <option value="Emergency">Emergency</option>
+                     <option value="Teleconsultation">Teleconsultation</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={labelStyle}>Status</label>
+                  <select value={newSched.is_active ? "true" : "false"} onChange={(e) => setNewSched({ ...newSched, is_active: e.target.value === "true" })} style={inputStyle}>
+                     <option value="true">Active</option>
+                     <option value="false">Inactive</option>
+                  </select>
+                </div>
+             </div>
+             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button 
+                  onClick={() => { 
+                    setShowAdd(false); 
+                    setEditingSchedId(null); 
+                    setNewSched({ weekday: 1, session_name: 'Morning OPD', start_time: '09:00', end_time: '13:00', slot_duration: 30, consultation_type: 'OPD', is_active: true }); 
+                  }} 
+                  style={{ ...quickBtnStyle('#64748b'), padding: '12px 20px', fontSize: '13px' }}
+                >
+                  Cancel
+                </button>
+                <button onClick={handleAddOrUpdate} style={{ ...primaryBtnStyle, padding: '12px 24px', fontSize: '14px', borderRadius: '10px' }}>
+                  {editingSchedId ? 'Update Session' : 'Save Window'}
+                </button>
              </div>
           </div>
        )}

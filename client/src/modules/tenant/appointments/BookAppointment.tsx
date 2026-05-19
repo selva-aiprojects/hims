@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL as API_BASE } from '../../../config/api';
 import axios from 'axios';
-import { User, Calendar, Clock, CheckCircle, ArrowLeft, Search, Plus, Phone } from 'lucide-react';
+import { User, Calendar, Clock, CheckCircle, ArrowLeft, Search, Plus, Phone, Loader2 } from 'lucide-react';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { Doctor, Patient, TimeSlot, BookingStep } from '../../../types/appointment';
@@ -17,6 +17,7 @@ export default function BookAppointment() {
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [doctorOnLeave, setDoctorOnLeave] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -77,10 +78,10 @@ export default function BookAppointment() {
                   setSelectedPatient(patFound);
                   setCurrentStep('confirm');
                 } else {
-                  setCurrentStep('select-patient' as BookingStep);
+                  setCurrentStep('select-patient');
                 }
               } else {
-                setCurrentStep('select-patient' as BookingStep);
+                setCurrentStep('select-patient');
               }
             } else {
               setCurrentStep('select-time');
@@ -98,6 +99,7 @@ export default function BookAppointment() {
   };
 
   const fetchDoctorAvailability = async (doctor: Doctor, date: Date) => {
+    setLoadingSlots(true);
     try {
       const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
       const response = await axios.get(
@@ -146,6 +148,8 @@ export default function BookAppointment() {
     } catch (error) {
       console.error('Error fetching availability:', error);
       setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
     }
   };
 
@@ -154,7 +158,7 @@ export default function BookAppointment() {
     if (selectedPatient) {
       setCurrentStep('select-date');
     } else {
-      setCurrentStep('select-patient' as BookingStep);
+      setCurrentStep('select-patient');
     }
   };
 
@@ -229,35 +233,86 @@ export default function BookAppointment() {
       { key: 'confirm', label: 'Confirm' }
     ];
 
+    const handleStepClick = (stepKey: string) => {
+      const stepOrder = ['select-doctor', 'select-patient', 'select-date', 'select-time', 'confirm'];
+      const currentIndex = stepOrder.indexOf(currentStep);
+      const targetIndex = stepOrder.indexOf(stepKey);
+
+      // Only allow going back to a step before the current step, and not if we are at success step
+      if (targetIndex < currentIndex && currentStep !== 'success') {
+        // Clear dependent state when going back
+        if (targetIndex <= 0) {
+          setSelectedDoctor(null);
+          setSelectedPatient(null);
+          setSelectedDate(null);
+          setSelectedTime('');
+        } else if (targetIndex <= 1) {
+          setSelectedPatient(null);
+          setSelectedDate(null);
+          setSelectedTime('');
+        } else if (targetIndex <= 2) {
+          setSelectedDate(null);
+          setSelectedTime('');
+        } else if (targetIndex <= 3) {
+          setSelectedTime('');
+        }
+        setCurrentStep(stepKey as BookingStep);
+      }
+    };
+
     return (
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
-        {steps.map((step, index) => (
-          <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: currentStep === step.key ? '#4f46e5' : 
-                        steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? '#10b981' : '#e2e8f0',
-              color: currentStep === step.key || steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? 'white' : '#64748b',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '14px',
-              fontWeight: 600
-            }}>
-              {steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? '✓' : index + 1}
+        {steps.map((step, index) => {
+          const isCurrent = currentStep === step.key;
+          const isCompleted = steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key);
+          const isClickable = isCompleted && currentStep !== 'success';
+
+          return (
+            <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
+              <div 
+                onClick={() => handleStepClick(step.key)}
+                title={isClickable ? `Go back to ${step.label}` : ''}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: isCurrent ? '#4f46e5' : (isCompleted ? '#10b981' : '#e2e8f0'),
+                  color: isCurrent || isCompleted ? 'white' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: isClickable ? 'pointer' : 'default',
+                  transition: 'all 0.2s',
+                  boxShadow: isCurrent ? '0 0 0 4px rgba(79, 70, 229, 0.2)' : 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (isClickable) {
+                    e.currentTarget.style.background = '#059669';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (isClickable) {
+                    e.currentTarget.style.background = '#10b981';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+              >
+                {isCompleted ? '✓' : index + 1}
+              </div>
+              {index < steps.length - 1 && (
+                <div style={{
+                  width: '40px',
+                  height: '2px',
+                  background: isCompleted ? '#10b981' : '#e2e8f0',
+                  margin: '0 8px'
+                }}></div>
+              )}
             </div>
-            {index < steps.length - 1 && (
-              <div style={{
-                width: '40px',
-                height: '2px',
-                background: steps.slice(0, steps.findIndex(s => s.key === currentStep)).some(s => s.key === step.key) ? '#10b981' : '#e2e8f0',
-                margin: '0 8px'
-              }}></div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -500,28 +555,59 @@ export default function BookAppointment() {
         Available time slots for {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
       </p>
 
-      {availableSlots.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px' }}>
-          {availableSlots.map(slot => (
+      {loadingSlots ? (
+        <div style={{ textAlign: 'center', padding: '40px' }}>
+          <Loader2 className="animate-spin" size={40} style={{ color: '#4f46e5', margin: '0 auto 16px' }} />
+          <div style={{ fontSize: '16px', color: '#64748b' }}>
+            Loading available slots...
+          </div>
+        </div>
+      ) : availableSlots.length > 0 ? (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '12px', marginBottom: '24px' }}>
+            {availableSlots.map(slot => (
+              <button
+                key={slot.time}
+                onClick={() => handleTimeSelect(slot.time)}
+                style={{
+                  padding: '16px',
+                  border: '2px solid #e2e8f0',
+                  borderRadius: '12px',
+                  background: selectedTime === slot.time ? '#4f46e5' : 'white',
+                  color: selectedTime === slot.time ? 'white' : '#1e293b',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  textAlign: 'center',
+                  fontSize: '16px',
+                  fontWeight: 600
+                }}
+              >
+                {formatTime(slot.time)}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
             <button
-              key={slot.time}
-              onClick={() => handleTimeSelect(slot.time)}
+              onClick={() => setCurrentStep('select-date')}
               style={{
-                padding: '16px',
+                padding: '12px 24px',
                 border: '2px solid #e2e8f0',
-                borderRadius: '12px',
-                background: selectedTime === slot.time ? '#4f46e5' : 'white',
-                color: selectedTime === slot.time ? 'white' : '#1e293b',
+                background: 'white',
+                color: '#64748b',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'all 0.2s',
-                textAlign: 'center',
-                fontSize: '16px',
-                fontWeight: 600
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
               }}
             >
-              {formatTime(slot.time)}
+              <ArrowLeft size={16} />
+              Back
             </button>
-          ))}
+          </div>
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -735,7 +821,7 @@ export default function BookAppointment() {
     switch (currentStep) {
       case 'select-doctor':
         return renderDoctorSelection();
-      case 'select-patient' as BookingStep:
+      case 'select-patient':
         return renderPatientSelection();
       case 'select-date':
         return renderDateSelection();

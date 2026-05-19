@@ -49,7 +49,7 @@ export default function IPDBedMap() {
       ]);
       setWards(wardRes.data);
       setPatients(patRes.data);
-      setStaff(staffRes.data.filter((s: any) => s.role === 'doctor' || s.role === 'admin'));
+      setStaff(staffRes.data.filter((s: any) => s.role?.toLowerCase() === 'doctor' || s.role?.toLowerCase() === 'admin'));
       if (wardRes.data.length > 0) selectWard(wardRes.data[0]);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }

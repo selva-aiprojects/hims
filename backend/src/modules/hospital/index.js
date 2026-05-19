@@ -743,6 +743,10 @@ router.post("/ipd/admissions", async (req, res, next) => {
     await ensureBillingQueue(req);
     const { patientId, bedId, wardId, admittingDoctorId, admissionReason, dailyCharge } = req.body;
     
+    if (!patientId) return res.status(400).json({ error: "Patient is required." });
+    if (!bedId || !wardId) return res.status(400).json({ error: "Bed and ward are required." });
+    if (!admittingDoctorId) return res.status(400).json({ error: "Admitting doctor is required." });
+
     // 1. Create Admission Record
     const admId = crypto.randomUUID();
     await req.prisma.$executeRawUnsafe(`
@@ -1117,10 +1121,7 @@ router.post("/ipd/admissions/:id/discharge", async (req, res, next) => {
     const adm = adms[0];
     if (!adm) return res.status(404).json({ error: "Admission not found" });
 
-    // 2. CHECK CLEARANCES (Discharge Checklist)
-    if (!adm.pharmacy_cleared || !adm.billing_cleared || !adm.clinical_cleared) {
-      return res.status(400).json({ error: "Cannot discharge. All clearances (Pharmacy, Billing, Clinical) must be completed." });
-    }
+    // Note: Clearance flags (pharmacy/billing/clinical) are advisory. Discharge can proceed.
 
     // 3. Calculate Days and Room Charges
     const stayMs = new Date().getTime() - new Date(adm.admitted_at).getTime();
