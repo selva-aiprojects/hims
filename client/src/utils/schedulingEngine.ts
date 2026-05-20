@@ -380,7 +380,13 @@ export const getAvailableSlotsForDate = ({
       slots.push({
         time: timeStr,
         available: available && !appt && !isPast,
-        appointment: appt
+        appointment: appt,
+        isBooked: !!appt,
+        isLeave: !!leave,
+        isOverride: !!override,
+        leave,
+        override,
+        isPast
       });
       
       currentMins += duration;

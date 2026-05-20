@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { User, ChevronLeft, ChevronRight, Filter, CheckCircle, X, Calendar, AlertCircle } from 'lucide-react';
 import Header from '../../../components/Header';
@@ -87,7 +87,28 @@ export default function DoctorAvailabilitySchedule() {
     });
   };
 
-  
+  const weekDates = useMemo(() => getWeekDates(currentWeek), [currentWeek]);
+
+  const weeklySlotMap = useMemo(() => {
+    const map: Record<string, Map<string, any>> = {};
+    weekDates.forEach((date) => {
+      const dateStr = toLocalDateKey(date);
+      const slots = getSlotsForDay(date);
+      const timeMap = new Map<string, any>();
+      slots.forEach((slot) => timeMap.set(slot.time, slot));
+      map[dateStr] = timeMap;
+    });
+    return map;
+  }, [weekDates, schedules, leaves, overrides, appointments]);
+
+  const allTimeSlots = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(weeklySlotMap).forEach((timeMap) => {
+      timeMap.forEach((_, time) => set.add(time));
+    });
+    return Array.from(set).sort();
+  }, [weeklySlotMap]);
+
   if (loading) {
     return (
       <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -97,8 +118,6 @@ export default function DoctorAvailabilitySchedule() {
       </div>
     );
   }
-
-  const weekDates = getWeekDates(currentWeek);
 
   return (
     <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex' }}>
@@ -237,109 +256,100 @@ export default function DoctorAvailabilitySchedule() {
 
           {/* Time Slots */}
           <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            {(() => {
-              const allTimeSlots = new Set<string>();
-              weekDates.forEach(date => {
-                getSlotsForDay(date).forEach(slot => allTimeSlots.add(slot.time));
-              });
-              
-              const sortedTimes = Array.from(allTimeSlots).sort();
-              
-              return sortedTimes.map(time => (
-                <div key={time} style={{ display: 'grid', gridTemplateColumns: '120px repeat(7, 1fr)', borderBottom: '1px solid #f1f5f9' }}>
-                  <div style={{ 
-                    padding: '12px 16px', 
-                    fontSize: '12px', 
-                    fontWeight: 500, 
-                    color: '#64748b',
-                    background: '#fafbfc'
-                  }}>
-                    {formatTime(time)}
-                  </div>
-                  
-                  {weekDates.map((date, dayIndex) => {
-                    const daySlots = getSlotsForDay(date);
-                    const slot = daySlots.find(s => s.time === time);
-                    const isPast = isPastDate(date);
-                    
-                    return (
-                      <div key={dayIndex} style={{ 
-                        padding: '8px',
-                        borderLeft: '1px solid #f1f5f9',
-                        background: isPast ? '#f8fafc' : 'white'
-                      }}>
-                        {slot && (selectedFilter === 'all' || 
-                          (selectedFilter === 'available' && slot.available) || 
-                          (selectedFilter === 'booked' && slot.isBooked)) && (() => {
-                            let bg = '#dcfce7'; 
-                            let color = '#166534';
-                            let icon = <CheckCircle size={12} />;
-                            let label = 'Available';
-                            let tooltip = 'Available for booking';
-                            
-                            if (isPast) {
-                              bg = '#e2e8f0';
-                              color = '#64748b';
-                              label = 'Past';
-                              tooltip = 'This slot has passed';
-                            } else if (slot.isBooked) {
-                              bg = '#fee2e2'; 
-                              color = '#991b1b';
-                              icon = <Calendar size={12} />;
-                              label = 'Booked';
-                              tooltip = `Booked: ${slot.appointment?.patient_name || 'Patient'}`;
-                            } else if (slot.isLeave) {
-                              bg = '#f1f5f9'; 
-                              color = '#475569'; 
-                              icon = <AlertCircle size={12} />;
-                              label = slot.leave?.leave_type || 'On Leave';
-                              tooltip = `On Leave: ${slot.leave?.reason || 'Doctor is on leave'}`;
-                            } else if (slot.isOverride && !slot.override?.is_available) {
-                              bg = '#fff7ed'; 
-                              color = '#c2410c'; 
-                              icon = <X size={12} />;
-                              label = 'Blocked';
-                              tooltip = `Blocked: ${slot.override?.reason || 'Unavailable override'}`;
-                            }
-
-                            return (
-                              <div 
-                                title={tooltip}
-                                style={{
-                                  padding: '8px',
-                                  borderRadius: '8px',
-                                  fontSize: '12px',
-                                  fontWeight: 500,
-                                  textAlign: 'center',
-                                  cursor: isPast ? 'not-allowed' : 'pointer',
-                                  background: bg,
-                                  color: color,
-                                  opacity: isPast ? 0.5 : 1,
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center', justifyContent: 'center' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                    {icon}
-                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
-                                      {label}
-                                    </span>
-                                  </div>
-                                  {slot.isBooked && slot.appointment?.patient_name && (
-                                    <div style={{ fontSize: '10px', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90px' }}>
-                                      {slot.appointment.patient_name}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                        })()}
-                      </div>
-                    );
-                  })}
+            {allTimeSlots.map(time => (
+              <div key={time} style={{ display: 'grid', gridTemplateColumns: '120px repeat(7, 1fr)', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ 
+                  padding: '12px 16px', 
+                  fontSize: '12px', 
+                  fontWeight: 500, 
+                  color: '#64748b',
+                  background: '#fafbfc'
+                }}>
+                  {formatTime(time)}
                 </div>
-              ));
-            })()}
+
+                {weekDates.map((date, dayIndex) => {
+                  const dateStr = toLocalDateKey(date);
+                  const slot = weeklySlotMap[dateStr]?.get(time);
+                  const isPast = isPastDate(date);
+
+                  return (
+                    <div key={dayIndex} style={{ 
+                      padding: '8px',
+                      borderLeft: '1px solid #f1f5f9',
+                      background: isPast ? '#f8fafc' : 'white'
+                    }}>
+                      {slot && (selectedFilter === 'all' || 
+                        (selectedFilter === 'available' && slot.available) || 
+                        (selectedFilter === 'booked' && slot.isBooked)) && (() => {
+                          let bg = '#dcfce7'; 
+                          let color = '#166534';
+                          let icon = <CheckCircle size={12} />;
+                          let label = 'Available';
+                          let tooltip = 'Available for booking';
+                          
+                          if (isPast) {
+                            bg = '#e2e8f0';
+                            color = '#64748b';
+                            label = 'Past';
+                            tooltip = 'This slot has passed';
+                          } else if (slot.isBooked) {
+                            bg = '#fee2e2'; 
+                            color = '#991b1b';
+                            icon = <Calendar size={12} />;
+                            label = 'Booked';
+                            tooltip = `Booked: ${slot.appointment?.patient_name || 'Patient'}`;
+                          } else if (slot.isLeave) {
+                            bg = '#f1f5f9'; 
+                            color = '#475569'; 
+                            icon = <AlertCircle size={12} />;
+                            label = slot.leave?.leave_type || 'On Leave';
+                            tooltip = `On Leave: ${slot.leave?.reason || 'Doctor is on leave'}`;
+                          } else if (slot.isOverride && !slot.override?.is_available) {
+                            bg = '#fff7ed'; 
+                            color = '#c2410c'; 
+                            icon = <X size={12} />;
+                            label = 'Blocked';
+                            tooltip = `Blocked: ${slot.override?.reason || 'Unavailable override'}`;
+                          }
+
+                          return (
+                            <div 
+                              title={tooltip}
+                              style={{
+                                padding: '8px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: 500,
+                                textAlign: 'center',
+                                cursor: isPast ? 'not-allowed' : 'pointer',
+                                background: bg,
+                                color: color,
+                                opacity: isPast ? 0.5 : 1,
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                  {icon}
+                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
+                                    {label}
+                                  </span>
+                                </div>
+                                {slot.isBooked && slot.appointment?.patient_name && (
+                                  <div style={{ fontSize: '10px', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90px' }}>
+                                    {slot.appointment.patient_name}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
