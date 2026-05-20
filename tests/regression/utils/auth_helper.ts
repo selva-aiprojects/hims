@@ -34,7 +34,21 @@ export class AuthHelper {
 
     const tenantSelect = this.page.locator('label:has-text("Select Hospital")').locator('xpath=following-sibling::select');
     await expect(tenantSelect).toHaveCount(1);
-    await expect(tenantSelect.locator(`option:has-text("${tenantName}")`)).toBeAttached({ timeout: 10000 });
+    // Wait for the option to be populated (async fetch from backend)
+    await this.page.waitForFunction(
+      (name) => {
+        const selects = document.querySelectorAll('select');
+        for (const sel of selects) {
+          for (const opt of sel.options) {
+            if (opt.text.includes(name)) return true;
+          }
+        }
+        return false;
+      },
+      tenantName,
+      { timeout: 15000 }
+    );
+    await expect(tenantSelect.locator(`option:has-text("${tenantName}")`)).toBeAttached({ timeout: 5000 });
     await tenantSelect.selectOption({ label: tenantName });
 
     await this.page.fill('input[type="email"]', username);

@@ -133,8 +133,10 @@ export default function IPDPatientView() {
       showToast("Lab orders placed successfully.", "success");
       setShowLabModal(false);
       setSelectedTests([]);
-    } catch (err) { showToast("Failed to place lab order.", "error"); }
-    finally { setIsOrdering(false); }
+    } catch (err) {
+      const message = err?.response?.data?.error || err?.message || "Failed to place lab order.";
+      showToast(message, "error");
+    } finally { setIsOrdering(false); }
   };
 
   const submitPharmacyOrder = async () => {

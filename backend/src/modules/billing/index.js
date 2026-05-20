@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 
+const billingTablesSynced = new Set();
+
 async function ensureBillingTables(req) {
+  const schema = req.schemaName;
+  if (!schema) return;
+  if (billingTablesSynced.has(schema)) return;
+
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".invoices (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -42,6 +48,7 @@ async function ensureBillingTables(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS source_queue_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  billingTablesSynced.add(schema);
 }
 
 

@@ -22,7 +22,10 @@ async function getCurrentUserId(req) {
   }
 }
 
+const dischargeTableSynced = new Set();
 async function ensureDischargeTable(req) {
+  const schema = req.schemaName;
+  if (!schema || dischargeTableSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".discharge_summaries (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -42,18 +45,65 @@ async function ensureDischargeTable(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".discharge_summaries ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Draft'`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".discharge_summaries ADD COLUMN IF NOT EXISTS is_authenticated BOOLEAN DEFAULT false`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".discharge_summaries ADD COLUMN IF NOT EXISTS authenticated_at TIMESTAMP`);
+  dischargeTableSynced.add(schema);
 }
 
+const orderColumnsSynced = new Set();
 async function ensureOrderColumns(req) {
+  const schema = req.schemaName;
+  if (!schema || orderColumnsSynced.has(schema)) return;
+
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".prescriptions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      encounter_id UUID REFERENCES "${req.schemaName}".encounters(id),
+      patient_id UUID REFERENCES "${req.schemaName}".patients(id),
+      status VARCHAR(50) DEFAULT 'Pending',
+      created_at TIMESTAMP DEFAULT NOW(),
+      instructions TEXT,
+      is_paid BOOLEAN DEFAULT false
+    )
+  `);
+
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".prescription_items (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      prescription_id UUID REFERENCES "${req.schemaName}".prescriptions(id),
+      medicine_id UUID,
+      drug_name VARCHAR(255),
+      dosage VARCHAR(100),
+      frequency VARCHAR(100),
+      duration VARCHAR(100),
+      instructions TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${req.schemaName}".lab_orders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      patient_id UUID REFERENCES "${req.schemaName}".patients(id),
+      encounter_id UUID REFERENCES "${req.schemaName}".encounters(id),
+      doctor_id UUID REFERENCES "${req.schemaName}".users(id),
+      test_name VARCHAR(255),
+      priority VARCHAR(50) DEFAULT 'Normal',
+      status VARCHAR(50) DEFAULT 'Pending',
+      results JSONB,
+      technician_notes TEXT,
+      is_paid BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS instructions TEXT`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
-  
+
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS instructions TEXT`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS medicine_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescription_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
-  
+
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS results JSONB`);
@@ -61,6 +111,7 @@ async function ensureOrderColumns(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS test_name VARCHAR(255)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".lab_orders ADD COLUMN IF NOT EXISTS priority VARCHAR(50) DEFAULT 'Normal'`);
+  orderColumnsSynced.add(schema);
 }
 
 const staffSyncedSchemas = new Set();
@@ -152,7 +203,10 @@ async function ensureStaffColumns(req, force = false) {
   }
 }
 
+const doctorScheduleTableSynced = new Set();
 async function ensureDoctorScheduleTable(req) {
+  const schema = req.schemaName;
+  if (!schema || doctorScheduleTableSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".doctor_schedules (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -169,6 +223,7 @@ async function ensureDoctorScheduleTable(req) {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  doctorScheduleTableSynced.add(schema);
 }
 
 async function ensureDefaultDoctorSchedule(req, doctorId) {
@@ -191,13 +246,20 @@ async function ensureDefaultDoctorSchedule(req, doctorId) {
   }
 }
 
+const patientColumnsSynced = new Set();
 async function ensurePatientColumns(req) {
+  const schema = req.schemaName;
+  if (!schema || patientColumnsSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS mrn VARCHAR(20)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS gender VARCHAR(20)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".patients ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
+  patientColumnsSynced.add(schema);
 }
 
+const encounterTableSynced = new Set();
 async function ensureEncounterTable(req) {
+  const schema = req.schemaName;
+  if (!schema || encounterTableSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".encounters (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -212,9 +274,13 @@ async function ensureEncounterTable(req) {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  encounterTableSynced.add(schema);
 }
 
+const tableColumnsSynced = new Set();
 async function ensureTableColumns(req, table) {
+  const cacheKey = `${req.schemaName}:${table}`;
+  if (!req.schemaName || tableColumnsSynced.has(cacheKey)) return;
   try {
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS description TEXT`);
     await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS category VARCHAR(255)`);
@@ -226,10 +292,14 @@ async function ensureTableColumns(req, table) {
       await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS uom VARCHAR(50) DEFAULT 'Tablet'`);
       await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}"."${table}" ADD COLUMN IF NOT EXISTS batch_number VARCHAR(100)`);
     }
+    tableColumnsSynced.add(cacheKey);
   } catch (e) {}
 }
 
+const ipdMastersSynced = new Set();
 async function ensureIPDMasters(req) {
+  const schema = req.schemaName;
+  if (!schema || ipdMastersSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".wards (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), name VARCHAR(100), type VARCHAR(50), capacity INTEGER DEFAULT 0, base_charge NUMERIC DEFAULT 0)`);
   await ensureTableColumns(req, 'wards');
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".beds (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), ward_id UUID REFERENCES "${req.schemaName}".wards(id), bed_number VARCHAR(50), status VARCHAR(50) DEFAULT 'Vacant')`);
@@ -252,9 +322,13 @@ async function ensureIPDMasters(req) {
   } catch (e) {
     console.warn("[SEED] Could not seed diagnostics:", e.message);
   }
+  ipdMastersSynced.add(schema);
 }
 
+const ipdAdmissionsSynced = new Set();
 async function ensureIPDAdmissionsTable(req) {
+  const schema = req.schemaName;
+  if (!schema || ipdAdmissionsSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".ipd_admissions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -294,9 +368,13 @@ async function ensureIPDAdmissionsTable(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS doctor_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS doctor_name VARCHAR(255)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".ipd_notes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  ipdAdmissionsSynced.add(schema);
 }
 
+const insuranceInfrastructureSynced = new Set();
 async function ensureInsuranceInfrastructure(req) {
+  const schema = req.schemaName;
+  if (!schema || insuranceInfrastructureSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_providers (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -340,13 +418,21 @@ async function ensureInsuranceInfrastructure(req) {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  insuranceInfrastructureSynced.add(schema);
 }
 
+const billingQueueSynced = new Set();
 async function ensureBillingQueue(req) {
+  const schema = req.schemaName;
+  if (!schema || billingQueueSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "${req.schemaName}".billing_queue (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), patient_id UUID NOT NULL, encounter_id UUID, source_module VARCHAR(50), source_id UUID, description TEXT, quantity NUMERIC DEFAULT 1, unit_price NUMERIC NOT NULL, tax_percent NUMERIC DEFAULT 0, is_discountable BOOLEAN DEFAULT TRUE, status VARCHAR(20) DEFAULT 'PENDING', created_at TIMESTAMP DEFAULT NOW())`);
+  billingQueueSynced.add(schema);
 }
 
+const suppliersTableSynced = new Set();
 async function ensureSuppliersTable(req) {
+  const schema = req.schemaName;
+  if (!schema || suppliersTableSynced.has(schema)) return;
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".suppliers (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -358,6 +444,7 @@ async function ensureSuppliersTable(req) {
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  suppliersTableSynced.add(schema);
 }
 
 // --- METRICS ---
@@ -657,30 +744,46 @@ router.get("/encounters", async (req, res, next) => {
     const status = req.query.status || 'Active';
     const patientId = req.query.patientId;
     const doctorId = req.query.doctorId;
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = Math.min(parseInt(req.query.pageSize) || 50, 200);
+    const offset = (page - 1) * pageSize;
     const patientFilter = patientId ? `AND e.patient_id = '${patientId}'` : '';
     const doctorFilter = doctorId ? `AND e.doctor_id = '${doctorId}'` : '';
     const statusFilter = status === 'All' ? '' : `AND e.status = '${status}'`;
-    
-    // Enhanced Query to fetch Predictions and latest Events
+
+    // Count total (lightweight)
+    const countQuery = `SELECT COUNT(*)::int as count FROM "${req.schemaName}".encounters e WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter}`;
+    const countRes = await req.prisma.$queryRawUnsafe(countQuery);
+    const total = (countRes && countRes[0] && Number(countRes[0].count)) || 0;
+
+    // Select only required columns and use LATERAL to fetch latest event efficiently
     const query = `
       SELECT 
-        e.*, 
+        e.id, e.patient_id, e.doctor_id, e.status, e.type, e.created_at,
         p.name as patient_name, p.mrn, p.age, p.gender,
         u.name as doctor_name,
         cp.predicted_time_mins,
-        (SELECT event_type FROM "${req.schemaName}".consultation_events WHERE encounter_id = e.id ORDER BY created_at DESC LIMIT 1) as latest_event,
-        (SELECT created_at FROM "${req.schemaName}".consultation_events WHERE encounter_id = e.id AND event_type = 'CONSULT_START' ORDER BY created_at DESC LIMIT 1) as start_time
+        latest.event_type as latest_event,
+        latest.start_time
       FROM "${req.schemaName}".encounters e
       JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
       JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
       LEFT JOIN "${req.schemaName}".consultation_predictions cp ON cp.encounter_id = e.id
+      LEFT JOIN LATERAL (
+        SELECT ce.event_type, ce.created_at as start_time
+        FROM "${req.schemaName}".consultation_events ce
+        WHERE ce.encounter_id = e.id
+        ORDER BY ce.created_at DESC
+        LIMIT 1
+      ) latest ON true
       WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter}
       ORDER BY e.created_at ASC
+      LIMIT ${pageSize} OFFSET ${offset}
     `;
-    
+
     const encounters = await req.prisma.$queryRawUnsafe(query);
 
-    // --- QUEUE WAIT TIME ENGINE ---
+    // --- QUEUE WAIT TIME ENGINE (on paged data) ---
     const doctorQueues = {};
     encounters.forEach(enc => {
       if (!doctorQueues[enc.doctor_id]) doctorQueues[enc.doctor_id] = [];
@@ -690,10 +793,10 @@ router.get("/encounters", async (req, res, next) => {
     Object.keys(doctorQueues).forEach(docId => {
       let cumulativeWait = 0;
       const queue = doctorQueues[docId]; // Already sorted by created_at ASC in SQL
-      
+
       queue.forEach((enc) => {
         if (enc.latest_event === 'CONSULT_START') {
-          const elapsed = (Date.now() - new Date(enc.start_time).getTime()) / 60000;
+          const elapsed = enc.start_time ? (Date.now() - new Date(enc.start_time).getTime()) / 60000 : 0;
           const remaining = Math.max(0, (enc.predicted_time_mins || 15) - elapsed);
           enc.predicted_wait_time = 0;
           cumulativeWait = remaining;
@@ -709,10 +812,10 @@ router.get("/encounters", async (req, res, next) => {
       });
     });
 
-    res.json(encounters);
-  } catch (error) { 
+    res.json({ total, page, pageSize, data: encounters });
+  } catch (error) {
     console.error("[GET_ENCOUNTERS] Error:", error.message);
-    next(error); 
+    next(error);
   }
 });
 
@@ -806,8 +909,17 @@ router.post("/ipd/admissions", async (req, res, next) => {
 router.get("/ipd/admissions", async (req, res, next) => {
   try {
     await ensureIPDAdmissionsTable(req);
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = Math.min(parseInt(req.query.pageSize) || 50, 200);
+    const offset = (page - 1) * pageSize;
+
+    const countQuery = `SELECT COUNT(*)::int as count FROM "${req.schemaName}".ipd_admissions a WHERE a.status = 'Admitted'`;
+    const countRes = await req.prisma.$queryRawUnsafe(countQuery);
+    const total = (countRes && countRes[0] && Number(countRes[0].count)) || 0;
+
     const data = await req.prisma.$queryRawUnsafe(`
-      SELECT a.*, p.name as patient_name, p.mrn, p.age, p.gender, p.phone, w.name as ward_name, b.bed_number, u.name as doctor_name
+      SELECT a.id, a.patient_id, a.bed_id, a.ward_id, a.admitting_doctor_id, a.daily_charge, a.status, a.admitted_at,
+             p.name as patient_name, p.mrn, p.age, p.gender, p.phone, w.name as ward_name, b.bed_number, u.name as doctor_name
       FROM "${req.schemaName}".ipd_admissions a
       JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
       LEFT JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
@@ -815,8 +927,9 @@ router.get("/ipd/admissions", async (req, res, next) => {
       LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
       WHERE a.status = 'Admitted'
       ORDER BY a.admitted_at DESC
+      LIMIT ${pageSize} OFFSET ${offset}
     `);
-    res.json(data);
+    res.json({ total, page, pageSize, data });
   } catch (error) { next(error); }
 });
 
@@ -1012,13 +1125,20 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
   try {
     const { id } = req.params;
     const { diagnosticIds, priority } = req.body;
+    if (!Array.isArray(diagnosticIds) || diagnosticIds.length === 0) {
+      return res.status(400).json({ error: "No lab tests selected for ordering." });
+    }
+
     await ensureOrderColumns(req);
     await ensureBillingQueue(req);
 
     const encounter = await req.prisma.$queryRawUnsafe(`SELECT patient_id, doctor_id FROM "${req.schemaName}".encounters WHERE id = '${id}'`);
     if (!encounter.length) return res.status(404).json({ error: "Encounter not found" });
     const patientId = encounter[0].patient_id;
-    const doctorId = encounter[0].doctor_id;
+    let doctorId = encounter[0].doctor_id;
+    if (!doctorId) {
+      doctorId = await getCurrentUserId(req);
+    }
 
     for (const testId of diagnosticIds) {
       const orderId = crypto.randomUUID();
@@ -1028,7 +1148,7 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
 
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".lab_orders (id, encounter_id, patient_id, doctor_id, test_name, priority, status)
-        VALUES ('${orderId}', '${id}', '${patientId}', '${doctorId}', '${s(testName)}', '${s(priority || 'Normal')}', 'Pending')
+        VALUES ('${orderId}', '${id}', '${patientId}', ${doctorId ? `'${doctorId}'` : 'NULL'}, '${s(testName)}', '${s(priority || 'Normal')}', 'Pending')
       `);
 
       // Push to Billing Queue
@@ -1039,7 +1159,7 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
     }
     res.json({ message: "Lab orders saved and billed." });
   } catch (error) { 
-    console.error("[LAB_ORDER_POST_ERROR]", error.message);
+    console.error("[LAB_ORDER_POST_ERROR]", error);
     next(error); 
   }
 });

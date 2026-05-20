@@ -3,7 +3,13 @@ const router = express.Router();
 const upload = require("../../config/upload");
 const aiService = require("../../services/aiService");
 
+const patientColumnsSynced = new Set();
+
 async function ensurePatientColumns(req) {
+  const schema = req.schemaName;
+  if (!schema) return;
+  if (patientColumnsSynced.has(schema)) return;
+
   const columns = [
     'mrn VARCHAR(20)',
     'email VARCHAR(255)',
@@ -54,6 +60,7 @@ async function ensurePatientColumns(req) {
   } catch (e) {
     console.error(`[PATIENT_HEAL] ABHA Audit Table failed: ${e.message}`);
   }
+  patientColumnsSynced.add(schema);
 }
 
 router.get("/", async (req, res, next) => {

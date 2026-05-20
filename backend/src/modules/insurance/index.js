@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 
+const insuranceTablesSynced = new Set();
+
 async function ensureInsuranceTables(req) {
+  const schema = req.schemaName;
+  if (!schema) return;
+  if (insuranceTablesSynced.has(schema)) return;
+
   // Ensure tables exist
   await req.prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_providers (
@@ -59,6 +65,11 @@ async function ensureInsuranceTables(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_claims ADD COLUMN IF NOT EXISTS billed_amount NUMERIC DEFAULT 0`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_claims ADD COLUMN IF NOT EXISTS sanctioned_amount NUMERIC DEFAULT 0`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_claims ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+
+  // Ensure index on patient mapping
+  await req.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS idx_insurance_patient_mapping_patient ON "${req.schemaName}".insurance_patient_mapping (patient_id)`);
+
+  insuranceTablesSynced.add(schema);
 }
 
 // 1. Fetch Insurance Providers (TPAs)

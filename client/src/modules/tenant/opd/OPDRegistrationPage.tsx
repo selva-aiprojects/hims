@@ -493,10 +493,10 @@ export default function OPDRegistrationPage() {
 
                    {/* Personal Section */}
                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-                      <div className="input-group">
-                         <label className="field-label">Full Name*</label>
-                         <input className="input-field" value={regData.name} onChange={e => setRegData({...regData, name: e.target.value})} />
-                      </div>
+                       <div className="input-group">
+                          <label className="field-label" htmlFor="reg-full-name">Full Name*</label>
+                          <input id="reg-full-name" className="input-field" value={regData.name} onChange={e => setRegData({...regData, name: e.target.value})} />
+                       </div>
                       <div className="input-group">
                          <label className="field-label">Phone Number*</label>
                          <input className="input-field" value={regData.phone} onChange={e => setRegData({...regData, phone: e.target.value})} />
@@ -652,7 +652,7 @@ export default function OPDRegistrationPage() {
                  return (
                    <button 
                     type="button"
-                    disabled={isProcessing}
+                    disabled={isProcessing || !selectedDoctorId}
                     onClick={selectedPatient ? queueExistingPatient : registerAndQueue}
                     style={{ 
                       width: '100%', padding: '26px', borderRadius: '24px', border: 'none', 

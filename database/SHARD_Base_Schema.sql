@@ -968,3 +968,76 @@ CREATE TRIGGER update_patients_modtime BEFORE UPDATE ON patients FOR EACH ROW EX
 
 DROP TRIGGER IF EXISTS update_encounters_modtime ON encounters;
 CREATE TRIGGER update_encounters_modtime BEFORE UPDATE ON encounters FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+-- =============================================================
+-- PERFORMANCE INDEXES - Patient Journey OPD & IPD Flows
+-- =============================================================
+
+-- patients: free-text search & lookup
+CREATE INDEX IF NOT EXISTS idx_patients_name    ON patients (name);
+CREATE INDEX IF NOT EXISTS idx_patients_phone   ON patients (phone);
+CREATE INDEX IF NOT EXISTS idx_patients_mrn     ON patients (mrn);
+
+-- appointments: lookup by patient / doctor / time
+CREATE INDEX IF NOT EXISTS idx_appointments_patient_id ON appointments (patient_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_doctor_id  ON appointments (doctor_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_time       ON appointments (appointment_time);
+CREATE INDEX IF NOT EXISTS idx_appointments_status     ON appointments (status);
+
+-- encounters: OPD consult list & recent-visit queries
+CREATE INDEX IF NOT EXISTS idx_encounters_patient_id   ON encounters (patient_id);
+CREATE INDEX IF NOT EXISTS idx_encounters_doctor_id    ON encounters (doctor_id);
+CREATE INDEX IF NOT EXISTS idx_encounters_created_at   ON encounters (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_encounters_status       ON encounters (status);
+
+-- consultation_events: join on encounter
+CREATE INDEX IF NOT EXISTS idx_consultation_events_encounter_id ON consultation_events (encounter_id);
+-- composite index to optimize queries that read the latest event by encounter (encounter_id + newest created_at)
+CREATE INDEX IF NOT EXISTS idx_consultation_events_encounter_created_at ON consultation_events (encounter_id, created_at DESC);
+-- composite index to speed lookups for specific event types (e.g., CONSULT_START)
+CREATE INDEX IF NOT EXISTS idx_consultation_events_encounter_event_created_at ON consultation_events (encounter_id, event_type, created_at DESC);
+
+-- predictions lookup by encounter
+CREATE INDEX IF NOT EXISTS idx_consultation_predictions_encounter ON consultation_predictions (encounter_id);
+
+-- prescriptions & items
+CREATE INDEX IF NOT EXISTS idx_prescriptions_encounter_id       ON prescriptions (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id         ON prescriptions (patient_id);
+CREATE INDEX IF NOT EXISTS idx_prescription_items_prescription  ON prescription_items (prescription_id);
+
+-- lab orders
+CREATE INDEX IF NOT EXISTS idx_lab_orders_patient_id   ON lab_orders (patient_id);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_encounter_id ON lab_orders (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_lab_orders_status       ON lab_orders (status);
+
+-- billing
+CREATE INDEX IF NOT EXISTS idx_invoices_patient_id     ON invoices (patient_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_encounter_id   ON invoices (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice   ON invoice_items (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_billing_queue_patient   ON billing_queue (patient_id);
+CREATE INDEX IF NOT EXISTS idx_billing_queue_encounter ON billing_queue (encounter_id);
+CREATE INDEX IF NOT EXISTS idx_billing_queue_status    ON billing_queue (status);
+-- index for source_id lookups (billing by source module/entity)
+CREATE INDEX IF NOT EXISTS idx_billing_queue_source_id ON billing_queue (source_id);
+
+-- IPD admissions
+CREATE INDEX IF NOT EXISTS idx_ipd_admissions_patient  ON ipd_admissions (patient_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_admissions_bed      ON ipd_admissions (bed_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_admissions_ward     ON ipd_admissions (ward_id);
+CREATE INDEX IF NOT EXISTS idx_ipd_admissions_status   ON ipd_admissions (status);
+CREATE INDEX IF NOT EXISTS idx_ipd_notes_admission     ON ipd_notes (admission_id);
+-- index on admitted_at for faster recent-admissions queries
+CREATE INDEX IF NOT EXISTS idx_ipd_admissions_admitted_at ON ipd_admissions (admitted_at DESC);
+-- composite index for admission notes ordered by created_at
+CREATE INDEX IF NOT EXISTS idx_ipd_notes_admission_created_at ON ipd_notes (admission_id, created_at DESC);
+
+-- beds
+CREATE INDEX IF NOT EXISTS idx_beds_ward_id            ON beds (ward_id);
+CREATE INDEX IF NOT EXISTS idx_beds_status             ON beds (status);
+
+-- insurance
+CREATE INDEX IF NOT EXISTS idx_insurance_claims_patient ON insurance_claims (patient_id);
+CREATE INDEX IF NOT EXISTS idx_patient_insurance_patient ON patient_insurance (patient_id);
+
+-- doctor schedules
+CREATE INDEX IF NOT EXISTS idx_doctor_schedules_doctor  ON doctor_schedules (doctor_id);
