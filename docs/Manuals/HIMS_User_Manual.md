@@ -61,3 +61,12 @@ Welcome to the Healthezee Health Information Management System (HIMS). Our platf
 2. **AI Discharge Summary**: Generate professional PDF discharge summaries with AI-drafted clinical sections.
 3. **Global Signal Monitoring**: (For Admin) Monitor all communication signals across the hospital chain.
 4. **Advanced RBAC**: Granular control over department-level permissions and security.
+
+---
+
+## Recent Product Updates (May 18-20, 2026)
+- **Doctor Scheduling Engine**: Week navigation and calendar rendering have been optimized for faster loading and smoother doctor availability browsing.
+- **Appointment Booking Flow**: Unified booking flow improvements now reduce navigation friction and support more robust rescheduling and calendar alignment.
+- **Tenant Schema Maintenance**: New tenant schema reconciliation and index maintenance scripts were added to ensure all shard databases stay consistent and performant.
+- **Invoice and Billing Fixes**: `invoice_items` now include correct `created_at` tracking in tenant schema creation and healing routes.
+- **AI and Clinical Workflows**: Enhanced AI summary and discharge features continue to improve patient documentation across the Professional and Enterprise tiers.

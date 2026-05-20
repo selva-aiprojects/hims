@@ -64,3 +64,11 @@ The platform is fully integrated with India's **National Digital Health Stack (A
 - **RBAC**: Role-Based Access Control integrated with multi-tenant shard validation.
 - **Data Privacy**: Strict tenant isolation at the database schema level.
 - **Audit Trails**: Global and tenant-specific audit logs for all clinical and administrative actions.
+
+---
+
+## 7. Recent Architecture Updates (May 18-20, 2026)
+- Added tenant schema reconciliation and self-healing migration tooling to keep all shard schemas aligned with the canonical model.
+- Introduced index maintenance and per-schema migration scripts under `database/migrations/` to improve performance for patient-journey and clinical queries.
+- The scheduling engine now caches weekly slot maps for doctor availability, reducing frontend re-render cost and improving week navigation performance.
+- Invoice and billing schema changes include explicit transaction timestamps on `invoice_items` and stronger support for schema versioning during tenant onboarding.

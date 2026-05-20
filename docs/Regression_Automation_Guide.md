@@ -60,6 +60,14 @@ npx playwright show-report
 2. Use `auth.loginTenant('Millenium Hospitals')`.
 3. Navigate to Pharmacy and validate dispensing flows and inventory updates.
 
+---
+
+## 🆕 Recent Regression Updates (May 18-20, 2026)
+- New shared helper support was added in `tests/regression/utils/auth_helper.ts` for tenant and nexus login flows.
+- Regression tests should now cover the updated doctor scheduling and appointment booking workflows, including weekly schedule navigation and rescheduling.
+- The framework supports new schema reconciliation workflows with database migration validation scripts under `database/migrations/`.
+- New test coverage should validate improved tenant billing tracking and invoice item creation for the updated `invoice_items` schema.
+
 ### Example: Adding Billing Regression
 1. Create `tests/regression/tenant/billing_regression.spec.ts`.
 2. Select a patient and add multiple billing items.
