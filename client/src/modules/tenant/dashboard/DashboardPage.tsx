@@ -6,7 +6,7 @@ import Sidebar from "../../../components/Sidebar";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { 
   Users, Calendar, FileText, Pill, Activity, TrendingUp, 
-  AlertCircle, ChevronRight, HeartPulse, BarChart3, Clock, FlaskConical, Bell, Zap, LogOut, ChevronDown, Bed, FileCheck
+  AlertCircle, ChevronRight, HeartPulse, BarChart3, Clock, FlaskConical, Bell, Zap, LogOut, ChevronDown, Bed, FileCheck, Stethoscope
 } from 'lucide-react';
 
 import DoctorDashboardPage from "./DoctorDashboardPage";
@@ -691,6 +691,379 @@ export default function DashboardPage() {
                 {renderTeaser('Pharmacy Inventory & Expiries', 'standard', Pill)}
                 {renderTeaser('Laboratory Information Management', 'standard', FlaskConical)}
                 {renderTeaser('Live Ward Beds Mapping (IPD)', 'professional', Bed)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* STANDARD TIER VIEW */}
+        {/* ========================================================================= */}
+        {plan === 'standard' && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(6, 1fr)', gap: '16px', marginBottom: '24px' }}>
+              {[
+                { label: "Today's Appointments", val: "18", trend: "12% vs yesterday", isUp: true, icon: Calendar, color: "#3b82f6", bg: "#eff6ff" },
+                { label: "Patients Checked-In", val: "11", trend: "10% vs yesterday", isUp: true, icon: Users, color: "#f59e0b", bg: "#fffbeb" },
+                { label: "Pending Bills", val: "3", trend: "25% vs yesterday", isUp: true, icon: FileText, color: "#ef4444", bg: "#fef2f2" },
+                { label: "Revenue Today", val: "₹8,450", trend: "18% vs yesterday", isUp: true, icon: TrendingUp, color: "#10b981", bg: "#f0fdf4" },
+                { label: "Prescriptions Issued", val: "12", trend: "9% vs yesterday", isUp: true, icon: Stethoscope, color: "#7c3aed", bg: "#f5f3ff" },
+                { label: "Avg. Waiting Time", val: "15m", trend: "5m vs yesterday", isUp: true, icon: Clock, color: "#0d9488", bg: "#f0fdf4" }
+              ].map((card, idx) => (
+                <div key={idx} className="stat-card" style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: card.bg, color: card.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                    <card.icon size={18} />
+                  </div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{card.val}</div>
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#10b981', fontWeight: 700 }}>
+                    {card.label.includes("Time") || card.label.includes("Bills") ? "↓" : "↑"} {card.trend}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
+              <div className="page-card" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                  <Activity size={18} style={{ color: '#3b82f6' }} />
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Live OPD Queue</h3>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Current Token</div>
+                      <div style={{ fontSize: '24px', fontWeight: 900, color: '#10b981', marginTop: '4px' }}>OPD-006</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Patients Waiting</div>
+                      <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>4</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Avg. Wait Time</div>
+                      <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>15m</div>
+                    </div>
+                  </div>
+
+                  <div style={{ position: 'relative', padding: '10px 0' }}>
+                    <div style={{ position: 'absolute', top: '16px', left: '10px', right: '10px', height: '3px', backgroundColor: '#e2e8f0', zIndex: 1 }}></div>
+                    <div style={{ position: 'absolute', top: '16px', left: '10px', width: '66%', height: '3px', backgroundColor: '#3b82f6', zIndex: 1 }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
+                      {[
+                        { name: 'Registered', val: '6', active: true },
+                        { name: 'In Queue', val: '4', active: true },
+                        { name: 'In Consult', val: '1', active: true },
+                        { name: 'Completed', val: '11', active: false }
+                      ].map((step, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div style={{ 
+                            width: '12px', 
+                            height: '12px', 
+                            borderRadius: '50%', 
+                            backgroundColor: step.active ? '#3b82f6' : '#cbd5e1',
+                            border: '2px solid #ffffff',
+                            boxShadow: '0 0 0 2px ' + (step.active ? '#3b82f6' : '#cbd5e1'),
+                            marginBottom: '6px'
+                          }} />
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{step.name}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 900, color: step.active ? '#3b82f6' : '#64748b', marginTop: '2px' }}>{step.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#ecfdf5', padding: '10px 14px', borderRadius: '10px', border: '1px solid #d1fae5', color: '#065f46', fontSize: '12px', fontWeight: 700 }}>
+                    <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    Next Token: <strong style={{ fontWeight: 900 }}>OPD-007</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Today's Appointments</h3>
+                  <button onClick={() => navigate('/tenant/appointments/doctor-calendar?tab=Operational+Calendar')} style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer' }}>
+                    View Calendar
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '16px', overflowX: 'auto' }}>
+                  {[
+                    { key: 'upcoming', label: 'Upcoming', count: 7, color: '#059669', bg: '#ecfdf5' },
+                    { key: 'inprogress', label: 'In Progress', count: 1, color: '#2563eb', bg: '#eff6ff' },
+                    { key: 'completed', label: 'Completed', count: 10, color: '#7c3aed', bg: '#f5f3ff' },
+                    { key: 'cancelled', label: 'Cancelled', count: 0, color: '#dc2626', bg: '#fef2f2' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveApptTab(tab.key as any)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        color: activeApptTab === tab.key ? tab.color : '#64748b',
+                        backgroundColor: activeApptTab === tab.key ? tab.bg : '#f8fafc',
+                        border: activeApptTab === tab.key ? `1px solid ${tab.color}30` : '1px solid #e2e8f0',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {tab.label} <span style={{ fontSize: '9px', backgroundColor: activeApptTab === tab.key ? '#ffffff' : '#e2e8f0', color: activeApptTab === tab.key ? tab.color : '#64748b', padding: '1px 6px', borderRadius: '10px' }}>{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                  {[
+                    { time: '10:00 AM', name: 'Ramesh Kumar', type: 'Follow-up', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '10:30 AM', name: 'Priya Sharma', type: 'Consultation', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '11:00 AM', name: 'Anita Desai', type: 'Consultation', status: 'In Progress', tab: 'inprogress', badgeColor: '#3b82f6', badgeBg: '#eff6ff' },
+                    { time: '11:30 AM', name: 'Vikram Singh', type: 'Follow-up', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '12:00 PM', name: 'Neha Patel', type: 'Consultation', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '02:00 PM', name: 'Rajesh Mehta', type: 'Follow-up', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
+                    { time: '02:30 PM', name: 'Karan Johar', type: 'Consultation', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
+                  ]
+                    .filter((appt) => appt.tab === activeApptTab)
+                    .map((appt, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <button onClick={() => navigate('/tenant/appointments')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                  View all appointments →
+                </button>
+              </div>
+
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Snapshot</h3>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                  <div style={{ width: '110px', height: '110px', position: 'relative' }}>
+                    <ReactECharts option={revenueSnapshotOption} style={{ height: '110px', width: '110px' }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Total</span>
+                      <span style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>₹8,450</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                    {[
+                      { name: 'Consultation', val: '₹4,200', pct: '49%', color: '#3b82f6' },
+                      { name: 'Pharmacy', val: '₹2,850', pct: '34%', color: '#10b981' },
+                      { name: 'Lab & Diagnostics', val: '₹1,100', pct: '13%', color: '#f59e0b' },
+                      { name: 'Others', val: '₹300', pct: '4%', color: '#7c3aed' }
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                          <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                          <span>{item.val}</span>
+                          <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => navigate('/tenant/reports')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                  View full report →
+                </button>
+              </div>
+            </div>
+
+            {/* Row 3: Lab Operations Overview (Full Width) */}
+            <div className="page-card" style={{ padding: '24px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 850, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Lab Operations Overview</h3>
+                <button onClick={() => navigate('/tenant/lab')} style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer' }}>Go to Lab Hub</button>
+              </div>
+
+              {/* Stepper */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#f8fafc', padding: '16px 24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '24px', overflowX: 'auto', gap: '16px' }}>
+                {[
+                  { step: 'Samples Collected', count: '12', color: '#3b82f6', active: true },
+                  { step: 'In Progress', count: '8', color: '#f59e0b', active: true },
+                  { step: 'Pending Validation', count: '4', color: '#ef4444', active: true },
+                  { step: 'Reports Pending', count: '2', color: '#7c3aed', active: true },
+                  { step: 'Reports Delivered', count: '36', color: '#10b981', active: false },
+                  { step: 'Avg TAT', count: '30m', color: '#0d9488', active: false }
+                ].map((s, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '120px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: s.color }} />
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>{s.step}</div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', marginTop: '2px' }}>{s.count}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sub-panels Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: '20px' }}>
+                <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>Test Status Tracker</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {stats.labStats?.map((lab: any, idx: number) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#475569' }}>
+                        <span>{lab.status}</span>
+                        <span style={{ fontWeight: 800, color: '#0f172a' }}>{lab.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>Most Ordered Tests</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { name: 'CBC (Haematology)', count: 15 },
+                      { name: 'Thyroid Profile', count: 12 },
+                      { name: 'LFT (Biochemistry)', count: 10 },
+                      { name: 'Urine R/M', count: 8 }
+                    ].map((t, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#475569' }}>
+                        <span>{t.name}</span>
+                        <span style={{ fontWeight: 800, color: '#0f172a' }}>{t.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Lab Revenue Trend</span>
+                  <div style={{ height: '60px', width: '100%', flex: 1 }}>
+                    <ReactECharts option={labRevenueOption} style={{ height: '60px', width: '100%' }} />
+                  </div>
+                </div>
+
+                <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>Operational Efficiency</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[
+                      { label: 'Equipment Uptime', val: '99.2%' },
+                      { label: 'Critical Alert TAT', val: '14 mins' },
+                      { label: 'Reagent Stock', val: 'Optimal' },
+                      { label: 'Outsourced Tests', val: '3' }
+                    ].map((t, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 700, color: '#475569' }}>
+                        <span>{t.label}</span>
+                        <span style={{ fontWeight: 800, color: '#0f172a' }}>{t.val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 4: Patient Journey (Full Width) */}
+            <div className="page-card" style={{ padding: '24px', marginBottom: '24px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'block', marginBottom: '16px' }}>Patient Operational Journey (Today)</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+                {[
+                  { label: 'Appointments Booked', val: '18', active: true },
+                  { label: 'Doctor Consultations', val: '12', active: true },
+                  { label: 'Diagnostic Tests Ordered', val: '8', active: true },
+                  { label: 'Samples Collected', val: '6', active: true },
+                  { label: 'Reports Delivered', val: '4', active: true },
+                  { label: 'Prescriptions Dispensed', val: '12', active: false }
+                ].map((item, idx, arr) => (
+                  <div key={idx} style={{ flex: 1, minWidth: '130px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '20px', fontWeight: 900, color: item.active ? '#3b82f6' : '#94a3b8' }}>{item.val}</div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#475569', marginTop: '2px', lineHeight: '1.2' }}>{item.label}</div>
+                    </div>
+                    {idx < arr.length - 1 && (
+                      <ChevronRight size={18} style={{ color: '#cbd5e1' }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Row 5: 2 Columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '24px' }}>
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Alerts & Notifications</h3>
+                  <span style={{ fontSize: '9px', fontWeight: 900, color: '#ef4444', backgroundColor: '#fef2f2', padding: '2px 8px', borderRadius: '6px' }}>6 PENDING</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                  {[
+                    { type: 'warning', text: 'Low stock alert: HbA1c Kit (2 kits remaining)', time: '10m ago' },
+                    { type: 'critical', text: 'Critical Lab Alert: Hemoglobin 7.2 for Patient Priya Sharma', time: '15m ago' },
+                    { type: 'info', text: 'Equipment maintenance: Biochemistry Analyzer scheduled at 4 PM', time: '1h ago' }
+                  ].map((alert, idx) => (
+                    <div key={idx} style={{ 
+                      padding: '12px 14px', 
+                      backgroundColor: alert.type === 'critical' ? '#fef2f2' : alert.type === 'warning' ? '#fffbeb' : '#f8fafc',
+                      border: '1px solid ' + (alert.type === 'critical' ? '#fca5a5' : alert.type === 'warning' ? '#fde047' : '#e2e8f0'),
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px'
+                    }}>
+                      <AlertCircle size={16} style={{ color: alert.type === 'critical' ? '#ef4444' : alert.type === 'warning' ? '#f59e0b' : '#3b82f6', marginTop: '2px', flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: 0, fontSize: '12px', fontWeight: 700, color: '#334155', lineHeight: '1.4' }}>{alert.text}</p>
+                        <span style={{ fontSize: '9px', color: '#94a3b8', display: 'block', marginTop: '4px', fontWeight: 600 }}>{alert.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 20px' }}>Quick Actions</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', flex: 1 }}>
+                  {[
+                    { label: 'Add Appointment', icon: Calendar, color: '#10b981', bg: '#ecfdf5', path: '/tenant/appointments/doctor-calendar?tab=Operational+Calendar' },
+                    { label: 'Register Patient', icon: Users, color: '#3b82f6', bg: '#eff6ff', path: '/tenant/clinical/patient-register' },
+                    { label: 'Create Bill', icon: FileText, color: '#7c3aed', bg: '#f5f3ff', path: '/billing' },
+                    { label: 'Order Test', icon: FlaskConical, color: '#0d9488', bg: '#f0fdf4', path: '/tenant/lab' },
+                    { label: 'Dispense Medicine', icon: Pill, color: '#f59e0b', bg: '#fffbeb', path: '/tenant/pharmacy' },
+                    { label: 'View Reports', icon: BarChart3, color: '#3b82f6', bg: '#eff6ff', path: '/tenant/reports' }
+                  ].map((act, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={() => navigate(act.path)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        padding: '12px 6px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.01)'
+                      }}
+                    >
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: act.bg, color: act.color, display: 'grid', placeItems: 'center' }}>
+                        <act.icon size={18} />
+                      </div>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#475569', textAlign: 'center', lineHeight: '1.2' }}>{act.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                  {renderTeaser('Live Ward Beds Mapping (IPD)', 'professional', Bed)}
+                </div>
               </div>
             </div>
           </div>
