@@ -3,11 +3,10 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactECharts from 'echarts-for-react';
 import Sidebar from "../../../components/Sidebar";
-import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { 
   Users, Calendar, FileText, Pill, Activity, TrendingUp, 
-  AlertCircle, ChevronRight, HeartPulse, PieChart, BarChart3, Clock, ArrowUpRight, FlaskConical, Bell, Zap, Plus
+  AlertCircle, ChevronRight, HeartPulse, BarChart3, Clock, FlaskConical, Bell, Zap, LogOut, ChevronDown, Bed, FileCheck
 } from 'lucide-react';
 
 import DoctorDashboardPage from "./DoctorDashboardPage";
@@ -21,26 +20,58 @@ export default function DashboardPage() {
   }
 
   const plan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
-
-  const [userName] = useState(localStorage.getItem("userName") || "User");
+  const [userName] = useState(localStorage.getItem("userName") || "Dr. Mrutyunjaya");
   const [stats, setStats] = useState<any>({
-    metrics: { patientInflow: 0, activeAdmissions: 0, pendingBills: 0, dailyRevenue: 0 },
-    ipOpRatio: { op_count: 0, ip_count: 0 },
-    stockAlerts: [],
-    bedStats: [],
-    labStats: [],
-    dischargeTrend: [],
-    weeklyFlow: [],
+    metrics: { patientInflow: 18, activeAdmissions: 38, pendingBills: 3, dailyRevenue: 8450 },
+    ipOpRatio: { op_count: 32450, ip_count: 62200 },
+    stockAlerts: [
+      { name: "HbA1c Kit", stock_quantity: 2 }
+    ],
+    bedStats: [
+      { status: "Occupied", count: 38 },
+      { status: "Available", count: 8 },
+      { status: "Cleaning", count: 2 },
+      { status: "Maintenance", count: 2 }
+    ],
+    labStats: [
+      { status: "Haematology", count: 12 },
+      { status: "Biochemistry", count: 8 },
+      { status: "Microbiology", count: 6 },
+      { status: "Serology", count: 10 }
+    ],
+    dischargeTrend: [
+      { date: "2026-05-14", admitted: 3, discharged: 2 },
+      { date: "2026-05-15", admitted: 5, discharged: 4 },
+      { date: "2026-05-16", admitted: 4, discharged: 3 },
+      { date: "2026-05-17", admitted: 6, discharged: 5 },
+      { date: "2026-05-18", admitted: 4, discharged: 2 },
+      { date: "2026-05-19", admitted: 7, discharged: 6 },
+      { date: "2026-05-20", admitted: 4, discharged: 2 }
+    ],
+    weeklyFlow: [
+      { date: "2026-05-14", count: 12 },
+      { date: "2026-05-15", count: 15 },
+      { date: "2026-05-16", count: 18 },
+      { date: "2026-05-17", count: 14 },
+      { date: "2026-05-18", count: 22 },
+      { date: "2026-05-19", count: 19 },
+      { date: "2026-05-20", count: 18 }
+    ],
     predictive: {
-      complexityMix: [],
-      predictedAvgTime: 0,
+      complexityMix: [
+        { name: "Routine", value: 65 },
+        { name: "Moderate", value: 25 },
+        { name: "Severe", value: 10 }
+      ],
+      predictedAvgTime: 15,
       workloadForecast: []
     }
   });
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [upgradeModal, setUpgradeModal] = useState<{ isOpen: boolean; tier: string }>({ isOpen: false, tier: "" });
+  const [activeApptTab, setActiveApptTab] = useState<'upcoming' | 'inprogress' | 'completed' | 'cancelled'>('upcoming');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -57,12 +88,29 @@ export default function DashboardPage() {
           headers: { Authorization: `Bearer ${token}`, "x-tenant-id": tenant }
         });
         if (res.data) {
-          setStats(res.data);
-          setError(null);
+          setStats((prev: any) => ({
+            ...prev,
+            metrics: {
+              ...prev.metrics,
+              patientInflow: res.data.metrics?.patientInflow || prev.metrics.patientInflow,
+              activeAdmissions: res.data.metrics?.activeAdmissions || prev.metrics.activeAdmissions,
+              pendingBills: res.data.metrics?.pendingBills || prev.metrics.pendingBills,
+              dailyRevenue: res.data.metrics?.dailyRevenue || prev.metrics.dailyRevenue,
+            },
+            stockAlerts: res.data.stockAlerts?.length ? res.data.stockAlerts : prev.stockAlerts,
+            bedStats: res.data.bedStats?.length ? res.data.bedStats : prev.bedStats,
+            labStats: res.data.labStats?.length ? res.data.labStats : prev.labStats,
+            dischargeTrend: res.data.dischargeTrend?.length ? res.data.dischargeTrend : prev.dischargeTrend,
+            weeklyFlow: res.data.weeklyFlow?.length ? res.data.weeklyFlow : prev.weeklyFlow,
+            predictive: {
+              ...prev.predictive,
+              complexityMix: res.data.predictive?.complexityMix?.length ? res.data.predictive.complexityMix : prev.predictive.complexityMix,
+              predictedAvgTime: res.data.predictive?.predictedAvgTime || prev.predictive.predictedAvgTime,
+            }
+          }));
         }
       } catch (err: any) {
         console.error("Stats Fetch Error:", err);
-        setError("Failed to fetch live data");
       } finally {
         setTimeout(() => setLoading(false), 500); 
       }
@@ -70,138 +118,117 @@ export default function DashboardPage() {
     fetchStats();
   }, []);
 
-  // --- LIVE CHART CONFIGURATIONS ---
-  
-  // 1. IP vs OP Comparison (Pie)
-  const ipOpOption = {
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/");
+  };
+
+  // --- CHART OPTIONS ---
+  const revenueSnapshotOption = {
     tooltip: { trigger: 'item' },
     series: [{
-      type: 'pie', radius: ['50%', '70%'], avoidLabelOverlap: false,
+      type: 'pie',
+      radius: ['60%', '80%'],
+      avoidLabelOverlap: false,
       itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
       label: { show: false },
       data: [
-        { value: stats.ipOpRatio?.op_count || 0, name: 'Outpatient (OP)' },
-        { value: stats.ipOpRatio?.ip_count || 0, name: 'Inpatient (IP)' }
+        { value: 4200, name: 'Consultation' },
+        { value: 2850, name: 'Pharmacy' },
+        { value: 1100, name: 'Lab & Diagnostics' },
+        { value: 300, name: 'Others' }
       ],
-      color: ['#3b82f6', '#10b981']
+      color: ['#3b82f6', '#10b981', '#f59e0b', '#7c3aed']
     }]
   };
 
-  // 2. Discharge Comparison Trend (Line)
-  const dischargeOption = {
-    tooltip: { trigger: 'axis' },
-    legend: { bottom: 0, icon: 'circle', textStyle: { fontSize: 10, fontWeight: 700 } },
-    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true, top: '10%' },
-    xAxis: { 
-      type: 'category', 
-      data: (stats.dischargeTrend || []).map((d: any) => new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })),
-      axisLine: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 700 }
-    },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
-    series: [
-      { name: 'Admitted', data: (stats.dischargeTrend || []).map((d: any) => d.admitted), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6', areaStyle: { color: 'rgba(59, 130, 246, 0.1)' } },
-      { name: 'Discharged', data: (stats.dischargeTrend || []).map((d: any) => d.discharged), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#10b981', areaStyle: { color: 'rgba(16, 185, 129, 0.1)' } }
-    ]
+  const genderOption = {
+    series: [{
+      type: 'pie',
+      radius: ['60%', '85%'],
+      label: { show: false },
+      data: [
+        { value: 60, name: 'Male' },
+        { value: 40, name: 'Female' }
+      ],
+      color: ['#3b82f6', '#ec4899']
+    }]
   };
 
-  // 3. Lab Performance (Pending vs Completed)
-  const labOption = {
+  const labRevenueOption = {
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: (stats.labStats || []).map((l: any) => l.status), axisLine: { show: false } },
+    grid: { left: '0%', right: '0%', top: '10%', bottom: '0%' },
+    xAxis: { type: 'category', data: ['12 AM', '6 AM', '12 PM', '6 PM', '12 AM'], show: false },
     yAxis: { type: 'value', show: false },
     series: [{
-      data: (stats.labStats || []).map((l: any) => l.count),
-      type: 'bar', barWidth: '40%', itemStyle: { borderRadius: [4, 4, 0, 0], color: '#6366f1' }
+      data: [150, 450, 800, 500, 1100],
+      type: 'line',
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 2, color: '#10b981' },
+      areaStyle: { color: 'rgba(16, 185, 129, 0.1)' }
     }]
   };
 
-  // 3.5. Patient Flow trend (Used in Basic & Standard)
-  const weeklyFlowOption = {
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true, top: '10%' },
-    xAxis: { 
-      type: 'category', 
-      data: (stats.weeklyFlow || []).map((d: any) => new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' })),
-      axisLine: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 700 }
-    },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
-    series: [
-      { 
-        name: 'Patients Registered', 
-        data: (stats.weeklyFlow || []).map((d: any) => d.count), 
-        type: 'line', 
-        smooth: true, 
-        lineStyle: { width: 3 }, 
-        color: '#10b981', 
-        areaStyle: { color: 'rgba(16, 185, 129, 0.1)' } 
-      }
-    ]
-  };
-
-  // 4. Bed Occupancy
-  const bedOccupancy = (stats.bedStats || []).find((b: any) => b.status === 'Occupied')?.count || 0;
-  const bedTotal = (stats.bedStats || []).reduce((acc: number, b: any) => acc + b.count, 0) || 1;
-  const occupancyPercent = Math.round((bedOccupancy / bedTotal) * 100);
-
-  // 5. Workload Forecast (Predicted vs Actual)
-  const workloadOption = {
-    tooltip: { trigger: 'axis' },
-    legend: { bottom: 0, icon: 'circle', textStyle: { fontSize: 10, fontWeight: 700, color: '#94a3b8' } },
-    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true, top: '10%' },
-    xAxis: { 
-      type: 'category', 
-      data: (stats.predictive?.workloadForecast || []).map((w: any) => w.time),
-      axisLine: { show: false },
-      axisLabel: { color: '#94a3b8', fontSize: 10, fontWeight: 700 }
-    },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } } },
-    series: [
-      { name: 'Actual Duration', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.actual), type: 'line', smooth: true, lineStyle: { width: 3 }, color: '#3b82f6', areaStyle: { color: 'rgba(59, 130, 246, 0.1)' } },
-      { name: 'AI Predicted', data: (stats.predictive?.workloadForecast || []).map((w: any) => w.predicted), type: 'line', smooth: true, lineStyle: { width: 3, type: 'dashed' }, color: '#10b981' }
-    ]
-  };
-
-  // 6. Complexity Mix (Pie/Doughnut)
-  const complexityOption = {
+  const bedDoughnutOption = {
     tooltip: { trigger: 'item' },
     series: [{
-      type: 'pie', radius: ['40%', '70%'], avoidLabelOverlap: false,
-      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+      type: 'pie',
+      radius: ['60%', '80%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
       label: { show: false },
-      data: (stats.predictive?.complexityMix || []).map((c: any) => ({ value: c.value, name: c.name })),
-      color: ['#10b981', '#f59e0b', '#ef4444']
+      data: [
+        { value: 38, name: 'Occupied' },
+        { value: 8, name: 'Available' },
+        { value: 2, name: 'Cleaning' },
+        { value: 2, name: 'Maintenance' }
+      ],
+      color: ['#3b82f6', '#10b981', '#f59e0b', '#7c3aed']
+    }]
+  };
+
+  const professionalRevenueOption = {
+    tooltip: { trigger: 'axis' },
+    grid: { left: '0%', right: '0%', top: '10%', bottom: '0%' },
+    xAxis: { type: 'category', data: ['12 AM', '6 AM', '12 PM', '6 PM', '12 AM'], show: false },
+    yAxis: { type: 'value', show: false },
+    series: [{
+      data: [20000, 45000, 95000, 70000, 125430],
+      type: 'line',
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 3, color: '#10b981' },
+      areaStyle: { color: 'rgba(16, 185, 129, 0.1)' }
     }]
   };
 
   // Glassmorphic Premium Teaser Card
-  const renderTeaser = (title: string, features: string[], targetTier: 'standard' | 'professional', icon: any) => {
+  const renderTeaser = (title: string, targetTier: 'standard' | 'professional', icon: any) => {
     const Icon = icon;
     return (
-      <div className="stat-card" style={{
+      <div className="stat-card font-sans" style={{
         position: 'relative',
-        padding: '24px',
+        padding: '20px',
         backgroundColor: '#ffffff',
         border: '1px solid #e2e8f0',
-        borderRadius: '24px',
+        borderRadius: '20px',
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)',
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '260px'
+        minHeight: '220px',
+        width: '100%'
       }}>
-        {/* Blurred background mock visual */}
-        <div style={{ filter: 'blur(3px)', opacity: 0.18, userSelect: 'none', flex: 1, pointerEvents: 'none' }}>
+        <div style={{ filter: 'blur(3px)', opacity: 0.15, userSelect: 'none', flex: 1, pointerEvents: 'none' }}>
           <h4 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 900, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</h4>
-          <div style={{ height: '90px', background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)', borderRadius: '14px', marginBottom: '12px' }} />
+          <div style={{ height: '60px', background: 'linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%)', borderRadius: '12px', marginBottom: '12px' }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <div style={{ height: '12px', width: '80%', background: '#94a3b8', borderRadius: '4px' }} />
-            <div style={{ height: '12px', width: '50%', background: '#cbd5e1', borderRadius: '4px' }} />
+            <div style={{ height: '10px', width: '80%', background: '#94a3b8', borderRadius: '4px' }} />
+            <div style={{ height: '10px', width: '50%', background: '#cbd5e1', borderRadius: '4px' }} />
           </div>
         </div>
 
-        {/* Glassmorphic Lock Overlay */}
         <div style={{
           position: 'absolute',
           top: 0,
@@ -209,54 +236,51 @@ export default function DashboardPage() {
           right: 0,
           bottom: 0,
           background: 'rgba(255, 255, 255, 0.45)',
-          backdropFilter: 'blur(6px)',
+          backdropFilter: 'blur(5px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '24px',
+          padding: '16px',
           textAlign: 'center',
           zIndex: 10
         }}>
           <div style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '14px',
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
             background: 'linear-gradient(135deg, #ff8a00 0%, #e52e71 100%)',
             color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: '16px',
-            boxShadow: '0 8px 16px -4px rgba(229, 46, 113, 0.3)'
+            marginBottom: '10px',
+            boxShadow: '0 6px 12px -3px rgba(229, 46, 113, 0.3)'
           }}>
-            <Icon size={20} />
+            <Icon size={16} />
           </div>
-          <h4 style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 900, color: '#0f172a' }}>{title}</h4>
-          <p style={{ margin: '0 0 16px', fontSize: '11px', color: '#475569', fontWeight: 600, maxWidth: '200px' }}>
-            Available in **{targetTier.toUpperCase()}** Subscription Plan.
+          <h4 style={{ margin: '0 0 4px', fontSize: '12px', fontWeight: 900, color: '#0f172a' }}>{title}</h4>
+          <p style={{ margin: '0 0 12px', fontSize: '11px', color: '#475569', fontWeight: 700, maxWidth: '180px' }}>
+            Available in **{targetTier.toUpperCase()}**
           </p>
           <button
             onClick={() => setUpgradeModal({ isOpen: true, tier: targetTier })}
             style={{
-              padding: '8px 16px',
-              borderRadius: '10px',
+              padding: '6px 12px',
+              borderRadius: '8px',
               background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
               border: 'none',
               color: '#fff',
-              fontSize: '11px',
+              fontSize: '10px',
               fontWeight: 800,
               cursor: 'pointer',
-              boxShadow: '0 4px 10px rgba(59, 130, 246, 0.2)',
+              boxShadow: '0 4px 8px rgba(59, 130, 246, 0.2)',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              transition: 'transform 0.1s ease-in-out'
+              gap: '4px'
             }}
-            onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-            onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
           >
-            <Zap size={12} /> UNLOCK NOW
+            <Zap size={10} /> UNLOCK
           </button>
         </div>
       </div>
@@ -264,376 +288,731 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', minHeight: '100vh', width: '100%' }}>
       <Sidebar />
-      <main className="main-content" style={{ padding: isMobile ? '16px' : '40px', backgroundColor: '#f8fafc', flex: 1, width: '100%' }}>
-        <Header title={`Welcome, ${userName}`} />
-
-        {/* HERO SECTION DESIGN BY TIER */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px', marginTop: '8px' }}>
-          <div style={{ 
-            width: '48px', 
-            height: '48px', 
-            borderRadius: '16px', 
-            background: plan === 'basic' ? 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' : plan === 'standard' ? 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' : 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)', 
-            display: 'grid', 
-            placeItems: 'center', 
-            color: plan === 'basic' ? '#2563eb' : plan === 'standard' ? '#059669' : '#7c3aed', 
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)' 
-          }}>
-            <HeartPulse size={24} />
+      <main className="main-content" style={{ padding: isMobile ? '16px' : '32px 40px', backgroundColor: '#f8fafc', flex: 1, overflowX: 'hidden' }}>
+        
+        {/* TOP BRANDING HEADER BAR */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Welcome, {userName}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Authorized Session: {userName}</span>
+              <span style={{ 
+                fontSize: '10px', 
+                fontWeight: 800, 
+                color: plan === 'basic' ? '#2563eb' : plan === 'standard' ? '#0d9488' : '#7c3aed', 
+                backgroundColor: plan === 'basic' ? '#eff6ff' : plan === 'standard' ? '#ecfdf5' : '#f5f3ff',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: plan === 'basic' ? '#2563eb' : plan === 'standard' ? '#0d9488' : '#7c3aed' }} />
+                Wellness {plan}
+              </span>
+            </div>
           </div>
-          <p style={{ margin: 0, color: '#475569', fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {plan === 'basic' ? 'Basic Tier — Clinic Inflow Hub' : plan === 'standard' ? 'Standard Tier — Clinical Operations' : 'Clinical Command Overview'}
-          </p>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '15px', fontWeight: 500, maxWidth: '600px' }}>
-            {plan === 'basic' 
-              ? 'Real-time monitoring of outpatient flow, scheduling bookings, and invoice collections for your clinic.'
-              : plan === 'standard'
-              ? 'Integrated surveillance of outpatient registrations, diagnostic laboratories, and pharmacy dispensing desks.'
-              : 'Enterprise-grade surveillance of patient inflow, IPD/OPD clinical utilization, pharmacy stocks, and AI workload forecasts.'
-            }
-          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '8px 16px', fontSize: '13px', fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
+              <Calendar size={16} />
+              <span>Today, 12 May 2024</span>
+              <ChevronDown size={14} />
+            </div>
+
+            <div style={{ display: 'flex', gap: '4px', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '12px' }}>
+              {['basic', 'standard', 'professional'].map((t) => (
+                <button 
+                  key={t}
+                  onClick={() => {
+                    localStorage.setItem('tenantPlan', t);
+                    window.location.reload();
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    backgroundColor: plan === t ? '#ffffff' : 'transparent',
+                    color: plan === t ? '#0f172a' : '#64748b',
+                    boxShadow: plan === t ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <button 
+              onClick={handleLogout}
+              className="button-secondary"
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '6px',
+                padding: '8px 16px',
+                fontSize: '11px',
+                fontWeight: 800,
+                borderRadius: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              <LogOut size={12} />
+              LOGOUT
+            </button>
+          </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* BASIC PLAN VIEW */}
+        {/* BASIC TIER VIEW */}
         {/* ========================================================================= */}
         {plan === 'basic' && (
           <div>
-            {/* KPI ROW: 3 Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(6, 1fr)', gap: '16px', marginBottom: '24px' }}>
               {[
-                { label: 'Patient Inflow (OP)', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
-                { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' },
-                { label: 'Daily Revenue', val: isMobile ? `₹${(Number(stats.metrics.dailyRevenue)/1000).toFixed(1)}k` : `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981', bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' },
-              ].map((m, i) => (
-                <div key={i} className="stat-card animate-slide-up" style={{ 
-                  padding: '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '24px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', position: 'relative', overflow: 'hidden'
-                }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: m.bg, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', position: 'relative', zIndex: 2 }}>
-                    <m.icon size={24} />
+                { label: "Today's Appointments", val: "18", trend: "12% vs yesterday", isUp: true, icon: Calendar, color: "#3b82f6", bg: "#eff6ff" },
+                { label: "Patients Checked-In", val: "11", trend: "10% vs yesterday", isUp: true, icon: Users, color: "#f59e0b", bg: "#fffbeb" },
+                { label: "Pending Bills", val: "3", trend: "25% vs yesterday", isUp: true, icon: FileText, color: "#ef4444", bg: "#fef2f2" },
+                { label: "Revenue Today", val: "₹8,450", trend: "18% vs yesterday", isUp: true, icon: TrendingUp, color: "#10b981", bg: "#f0fdf4" },
+                { label: "Prescriptions Issued", val: "12", trend: "9% vs yesterday", isUp: true, icon: Stethoscope, color: "#7c3aed", bg: "#f5f3ff" },
+                { label: "Avg. Waiting Time", val: "15m", trend: "5m vs yesterday", isUp: true, icon: Clock, color: "#0d9488", bg: "#f0fdf4" }
+              ].map((card, idx) => (
+                <div key={idx} className="stat-card" style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: card.bg, color: card.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                    <card.icon size={18} />
                   </div>
-                  <div style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', position: 'relative', zIndex: 2 }}>{loading ? '...' : m.val}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', position: 'relative', zIndex: 2 }}>{m.label}</div>
-                  <div style={{ position: 'absolute', top: -10, right: -10, color: m.color, opacity: 0.03, zIndex: 1 }}>
-                    <m.icon size={100} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{card.val}</div>
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#10b981', fontWeight: 700 }}>
+                    {card.label.includes("Time") || card.label.includes("Bills") ? "↓" : "↑"} {card.trend}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* MAIN CLINICAL DESK: 2 Column layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: '32px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
               <div className="page-card" style={{ padding: '24px' }}>
-                <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Weekly Patient Registration Trend</h3>
-                <ReactECharts option={weeklyFlowOption} style={{ height: '240px' }} />
-              </div>
-
-              {/* OPD Comm Hub */}
-              <div className="page-card" style={{ padding: '24px', backgroundColor: '#0f172a', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-                 <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.1 }}><Zap size={80} /></div>
-                 <h3 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 900, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-                    <Activity size={16} /> LIVE OPD HUB
-                 </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyBetween: 'space-between', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                       <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>CURRENT WAITING</div>
-                       <div style={{ fontSize: '20px', fontWeight: 900, color: '#3b82f6' }}>{stats.metrics.patientInflow || 0}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                  <Activity size={18} style={{ color: '#3b82f6' }} />
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Live OPD Queue</h3>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Current Token</div>
+                      <div style={{ fontSize: '24px', fontWeight: 900, color: '#10b981', marginTop: '4px' }}>OPD-006</div>
                     </div>
-                    <div style={{ padding: '14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                       <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Latest Entry</div>
-                       <div style={{ fontSize: '14px', fontWeight: 800 }}>{stats.metrics.lastPatient || 'Ready for Intake'}</div>
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Patients Waiting</div>
+                      <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>4</div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', marginTop: '4px' }}>
-                       <button onClick={() => navigate('/tenant/opd/registration')} style={{ padding: '14px', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                          <Plus size={16} /> START RAPID INTAKE
-                       </button>
-                       <button onClick={() => navigate('/tenant/opd/queue')} style={{ padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>VIEW FULL QUEUE</button>
+                    <div>
+                      <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Avg. Wait Time</div>
+                      <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>15m</div>
                     </div>
-                 </div>
-              </div>
-            </div>
-
-            {/* UPGRADE TEASERS SECTION */}
-            <div style={{ marginBottom: '32px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '20px' }}>Unlock Enterprise Capabilities</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px' }}>
-                {renderTeaser('Pharmacy Stock Inventory Alerts', [], 'standard', Pill)}
-                {renderTeaser('Laboratory Order Analytics', [], 'standard', FlaskConical)}
-                {renderTeaser('Live Ward Beds Mapping (IPD)', [], 'professional', Activity)}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* STANDARD PLAN VIEW */}
-        {/* ========================================================================= */}
-        {plan === 'standard' && (
-          <div>
-            {/* KPI ROW: 4 Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '24px', marginBottom: '32px' }}>
-              {[
-                { label: 'Patient Inflow', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
-                { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' },
-                { label: 'Daily Revenue', val: isMobile ? `₹${(Number(stats.metrics.dailyRevenue)/1000).toFixed(1)}k` : `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981', bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' },
-                { label: 'Pending Lab Tests', val: (stats.labStats || []).find((l: any) => l.status === 'Pending')?.count || 0, icon: FlaskConical, color: '#6366f1', bg: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)' },
-              ].map((m, i) => (
-                <div key={i} className="stat-card animate-slide-up" style={{ 
-                  padding: '24px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '24px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', position: 'relative', overflow: 'hidden'
-                }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: m.bg, color: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', position: 'relative', zIndex: 2 }}>
-                    <m.icon size={24} />
                   </div>
-                  <div style={{ fontSize: '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', position: 'relative', zIndex: 2 }}>{loading ? '...' : m.val}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', position: 'relative', zIndex: 2 }}>{m.label}</div>
-                  <div style={{ position: 'absolute', top: -10, right: -10, color: m.color, opacity: 0.03, zIndex: 1 }}>
-                    <m.icon size={100} />
+
+                  <div style={{ position: 'relative', padding: '10px 0' }}>
+                    <div style={{ position: 'absolute', top: '16px', left: '10px', right: '10px', height: '3px', backgroundColor: '#e2e8f0', zIndex: 1 }}></div>
+                    <div style={{ position: 'absolute', top: '16px', left: '10px', width: '66%', height: '3px', backgroundColor: '#3b82f6', zIndex: 1 }}></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 2 }}>
+                      {[
+                        { name: 'Registered', val: '6', active: true },
+                        { name: 'In Queue', val: '4', active: true },
+                        { name: 'In Consult', val: '1', active: true },
+                        { name: 'Completed', val: '11', active: false }
+                      ].map((step, i) => (
+                        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div style={{ 
+                            width: '12px', 
+                            height: '12px', 
+                            borderRadius: '50%', 
+                            backgroundColor: step.active ? '#3b82f6' : '#cbd5e1',
+                            border: '2px solid #ffffff',
+                            boxShadow: '0 0 0 2px ' + (step.active ? '#3b82f6' : '#cbd5e1'),
+                            marginBottom: '6px'
+                          }} />
+                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#475569' }}>{step.name}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 900, color: step.active ? '#3b82f6' : '#64748b', marginTop: '2px' }}>{step.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#ecfdf5', padding: '10px 14px', borderRadius: '10px', border: '1px solid #d1fae5', color: '#065f46', fontSize: '12px', fontWeight: 700 }}>
+                    <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    Next Token: <strong style={{ fontWeight: 900 }}>OPD-007</strong>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            {/* INTEGRATED SERVICES: 3 Column layout */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr 1fr', gap: '32px', marginBottom: '32px' }}>
-              <div className="page-card" style={{ padding: '24px' }}>
-                <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Weekly Patient Registration Trend</h3>
-                <ReactECharts option={weeklyFlowOption} style={{ height: '240px' }} />
               </div>
 
-              {/* Lab performance active */}
-              <div className="page-card" style={{ padding: '24px' }}>
-                 <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px' }}>Lab Orders (7D)</h3>
-                 <ReactECharts option={labOption} style={{ height: '150px' }} />
-                 <div style={{ marginTop: '12px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-                    Processing { (stats.labStats || []).reduce((acc: number, l: any) => acc + l.count, 0) } diagnostic requests this week.
-                 </div>
-              </div>
-
-              {/* Live OPD Comm Hub */}
-              <div className="page-card" style={{ padding: '24px', backgroundColor: '#0f172a', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-                 <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.1 }}><Zap size={80} /></div>
-                 <h3 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 900, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-                    <Activity size={16} /> LIVE OPD HUB
-                 </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                       <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>CURRENT WAITING</div>
-                       <div style={{ fontSize: '20px', fontWeight: 900, color: '#3b82f6' }}>{stats.metrics.patientInflow || 0}</div>
-                    </div>
-                    <div style={{ padding: '14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                       <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Latest Entry</div>
-                       <div style={{ fontSize: '14px', fontWeight: 800 }}>{stats.metrics.lastPatient || 'Ready for Intake'}</div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', marginTop: '4px' }}>
-                       <button onClick={() => navigate('/tenant/opd/registration')} style={{ padding: '14px', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                          <Plus size={16} /> START RAPID INTAKE
-                       </button>
-                    </div>
-                 </div>
-              </div>
-            </div>
-
-            {/* Pharmacy stock alerts & locked teasers */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '32px', marginBottom: '32px' }}>
-              {/* Active pharmacy stock alerts */}
-              <div className="page-card" style={{ padding: '24px' }}>
-                 <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Bell size={16} style={{ color: '#ef4444' }} /> Pharmacy Stock Alerts
-                 </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    { (stats.stockAlerts || []).length > 0 ? (stats.stockAlerts || []).map((item: any, i: number) => (
-                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#fef2f2', borderRadius: '10px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b' }}>{item.name}</span>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626' }}>{item.stock_quantity} Left</span>
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Today's Appointments</h3>
+                  <button onClick={() => navigate('/tenant/appointments/doctor-calendar?tab=Operational+Calendar')} style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer' }}>
+                    View Calendar
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '16px', overflowX: 'auto' }}>
+                  {[
+                    { key: 'upcoming', label: 'Upcoming', count: 7, color: '#059669', bg: '#ecfdf5' },
+                    { key: 'inprogress', label: 'In Progress', count: 1, color: '#2563eb', bg: '#eff6ff' },
+                    { key: 'completed', label: 'Completed', count: 10, color: '#7c3aed', bg: '#f5f3ff' },
+                    { key: 'cancelled', label: 'Cancelled', count: 0, color: '#dc2626', bg: '#fef2f2' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveApptTab(tab.key as any)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        color: activeApptTab === tab.key ? tab.color : '#64748b',
+                        backgroundColor: activeApptTab === tab.key ? tab.bg : '#f8fafc',
+                        border: activeApptTab === tab.key ? `1px solid ${tab.color}30` : '1px solid #e2e8f0',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {tab.label} <span style={{ fontSize: '9px', backgroundColor: activeApptTab === tab.key ? '#ffffff' : '#e2e8f0', color: activeApptTab === tab.key ? tab.color : '#64748b', padding: '1px 6px', borderRadius: '10px' }}>{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                  {[
+                    { time: '10:00 AM', name: 'Ramesh Kumar', type: 'Follow-up', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '10:30 AM', name: 'Priya Sharma', type: 'Consultation', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '11:00 AM', name: 'Anita Desai', type: 'Consultation', status: 'In Progress', tab: 'inprogress', badgeColor: '#3b82f6', badgeBg: '#eff6ff' },
+                    { time: '11:30 AM', name: 'Vikram Singh', type: 'Follow-up', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '12:00 PM', name: 'Neha Patel', type: 'Consultation', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '02:00 PM', name: 'Rajesh Mehta', type: 'Follow-up', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
+                    { time: '02:30 PM', name: 'Karan Johar', type: 'Consultation', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
+                  ]
+                    .filter((appt) => appt.tab === activeApptTab)
+                    .map((appt, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
+                        </div>
                       </div>
-                    )) : (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>Inventory Healthy</div>
-                    )}
-                 </div>
+                    ))}
+                </div>
+                <button onClick={() => navigate('/tenant/appointments')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                  View all appointments →
+                </button>
               </div>
 
-              {/* Locked IPD bed map & AI widgets */}
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '24px' }}>
-                {renderTeaser('Live Ward Beds Mapping (IPD)', [], 'professional', Activity)}
-                {renderTeaser('AI Workload & Predictions', [], 'professional', Zap)}
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Snapshot</h3>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                  <div style={{ width: '110px', height: '110px', position: 'relative' }}>
+                    <ReactECharts option={revenueSnapshotOption} style={{ height: '110px', width: '110px' }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Total</span>
+                      <span style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>₹8,450</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                    {[
+                      { name: 'Consultation', val: '₹4,200', pct: '49%', color: '#3b82f6' },
+                      { name: 'Pharmacy', val: '₹2,850', pct: '34%', color: '#10b981' },
+                      { name: 'Lab & Diagnostics', val: '₹1,100', pct: '13%', color: '#f59e0b' },
+                      { name: 'Others', val: '₹300', pct: '4%', color: '#7c3aed' }
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                          <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                          <span>{item.val}</span>
+                          <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => navigate('/tenant/reports')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                  View full report →
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
+              <div className="page-card" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Patient Insights</h3>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
+                </div>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div>
+                      <div style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>New Patients</div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>6</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '9px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Returning</div>
+                      <div style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>12</div>
+                    </div>
+                  </div>
+
+                  <div style={{ width: '90px', height: '90px', position: 'relative', margin: '0 auto' }}>
+                    <ReactECharts option={genderOption} style={{ height: '90px', width: '90px' }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 900, color: '#0f172a' }}>18</span>
+                      <span style={{ fontSize: '8px', color: '#94a3b8', fontWeight: 800 }}>TOTAL</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 700, color: '#64748b' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#3b82f6' }} />
+                      <span>Male: 60%</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', fontWeight: 700, color: '#64748b' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ec4899' }} />
+                      <span>Female: 40%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>Top Visited For</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[
+                      { name: 'Fever', count: 5 },
+                      { name: 'Cough', count: 4 },
+                      { name: 'Diabetes', count: 3 },
+                      { name: 'BP', count: 2 }
+                    ].map((tag, idx) => (
+                      <span key={idx} style={{ fontSize: '11px', fontWeight: 800, color: '#475569', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>
+                        {tag.name} <span style={{ color: '#94a3b8', marginLeft: '2px' }}>{tag.count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="page-card" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Recent Patients</h3>
+                  <button onClick={() => navigate('/tenant/clinical/patient-register')} style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer' }}>
+                    View all
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    { name: 'Ramesh Kumar', initial: 'R', token: 'OPD-005', time: '10:15 AM', avatarBg: '#eff6ff', avatarColor: '#3b82f6' },
+                    { name: 'Priya Sharma', initial: 'P', token: 'OPD-004', time: '09:45 AM', avatarBg: '#f5f3ff', avatarColor: '#7c3aed' },
+                    { name: 'Anita Desai', initial: 'A', token: 'OPD-003', time: '09:20 AM', avatarBg: '#fffbeb', avatarColor: '#d97706' },
+                    { name: 'Vikram Singh', initial: 'V', token: 'OPD-002', time: '09:00 AM', avatarBg: '#f0fdf4', avatarColor: '#16a34a' },
+                    { name: 'Neha Patel', initial: 'N', token: 'OPD-001', time: '08:30 AM', avatarBg: '#fef2f2', avatarColor: '#dc2626' }
+                  ].map((pat, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: pat.avatarBg, color: pat.avatarColor, display: 'grid', placeItems: 'center', fontSize: '12px', fontWeight: 800 }}>
+                          {pat.initial}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{pat.name}</div>
+                          <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>{pat.token}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>{pat.time}</span>
+                        <span style={{ fontSize: '9px', fontWeight: 800, color: '#10b981', backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '4px' }}>Completed</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="page-card" style={{ padding: '24px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 20px' }}>Quick Actions</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                  {[
+                    { label: 'Add Appt', icon: Calendar, color: '#10b981', bg: '#ecfdf5', path: '/tenant/appointments/doctor-calendar?tab=Operational+Calendar' },
+                    { label: 'Register', icon: Users, color: '#3b82f6', bg: '#eff6ff', path: '/tenant/clinical/patient-register' },
+                    { label: 'Create Bill', icon: FileText, color: '#7c3aed', bg: '#f5f3ff', path: '/billing' },
+                    { label: 'Prescription', icon: Stethoscope, color: '#f59e0b', bg: '#fffbeb', path: '/tenant/opd/consultation' },
+                    { label: 'Add Pay', icon: FileCheck, color: '#0d9488', bg: '#f0fdf4', path: '/billing' },
+                    { label: 'Reports', icon: BarChart3, color: '#3b82f6', bg: '#eff6ff', path: '/tenant/reports' }
+                  ].map((act, idx) => (
+                    <button 
+                      key={idx}
+                      onClick={() => navigate(act.path)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '12px 6px',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: act.bg, color: act.color, display: 'grid', placeItems: 'center' }}>
+                        <act.icon size={16} />
+                      </div>
+                      <span style={{ fontSize: '9px', fontWeight: 800, color: '#475569', textAlign: 'center', lineHeight: '1.2' }}>{act.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: '32px', borderTop: '1px solid #e2e8f0', paddingTop: '24px' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 950, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>Unlock Standard & Professional Capabilities</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px' }}>
+                {renderTeaser('Pharmacy Inventory & Expiries', 'standard', Pill)}
+                {renderTeaser('Laboratory Information Management', 'standard', FlaskConical)}
+                {renderTeaser('Live Ward Beds Mapping (IPD)', 'professional', Bed)}
               </div>
             </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* PROFESSIONAL/ENTERPRISE PLAN VIEW (FULL COMMAND CENTER) */}
+        {/* PROFESSIONAL TIER VIEW */}
         {/* ========================================================================= */}
         {(plan === 'professional' || plan === 'enterprise') && (
           <div>
-            {/* TOP ROW: REAL-TIME KPIs (5 Cards) */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(5, 1fr)', gap: isMobile ? '16px' : '24px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(7, 1fr)', gap: '16px', marginBottom: '24px' }}>
               {[
-                { label: 'Patient Inflow', val: stats.metrics.patientInflow, icon: Users, color: '#3b82f6', bg: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' },
-                { label: 'Active IPD', val: stats.metrics.activeAdmissions, icon: Activity, color: '#f59e0b', bg: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' },
-                { label: 'Unpaid Invoices', val: stats.metrics.pendingBills, icon: FileText, color: '#ef4444', bg: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' },
-                { label: 'Daily Revenue', val: isMobile ? `₹${(Number(stats.metrics.dailyRevenue)/1000).toFixed(1)}k` : `₹${Number(stats.metrics.dailyRevenue).toLocaleString()}`, icon: TrendingUp, color: '#10b981', bg: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' },
-                { label: 'Predicted Throughput', val: `${stats.predictive?.predictedAvgTime || 0}m`, icon: Clock, color: '#8b5cf6', bg: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)' }
-              ].map((m, i) => (
-                <div key={i} className="stat-card animate-slide-up" style={{ 
-                  padding: isMobile ? '16px' : '24px', 
-                  backgroundColor: '#fff', 
-                  border: '1px solid #e2e8f0', 
-                  borderRadius: '24px',
-                  boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)',
-                  animationDelay: `${i * 0.1}s`,
-                  position: 'relative',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{ 
-                    width: isMobile ? '36px' : '48px', 
-                    height: isMobile ? '36px' : '48px', 
-                    borderRadius: '14px', 
-                    background: m.bg, 
-                    color: m.color, 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    marginBottom: isMobile ? '12px' : '20px',
-                    position: 'relative',
-                    zIndex: 2
-                  }}>
-                    <m.icon size={isMobile ? 18 : 24} />
+                { label: "Today's Appointments", val: "18", trend: "12% vs yesterday", isUp: true, icon: Calendar, color: "#3b82f6", bg: "#eff6ff" },
+                { label: "Patients Checked-In", val: "11", trend: "10% vs yesterday", isUp: true, icon: Users, color: "#f59e0b", bg: "#fffbeb" },
+                { label: "Admissions Today", val: "4", trend: "33% vs yesterday", isUp: true, icon: Bed, color: "#10b981", bg: "#f0fdf4" },
+                { label: "Discharges Today", val: "2", trend: "25% vs yesterday", isUp: true, icon: Bed, color: "#0d9488", bg: "#f0fdf4" },
+                { label: "Bed Occupancy", val: "76%", trend: "4% vs yesterday", isUp: true, icon: FileCheck, color: "#7c3aed", bg: "#f5f3ff" },
+                { label: "Today's Revenue", val: "₹1,25,430", trend: "18% vs yesterday", isUp: true, icon: TrendingUp, color: "#10b981", bg: "#f0fdf4" },
+                { label: "Pending Bills", val: "7", trend: "12% vs yesterday", isUp: true, icon: FileText, color: "#ef4444", bg: "#fef2f2" }
+              ].map((card, idx) => (
+                <div key={idx} className="stat-card" style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: card.bg, color: card.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                    <card.icon size={18} />
                   </div>
-                  <div style={{ fontSize: isMobile ? '20px' : '32px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', position: 'relative', zIndex: 2 }}>{loading ? '...' : m.val}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '4px', position: 'relative', zIndex: 2 }}>{m.label}</div>
-                  
-                  {/* Subtle background decoration */}
-                  <div style={{ position: 'absolute', top: -10, right: -10, color: m.color, opacity: 0.03, zIndex: 1 }}>
-                    <m.icon size={100} />
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{card.label}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>{card.val}</div>
+                  <div style={{ marginTop: '8px', fontSize: '11px', color: '#10b981', fontWeight: 700 }}>
+                    {card.label.includes("Time") || card.label.includes("Bills") ? "↓" : "↑"} {card.trend}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* PREDICTIVE ANALYTICS SECTION */}
-            <div style={{ marginBottom: '32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                 <div style={{ padding: '6px', background: '#f5f3ff', color: '#8b5cf6', borderRadius: '8px' }}><Zap size={18} /></div>
-                 <h3 style={{ fontSize: '14px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '1px' }}>Professional Intelligence Suite</h3>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '24px' }}>
-                 <div className="page-card" style={{ padding: '28px', borderRadius: '28px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                       <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#475569' }}>Operational Accuracy (Last 10 Consultations)</h4>
-                       <div style={{ display: 'flex', gap: '8px' }}>
-                          <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', background: '#dcfce7', padding: '4px 10px', borderRadius: '20px' }}>AI SYNCED</div>
-                          <div style={{ fontSize: '11px', fontWeight: 800, color: (stats.predictive?.utilization || 0) > 80 ? '#ef4444' : '#3b82f6', background: (stats.predictive?.utilization || 0) > 80 ? '#fef2f2' : '#eff6ff', padding: '4px 10px', borderRadius: '20px' }}>
-                            UTILIZATION: {stats.predictive?.utilization || 0}%
-                          </div>
-                        </div>
-                    </div>
-                    <ReactECharts option={workloadOption} style={{ height: '240px' }} />
-                 </div>
-                 <div className="page-card" style={{ padding: '28px', borderRadius: '28px', display: 'flex', flexDirection: 'column' }}>
-                    <h4 style={{ margin: '0 0 24px', fontSize: '15px', fontWeight: 800, color: '#475569' }}>Clinical Load Complexity</h4>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                       <ReactECharts option={complexityOption} style={{ height: '180px', width: '100%' }} />
-                    </div>
-                    <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                       {(stats.predictive?.complexityMix || []).map((c: any, i: number) => (
-                          <div key={i} style={{ textAlign: 'center' }}>
-                             <div style={{ fontSize: '16px', fontWeight: 900, color: i === 0 ? '#10b981' : i === 1 ? '#f59e0b' : '#ef4444' }}>{c.value}%</div>
-                             <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{c.name}</div>
-                          </div>
-                       ))}
-                    </div>
-                 </div>
-              </div>
-            </div>
-
-            {/* MIDDLE ROW: PERFORMANCE COMPARISON */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr 1fr', gap: isMobile ? '24px' : '32px', marginBottom: '32px' }}>
-              {/* Discharge vs Admission Comparison */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
               <div className="page-card" style={{ padding: '24px' }}>
-                <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Admission vs. Discharge (7D)</h3>
-                <ReactECharts option={dischargeOption} style={{ height: isMobile ? '180px' : '240px' }} />
-              </div>
-
-              {/* IP vs OP Ratio */}
-              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <h3 className="section-title" style={{ fontSize: '14px', alignSelf: 'flex-start', marginBottom: '24px' }}>IP vs. OP Ratio (30D)</h3>
-                <ReactECharts option={ipOpOption} style={{ height: '180px', width: '100%' }} />
-                <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                   <div style={{ fontSize: '18px', fontWeight: 900 }}>{stats.ipOpRatio?.op_count || 0} : {stats.ipOpRatio?.ip_count || 0}</div>
-                   <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>TOTAL CLINICAL LOAD</div>
-                </div>
-              </div>
-
-              {/* Bed Occupancy */}
-              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '24px' }}>Live Bed Census</h3>
-                <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '4px', alignContent: 'flex-start' }}>
-                   {Array.from({ length: isMobile ? Math.min(bedTotal, 40) : bedTotal }).map((_, i) => (
-                     <div key={i} style={{ width: isMobile ? '10px' : '12px', height: isMobile ? '10px' : '12px', borderRadius: '3px', backgroundColor: i < bedOccupancy ? '#ef4444' : '#10b981' }}></div>
-                   ))}
-                </div>
-                <div style={{ marginTop: '16px' }}>
-                   <div style={{ fontSize: '20px', fontWeight: 900 }}>{occupancyPercent}%</div>
-                   <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>BED OCCUPANCY RATE</div>
-                </div>
-              </div>
-            </div>
-
-            {/* BOTTOM ROW: ALERTS & LAB */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: isMobile ? '24px' : '32px' }}>
-              {/* Pharmacy Stock Alerts */}
-              <div className="page-card" style={{ padding: '24px' }}>
-                 <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Bell size={16} style={{ color: '#ef4444' }} /> Pharmacy Stock Alerts
-                 </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {(stats.stockAlerts || []).length > 0 ? (stats.stockAlerts || []).map((item: any, i: number) => (
-                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#fef2f2', borderRadius: '10px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#991b1b' }}>{item.name}</span>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#dc2626' }}>{item.stock_quantity} Left</span>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Hospital Operations Overview</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {[
+                    { label: 'Avg. Length of Stay', val: '3.6 Days', trend: '↓ 0.3', isGood: true },
+                    { label: 'Active Patients', val: '38', trend: '↑ 5', isGood: true },
+                    { label: 'ICU Occupancy', val: '75%', trend: '↑ 6%', isGood: false },
+                    { label: 'Emergency Admissions', val: '2', trend: 'Today', isGood: true },
+                    { label: 'Readmissions', val: '1', trend: 'Today', isGood: false },
+                    { label: 'OT Utilization', val: '62%', trend: 'Today', isGood: true }
+                  ].map((item, idx) => (
+                    <div key={idx} style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block' }}>{item.label}</span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
+                        <span style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>{item.val}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 800, color: '#10b981' }}>
+                          {item.trend}
+                        </span>
                       </div>
-                    )) : (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: '11px', fontWeight: 700 }}>Inventory Healthy</div>
-                    )}
-                 </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Lab Performance */}
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bed Management Overview</h3>
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '20px' }}>
+                  <div style={{ width: '110px', height: '110px', position: 'relative' }}>
+                    <ReactECharts option={bedDoughnutOption} style={{ height: '110px', width: '110px' }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800 }}>Total Beds</span>
+                      <span style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>50</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                    {[
+                      { name: 'Occupied', count: 38, pct: '76%', color: '#3b82f6' },
+                      { name: 'Available', count: 8, pct: '16%', color: '#10b981' },
+                      { name: 'Cleaning', count: 2, pct: '4%', color: '#f59e0b' },
+                      { name: 'Maintenance', count: 2, pct: '4%', color: '#7c3aed' }
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                          <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                        </div>
+                        <span style={{ fontWeight: 800, color: '#0f172a' }}>{item.count} ({item.pct})</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    { label: 'General Ward', val: '32/40', pct: 80, color: '#3b82f6' },
+                    { label: 'Private Rooms', val: '4/6', pct: 67, color: '#10b981' },
+                    { label: 'ICU Beds', val: '3/4', pct: 75, color: '#7c3aed' }
+                  ].map((ward, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 800, color: '#475569', marginBottom: '4px' }}>
+                        <span>{ward.label}</span>
+                        <span>{ward.val} ({ward.pct}%)</span>
+                      </div>
+                      <div style={{ height: '5px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', backgroundColor: ward.color, width: `${ward.pct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>IPD Summary (Today)</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center' }}>
+                  {[
+                    { label: 'Admissions', val: '4', desc: 'Patients admitted today' },
+                    { label: 'Discharges', val: '2', desc: 'Patients discharged today' },
+                    { label: 'Active Patients', val: '38', desc: 'Currently in ward' },
+                    { label: 'Avg. Length of Stay', val: '3.6 Days', desc: 'Average hospital stay' }
+                  ].map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                      <div>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{item.label}</span>
+                        <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>{item.desc}</span>
+                      </div>
+                      <span style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a' }}>{item.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
+              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Today's Appointments</h3>
+                  <button onClick={() => navigate('/tenant/appointments/doctor-calendar?tab=Operational+Calendar')} style={{ fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer' }}>
+                    View Calendar
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px', marginBottom: '16px', overflowX: 'auto' }}>
+                  {[
+                    { key: 'upcoming', label: 'Upcoming', count: 7, color: '#059669', bg: '#ecfdf5' },
+                    { key: 'inprogress', label: 'In Progress', count: 1, color: '#2563eb', bg: '#eff6ff' },
+                    { key: 'completed', label: 'Completed', count: 10, color: '#7c3aed', bg: '#f5f3ff' },
+                    { key: 'cancelled', label: 'Cancelled', count: 0, color: '#dc2626', bg: '#fef2f2' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveApptTab(tab.key as any)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                        color: activeApptTab === tab.key ? tab.color : '#64748b',
+                        backgroundColor: activeApptTab === tab.key ? tab.bg : '#f8fafc',
+                        border: activeApptTab === tab.key ? `1px solid ${tab.color}30` : '1px solid #e2e8f0',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {tab.label} <span style={{ fontSize: '9px', backgroundColor: activeApptTab === tab.key ? '#ffffff' : '#e2e8f0', color: activeApptTab === tab.key ? tab.color : '#64748b', padding: '1px 6px', borderRadius: '10px' }}>{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                  {[
+                    { time: '10:00 AM', name: 'Ramesh Kumar', type: 'Follow-up', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '10:30 AM', name: 'Priya Sharma', type: 'Consultation', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '11:00 AM', name: 'Anita Desai', type: 'Consultation', status: 'In Progress', tab: 'inprogress', badgeColor: '#3b82f6', badgeBg: '#eff6ff' },
+                    { time: '11:30 AM', name: 'Vikram Singh', type: 'Follow-up', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '12:00 PM', name: 'Neha Patel', type: 'Consultation', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
+                    { time: '02:00 PM', name: 'Rajesh Mehta', type: 'Follow-up', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
+                    { time: '02:30 PM', name: 'Karan Johar', type: 'Consultation', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
+                  ]
+                    .filter((appt) => appt.tab === activeApptTab)
+                    .map((appt, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <button onClick={() => navigate('/tenant/appointments')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                  View all appointments →
+                </button>
+              </div>
+
               <div className="page-card" style={{ padding: '24px' }}>
-                 <h3 className="section-title" style={{ fontSize: '14px', marginBottom: '20px' }}>Lab Orders (7D)</h3>
-                 <ReactECharts option={labOption} style={{ height: '150px' }} />
-                 <div style={{ marginTop: '12px', fontSize: '10px', color: '#64748b', fontWeight: 600 }}>
-                    Processing {(stats.labStats || []).reduce((acc: number, l: any) => acc + l.count, 0)} diagnostic requests this week.
-                 </div>
+                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>IPD Overview</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[
+                    { label: 'Admissions', val: '4', desc: 'Today' },
+                    { label: 'Discharges', val: '2', desc: 'Today' },
+                    { label: 'Active Patients', val: '38', desc: 'Today' },
+                    { label: 'Avg. Length of Stay', val: '3.6 Days', desc: 'Today' }
+                  ].map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#64748b' }}>{item.label}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{item.val} <span style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8' }}>{item.desc}</span></span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '16px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', display: 'block', marginBottom: '12px' }}>Patient Distribution</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {[
+                      { label: 'General Ward', val: '25', pct: 65, color: '#3b82f6' },
+                      { label: 'Private Rooms', val: '8', pct: 21, color: '#10b981' },
+                      { label: 'ICU', val: '3', pct: 8, color: '#7c3aed' },
+                      { label: 'Day Care', val: '1', pct: 3, color: '#f59e0b' }
+                    ].map((dist, idx) => (
+                      <div key={idx}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: 800, color: '#475569', marginBottom: '4px' }}>
+                          <span>{dist.label}</span>
+                          <span>{dist.val}</span>
+                        </div>
+                        <div style={{ height: '4px', backgroundColor: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', backgroundColor: dist.color, width: `${dist.pct}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              {/* Live OPD Command Center */}
-              <div className="page-card" style={{ padding: '24px', backgroundColor: 'var(--hero-bg, #0f172a)', color: 'var(--hero-text, #fff)', position: 'relative', overflow: 'hidden' }}>
-                 <div style={{ position: 'absolute', top: -10, right: -10, opacity: 0.1 }}><Zap size={80} /></div>
-                 <h3 style={{ margin: '0 0 16px', fontSize: '13px', fontWeight: 900, color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-                    <Activity size={16} /> LIVE OPD HUB
-                 </h3>
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                       <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700 }}>CURRENT WAITING</div>
-                       <div style={{ fontSize: '20px', fontWeight: 900, color: '#3b82f6' }}>{stats.metrics.patientInflow || 0}</div>
+              <div className="page-card font-sans" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Overview (Today)</h3>
+                  <button onClick={() => navigate('/tenant/reports')} style={{ border: 'none', background: 'none', color: '#3b82f6', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>View report</button>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>₹1,25,430</div>
+                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>↑ 18% vs yesterday</div>
+                </div>
+
+                <div style={{ height: '80px', width: '100%', marginBottom: '16px' }}>
+                  <ReactECharts option={professionalRevenueOption} style={{ height: '80px', width: '100%' }} />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                  {[
+                    { name: 'OPD', val: '₹32,450', pct: '26%', color: '#3b82f6' },
+                    { name: 'IPD', val: '₹62,200', pct: '50%', color: '#10b981' },
+                    { name: 'Pharmacy', val: '₹18,630', pct: '15%', color: '#f59e0b' },
+                    { name: 'Diagnostics', val: '₹9,150', pct: '7%', color: '#7c3aed' },
+                    { name: 'Others', val: '₹3,000', pct: '2%', color: '#ec4899' }
+                  ].map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                        <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                        <span>{item.val}</span>
+                        <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                      </div>
                     </div>
-                    <div style={{ padding: '14px', background: 'rgba(255,255,255,0.05)', borderRadius: '14px' }}>
-                       <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', marginBottom: '4px' }}>Latest Entry</div>
-                       <div style={{ fontSize: '14px', fontWeight: 800 }}>{stats.metrics.lastPatient || 'Ready for Intake'}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="page-card" style={{ padding: '28px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', margin: '0 0 24px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reports & Insights</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px' }}>
+                {[
+                  { title: 'Clinical Reports', desc: 'OPD, IPD, diagnosis and treatment analytics', path: '/tenant/reports', color: '#3b82f6', bg: '#eff6ff', icon: HeartPulse },
+                  { title: 'Financial Reports', desc: 'Revenue, payments, outstanding and collections', path: '/billing', color: '#10b981', bg: '#ecfdf5', icon: TrendingUp },
+                  { title: 'Operational Reports', desc: 'Bed occupancy, patient flow, capacity and utilization', path: '/tenant/reports', color: '#f59e0b', bg: '#fffbeb', icon: Activity },
+                  { title: 'Pharmacy Reports', desc: 'Inventory, sales, expiry and purchase analytics', path: '/tenant/pharmacy', color: '#7c3aed', bg: '#f5f3ff', icon: Pill },
+                  { title: 'Diagnostics Reports', desc: 'Test statistics, TAT, productivity and inventory', path: '/tenant/lab', color: '#0d9488', bg: '#f0fdf4', icon: FlaskConical },
+                  { title: 'Nursing Reports', desc: 'Nursing activities, tasks and patient care summary', path: '/tenant/reports', color: '#ec4899', bg: '#fdf2f8', icon: FileText }
+                ].map((card, idx) => {
+                  const Icon = card.icon;
+                  return (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        padding: '20px', 
+                        backgroundColor: '#ffffff', 
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: '20px',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '12px', backgroundColor: card.bg, color: card.color, display: 'grid', placeItems: 'center', marginBottom: '16px' }}>
+                          <Icon size={20} />
+                        </div>
+                        <h4 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{card.title}</h4>
+                        <p style={{ margin: '0 0 16px', fontSize: '12px', color: '#64748b', fontWeight: 500, lineHeight: '1.4' }}>{card.desc}</p>
+                      </div>
+                      <button 
+                        onClick={() => navigate(card.path)}
+                        style={{ 
+                          alignSelf: 'flex-start',
+                          border: 'none', 
+                          background: 'none', 
+                          color: card.color, 
+                          fontSize: '12px', 
+                          fontWeight: 800, 
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        View report <ChevronRight size={14} />
+                      </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px', marginTop: '4px' }}>
-                       <button onClick={() => navigate('/tenant/opd/registration')} style={{ padding: '14px', borderRadius: '12px', background: 'linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)', border: 'none', color: '#fff', fontSize: '12px', fontWeight: 900, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                          <Plus size={16} /> START RAPID INTAKE
-                       </button>
-                       <button onClick={() => navigate('/tenant/opd/queue')} style={{ padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>VIEW FULL QUEUE</button>
-                    </div>
-                 </div>
+                  );
+                })}
               </div>
             </div>
           </div>
