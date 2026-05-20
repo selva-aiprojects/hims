@@ -289,6 +289,17 @@ export default function DashboardPage() {
 
   return (
     <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', minHeight: '100vh', width: '100%' }}>
+      <style>{`
+        body, div, span, p, a, button, input, select, textarea, label, td, th, strong, em, li, ul, ol {
+          font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        }
+        h1, h2, h3, h4, h5, h6, .outfit-font {
+          font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        }
+        code, pre, .font-mono, [style*="monospace"] {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+        }
+      `}</style>
       <Sidebar />
       <main className="main-content" style={{ padding: isMobile ? '16px' : '32px 40px', backgroundColor: '#f8fafc', flex: 1, overflowX: 'hidden' }}>
         
