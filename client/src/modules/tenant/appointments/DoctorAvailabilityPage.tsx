@@ -36,8 +36,22 @@ const toLocalDateKey = (date: Date) => {
 
 export default function DoctorAvailabilityPage() {
   const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get("tab") || "Operational Calendar";
+  const rawTab = searchParams.get("tab") || "";
   
+  // Normalize incoming tab parameter to avoid loading blank screen
+  let normalizedTab = "Operational Calendar";
+  if (rawTab === "Weekly Rules" || rawTab === "Weekly Schedule" || rawTab === "Weekly+Schedule") {
+    normalizedTab = "Weekly Rules";
+  } else if (rawTab === "Leave Master") {
+    normalizedTab = "Leave Master";
+  } else if (rawTab === "Overrides") {
+    normalizedTab = "Overrides";
+  } else if (rawTab === "Analytics") {
+    normalizedTab = "Analytics";
+  } else if (rawTab === "Operational Calendar" || rawTab === "Booking & Operations" || rawTab === "Booking+%26+Operations") {
+    normalizedTab = "Operational Calendar";
+  }
+
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -54,7 +68,7 @@ export default function DoctorAvailabilityPage() {
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(normalizedTab);
   const [showActionDrawer, setShowActionDrawer] = useState(false);
   const [selectedSlotState, setSelectedSlotState] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,58 +107,24 @@ export default function DoctorAvailabilityPage() {
 
       if (firstDoctor) {
         setSelectedDoctor(firstDoctor);
-        // Kick off both scheduling calls in parallel immediately — no waiting for re-render
-        const start = new Date(currentDate);
-        start.setDate(start.getDate() - start.getDay());
-        const end = new Date(start);
-        end.setDate(end.getDate() + 7);
-
-        const [schedRes] = await Promise.all([
-          axios.get(`${API_BASE}/api/doctors/${firstDoctor.id}/availability-rules?startDate=${toLocalDateKey(start)}&endDate=${toLocalDateKey(end)}`, { headers }),
-          axios.get(`${API_BASE}/api/doctors/${firstDoctor.id}/stats`, { headers })
-            .then(r => setStats(r.data))
-            .catch(() => {})
-        ]);
-
-        setAppointments(schedRes.data.appointments || []);
-        const scheds = schedRes.data.schedules || [];
-        setSchedules(scheds);
-        setLeaves(schedRes.data.leaves || []);
-        setOverrides(schedRes.data.overrides || []);
-        setDoctorStatus(schedRes.data.status);
-
-        if (scheds.length > 0) {
-          let minHour = 24, maxHour = 0;
-          scheds.forEach((s: any) => {
-            const startH = parseInt(s.start_time.split(':')[0]);
-            const endH = parseInt(s.end_time.split(':')[0]);
-            if (startH < minHour) minHour = startH;
-            if (endH > maxHour) maxHour = endH;
-          });
-          if (minHour >= maxHour) { minHour = 8; maxHour = 20; }
-          const slots = [];
-          for (let h = minHour; h < maxHour; h++) {
-            slots.push(`${h.toString().padStart(2, '0')}:00`);
-            slots.push(`${h.toString().padStart(2, '0')}:30`);
-          }
-          setTimeSlots(slots);
-        } else {
-          const slots = [];
-          for (let h = 8; h < 20; h++) {
-            slots.push(`${h.toString().padStart(2, '0')}:00`);
-            slots.push(`${h.toString().padStart(2, '0')}:30`);
-          }
-          setTimeSlots(slots);
-        }
+      } else {
+        setLoading(false);
       }
-    } catch (err) { console.error("[DEBUG] Initialization Error:", err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      console.error("[DEBUG] Initialization Error:", err);
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     if (selectedDoctor) {
-      fetchSchedulingData();
-      fetchDoctorStats();
+      setLoading(true);
+      Promise.all([
+        fetchSchedulingData(),
+        fetchDoctorStats()
+      ]).finally(() => {
+        setLoading(false);
+      });
     }
   }, [selectedDoctor, currentDate]);
 
@@ -1082,7 +1062,16 @@ const WeeklyScheduleTab = ({ doctor, schedules, onUpdate }: any) => {
 
 const LeaveTab = ({ doctor, leaves, onUpdate }: any) => {
   const [showAdd, setShowAdd] = useState(false);
-  const [newLeave, setNewLeave] = useState({ leave_type: 'VACATION', start_date: '', end_date: '', reason: '', is_emergency: false });
+  const [isPartialDay, setIsPartialDay] = useState(false);
+  const [newLeave, setNewLeave] = useState({ 
+    leave_type: 'VACATION', 
+    start_date: '', 
+    end_date: '', 
+    start_time: '09:00', 
+    end_time: '17:00', 
+    reason: '', 
+    is_emergency: false 
+  });
   const { showToast } = useToast();
 
   const handleAdd = async () => {
@@ -1091,11 +1080,18 @@ const LeaveTab = ({ doctor, leaves, onUpdate }: any) => {
       return;
     }
     try {
-      await axios.post(`${API_BASE}/api/doctors/leaves`, { ...newLeave, doctor_id: doctor.id }, {
+      const payload = {
+        ...newLeave,
+        doctor_id: doctor.id,
+        start_time: isPartialDay ? newLeave.start_time : null,
+        end_time: isPartialDay ? newLeave.end_time : null,
+      };
+      await axios.post(`${API_BASE}/api/doctors/leaves`, payload, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" }
       });
       showToast("Leave recorded successfully!", "success");
       setShowAdd(false);
+      setIsPartialDay(false);
       onUpdate();
     } catch (err) { 
       console.error(err); 
@@ -1112,7 +1108,10 @@ const LeaveTab = ({ doctor, leaves, onUpdate }: any) => {
        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
           {leaves.map((l: any) => (
              <div key={l.id} style={leaveCardStyle(l.is_emergency)}>
-                <div style={{ fontWeight: 900 }}>{new Date(l.start_date).toLocaleDateString()} - {new Date(l.end_date).toLocaleDateString()}</div>
+                <div style={{ fontWeight: 900 }}>
+                  {new Date(l.start_date).toLocaleDateString()} - {new Date(l.end_date).toLocaleDateString()}
+                  {l.start_time && l.end_time ? ` (${l.start_time} - ${l.end_time})` : ' (Full Day)'}
+                </div>
                 <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>{l.leave_type}: {l.reason}</div>
              </div>
           ))}
@@ -1124,6 +1123,33 @@ const LeaveTab = ({ doctor, leaves, onUpdate }: any) => {
              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
                 <input type="date" value={newLeave.start_date} onChange={(e) => setNewLeave({ ...newLeave, start_date: e.target.value })} style={inputStyle} />
                 <input type="date" value={newLeave.end_date} onChange={(e) => setNewLeave({ ...newLeave, end_date: e.target.value })} style={inputStyle} />
+                
+                <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
+                  <input 
+                    type="checkbox" 
+                    id="partial_day_checkbox" 
+                    checked={isPartialDay} 
+                    onChange={(e) => setIsPartialDay(e.target.checked)} 
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <label htmlFor="partial_day_checkbox" style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+                    Partial Day Leave (Block Specific Hours)
+                  </label>
+                </div>
+
+                {isPartialDay && (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>Start Time</label>
+                      <input type="time" value={newLeave.start_time} onChange={(e) => setNewLeave({ ...newLeave, start_time: e.target.value })} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>End Time</label>
+                      <input type="time" value={newLeave.end_time} onChange={(e) => setNewLeave({ ...newLeave, end_time: e.target.value })} style={inputStyle} />
+                    </div>
+                  </>
+                )}
+
                 <textarea placeholder="Reason..." value={newLeave.reason} onChange={(e) => setNewLeave({ ...newLeave, reason: e.target.value })} style={{ ...inputStyle, gridColumn: 'span 2' }} />
                 <button onClick={handleAdd} style={{ ...primaryBtnStyle, background: '#ef4444' }}>Mark Unavailable</button>
              </div>

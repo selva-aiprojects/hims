@@ -479,8 +479,8 @@ export default function UserManagementPage() {
                 User management form will be implemented here...
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
     </div>
   );

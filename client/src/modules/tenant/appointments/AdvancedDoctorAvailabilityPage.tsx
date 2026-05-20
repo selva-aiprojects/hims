@@ -265,23 +265,33 @@ const WeeklyScheduleGrid = ({ doctor, schedules, onUpdate }: any) => {
 
 const LeaveManagementPanel = ({ doctor, leaves, onUpdate }: any) => {
   const [showAdd, setShowAdd] = useState(false);
+  const [isPartialDay, setIsPartialDay] = useState(false);
   const [newLeave, setNewLeave] = useState({
     leave_type: 'VACATION',
     start_date: '',
     end_date: '',
+    start_time: '09:00',
+    end_time: '17:00',
     reason: '',
     is_emergency: false
   });
 
   const handleAdd = async () => {
     try {
-      await axios.post(`${API_BASE}/api/doctors/leaves`, { ...newLeave, doctor_id: doctor.id }, {
+      const payload = {
+        ...newLeave,
+        doctor_id: doctor.id,
+        start_time: isPartialDay ? newLeave.start_time : null,
+        end_time: isPartialDay ? newLeave.end_time : null,
+      };
+      await axios.post(`${API_BASE}/api/doctors/leaves`, payload, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
           "x-tenant-id": localStorage.getItem("tenant") || ""
         }
       });
       setShowAdd(false);
+      setIsPartialDay(false);
       onUpdate();
     } catch (err) { console.error(err); }
   };
@@ -290,7 +300,7 @@ const LeaveManagementPanel = ({ doctor, leaves, onUpdate }: any) => {
     <div style={{ background: 'white', borderRadius: '24px', padding: '32px', border: '1px solid #eef2f6' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h3>Leave & OOO Management</h3>
-        <button onClick={() => setShowAdd(true)} style={{ ...actionBtnStyle, background: '#ef4444', color: 'white' }}><Plus size={16} /> Record Leave</button>
+        <button onClick={() => setShowAdd(true)} style={{ ...actionBtnStyle, background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontWeight: 'bold' }}><Plus size={16} /> Record Leave</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
@@ -300,7 +310,10 @@ const LeaveManagementPanel = ({ doctor, leaves, onUpdate }: any) => {
               <span style={{ fontSize: '11px', fontWeight: 800, color: l.is_emergency ? '#e11d48' : '#64748b', textTransform: 'uppercase' }}>{l.leave_type}</span>
               {l.is_emergency && <AlertCircle size={14} color="#e11d48" />}
             </div>
-            <div style={{ fontWeight: 800, fontSize: '16px' }}>{new Date(l.start_date).toLocaleDateString()} - {new Date(l.end_date).toLocaleDateString()}</div>
+            <div style={{ fontWeight: 800, fontSize: '16px' }}>
+              {new Date(l.start_date).toLocaleDateString()} - {new Date(l.end_date).toLocaleDateString()}
+              {l.start_time && l.end_time ? ` (${l.start_time} - ${l.end_time})` : ' (Full Day)'}
+            </div>
             <div style={{ marginTop: '8px', fontSize: '13px', color: '#64748b' }}>{l.reason || 'No reason provided'}</div>
           </div>
         ))}
@@ -310,7 +323,7 @@ const LeaveManagementPanel = ({ doctor, leaves, onUpdate }: any) => {
         <div style={{ marginTop: '24px', padding: '24px', background: '#fef2f2', borderRadius: '16px', border: '1px solid #fee2e2' }}>
            <h4>Record Doctor Leave</h4>
            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-             <select value={newLeave.leave_type} onChange={(e) => setNewLeave({...newLeave, leave_type: e.target.value})}>
+             <select value={newLeave.leave_type} onChange={(e) => setNewLeave({...newLeave, leave_type: e.target.value})} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                <option value="VACATION">VACATION</option>
                <option value="SICK">SICK</option>
                <option value="SURGERY">SURGERY</option>
@@ -320,10 +333,37 @@ const LeaveManagementPanel = ({ doctor, leaves, onUpdate }: any) => {
                <input type="checkbox" checked={newLeave.is_emergency} onChange={(e) => setNewLeave({...newLeave, is_emergency: e.target.checked})} />
                <label>Emergency</label>
              </div>
-             <input type="date" value={newLeave.start_date} onChange={(e) => setNewLeave({...newLeave, start_date: e.target.value})} />
-             <input type="date" value={newLeave.end_date} onChange={(e) => setNewLeave({...newLeave, end_date: e.target.value})} />
-             <textarea placeholder="Reason" value={newLeave.reason} onChange={(e) => setNewLeave({...newLeave, reason: e.target.value})} style={{ gridColumn: 'span 2' }} />
-             <button onClick={handleAdd} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 800 }}>Save Leave Record</button>
+             <input type="date" value={newLeave.start_date} onChange={(e) => setNewLeave({...newLeave, start_date: e.target.value})} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+             <input type="date" value={newLeave.end_date} onChange={(e) => setNewLeave({...newLeave, end_date: e.target.value})} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+             
+             <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
+               <input 
+                 type="checkbox" 
+                 id="adv_partial_day_checkbox" 
+                 checked={isPartialDay} 
+                 onChange={(e) => setIsPartialDay(e.target.checked)} 
+                 style={{ cursor: 'pointer' }}
+               />
+               <label htmlFor="adv_partial_day_checkbox" style={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', cursor: 'pointer' }}>
+                 Partial Day Leave (Block Specific Hours)
+               </label>
+             </div>
+
+             {isPartialDay && (
+               <>
+                 <div>
+                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>Start Time</label>
+                   <input type="time" value={newLeave.start_time} onChange={(e) => setNewLeave({ ...newLeave, start_time: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                 </div>
+                 <div>
+                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#64748b', marginBottom: '4px' }}>End Time</label>
+                   <input type="time" value={newLeave.end_time} onChange={(e) => setNewLeave({ ...newLeave, end_time: e.target.value })} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+                 </div>
+               </>
+             )}
+
+             <textarea placeholder="Reason" value={newLeave.reason} onChange={(e) => setNewLeave({...newLeave, reason: e.target.value})} style={{ gridColumn: 'span 2', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+             <button onClick={handleAdd} style={{ background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', padding: '12px', fontWeight: 800, cursor: 'pointer' }}>Save Leave Record</button>
            </div>
         </div>
       )}

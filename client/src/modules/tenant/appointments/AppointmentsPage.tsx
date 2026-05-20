@@ -4,6 +4,7 @@ import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { Calendar, Clock, User, Plus, X, CheckCircle, Users } from "lucide-react";
+import { toLocalDateKey, getAvailableSlotsForDate } from "../../../utils/schedulingEngine";
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
@@ -26,7 +27,7 @@ export default function AppointmentsPage() {
 
   // Modal specific states for "Grid & Search"
   const [modalSearchPatient, setModalSearchPatient] = useState("");
-  const [modalSelectedDate, setModalSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [modalSelectedDate, setModalSelectedDate] = useState(toLocalDateKey(new Date()));
   const [doctorSlots, setDoctorSlots] = useState<any[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
@@ -136,17 +137,18 @@ export default function AppointmentsPage() {
     };
     try {
       const res = await axios.get(`${API_BASE}/api/doctors/${doctorId}/availability-rules?startDate=${date}&endDate=${date}`, { headers });
-      // Generate slots from 09:00 to 18:00
-      const slots = [];
-      const appointmentsOnDay = res.data.appointments || [];
-      for (let h = 9; h < 18; h++) {
-        for (let m = 0; m < 60; m += 30) {
-          const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-          const isBooked = appointmentsOnDay.some((a: any) => a.appointment_time.includes(time));
-          slots.push({ time, isBooked });
-        }
-      }
-      setDoctorSlots(slots);
+      const slots = getAvailableSlotsForDate({
+        dateStr: date,
+        schedules: res.data.schedules || [],
+        leaves: res.data.leaves || [],
+        overrides: res.data.overrides || [],
+        appointments: res.data.appointments || [],
+      });
+      const mappedSlots = slots.map((s: any) => ({
+        time: s.time,
+        isBooked: !s.available
+      }));
+      setDoctorSlots(mappedSlots);
     } catch (err) { console.error(err); }
     finally { setLoadingSlots(false); }
   };

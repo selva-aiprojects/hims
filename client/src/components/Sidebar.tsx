@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   LifeBuoy,
   Box,
-  TrendingUp
+  TrendingUp,
+  Palette
 } from 'lucide-react';
 import { API_BASE_URL as API_BASE } from "../config/api";
 
@@ -38,7 +39,8 @@ const Icons: Record<string, any> = {
   "Support & Tickets": LifeBuoy,
   Calendar: Calendar,
   "Clinical Intelligence": TrendingUp,
-  "Patient Register": ClipboardList
+  "Patient Register": ClipboardList,
+  "Branding Settings": Palette
 };
 
 const normalizePath = (label: string, originalPath: string) => {
@@ -50,7 +52,7 @@ const normalizePath = (label: string, originalPath: string) => {
     "ipd admission hub": "/tenant/ipd/admission-desk",
     "bed management": "/tenant/ipd/beds",
     "discharge summaries": "/tenant/ipd/discharge",
-    "doctor's schedule": "/tenant/appointments/doctor-calendar?tab=Booking+%26+Operations",
+    "doctor's schedule": "/tenant/appointments/doctor-calendar?tab=Operational+Calendar",
     "appointment list": "/tenant/appointments",
     "diagnostic center": "/tenant/lab",
     "laboratory": "/tenant/lab",
@@ -70,7 +72,9 @@ const normalizePath = (label: string, originalPath: string) => {
     "patient register": "/tenant/clinical/patient-register",
     "mail & communications": "/tenant/mail",
     "support & tickets": "/tenant/support",
-    "ticketing management system": "/tenant/support/tickets"
+    "ticketing management system": "/tenant/support/tickets",
+    "branding settings": "/tenant/settings",
+    "branding & ui settings": "/tenant/settings"
   };
   return overrides[l] || originalPath;
 };
@@ -91,13 +95,16 @@ export default function Sidebar() {
 
     
     if (!dm.some((m: any) => m.label.toLowerCase().includes("advanced scheduling console"))) {
-      dm.push({ label: "Advanced Scheduling Console", path: "/tenant/appointments/doctor-calendar?tab=Weekly+Schedule", icon: "CalendarDays", sort_order: 9 });
+      dm.push({ label: "Advanced Scheduling Console", path: "/tenant/appointments/doctor-calendar?tab=Weekly+Rules", icon: "CalendarDays", sort_order: 9 });
     }
     if (!dm.some((m: any) => m.label.toLowerCase().includes("clinical & financial archives"))) {
       dm.push({ label: "Clinical & Financial Archives", path: "/tenant/archives", icon: "History", sort_order: 10 });
     }
     if (!dm.some((m: any) => m.label.toLowerCase().includes("patient register"))) {
       dm.push({ label: "Patient Register", path: "/tenant/clinical/patient-register", icon: "Patient Register", sort_order: 11 });
+    }
+    if (!dm.some((m: any) => m.label.toLowerCase().includes("branding settings") || m.label.toLowerCase().includes("branding & ui settings"))) {
+      dm.push({ label: "Branding Settings", path: "/tenant/settings", icon: "Palette", sort_order: 12 });
     }
 
     const labelMap: Record<string, string> = {
@@ -132,7 +139,8 @@ export default function Sidebar() {
       "ipd & discharge billing": "Central Billing",
       "insurance & tpa claims": "Insurance & TPA",
       "insurance management": "Insurance & TPA",
-      "branding & ui settings": "Hospital Settings",
+      "branding & ui settings": "Branding Settings",
+      "branding settings": "Branding Settings",
       "hospital settings (masters)": "Hospital Settings",
       "hospital settings": "Hospital Settings",
       "operational analytics": "Hospital Settings",
@@ -187,7 +195,7 @@ export default function Sidebar() {
       "Insurance & TPA", "Insurance Management"
     ];
     const adminFlow = [
-      "Staff & Access", "Hospital Settings", 
+      "Staff & Access", "Branding Settings", "Hospital Settings", 
       "Message Board", "Mail & Communications", "Support & Tickets"
     ];
 

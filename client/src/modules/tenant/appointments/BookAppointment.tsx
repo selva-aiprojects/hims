@@ -6,6 +6,7 @@ import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { Doctor, Patient, TimeSlot, BookingStep } from '../../../types/appointment';
 import { generateTimeSlots, formatTime, isToday, isPastDate, getScheduleForDay } from '../../../utils/appointmentUtils';
+import { toLocalDateKey, parseLocalDate, getAvailableSlotsForDate } from '../../../utils/schedulingEngine';
 
 export default function BookAppointment() {
   const [currentStep, setCurrentStep] = useState<BookingStep>('select-doctor');
@@ -66,7 +67,7 @@ export default function BookAppointment() {
         if (docFound) {
           setSelectedDoctor(docFound);
           if (preselectedDateStr) {
-            const dateObj = new Date(preselectedDateStr);
+            const dateObj = parseLocalDate(preselectedDateStr);
             setSelectedDate(dateObj);
             fetchDoctorAvailability(docFound, dateObj);
             
@@ -113,38 +114,29 @@ export default function BookAppointment() {
       const overrides = response.data.overrides || [];
       const dayAppointments = response.data.appointments || [];
 
-      // Check if doctor is on leave for this date
-      const onLeave = leaves.some((l: any) => {
+      // Check if doctor is on full-day leave for this date
+      const hasFullDayLeave = leaves.some((l: any) => {
         const start = l.start_date?.substring(0, 10);
         const end = l.end_date?.substring(0, 10);
-        return dateStr >= start && dateStr <= end;
+        const isWithinRange = dateStr >= start && dateStr <= end;
+        return isWithinRange && (!l.start_time && !l.end_time);
       });
-      setDoctorOnLeave(onLeave);
+      setDoctorOnLeave(hasFullDayLeave);
       
-      if (onLeave || daySchedule.length === 0) {
+      if (hasFullDayLeave) {
         setAvailableSlots([]);
         return;
       }
 
-      const allSlots: TimeSlot[] = [];
-      daySchedule.forEach((schedule: any) => {
-        const slots = generateTimeSlots(
-          schedule.start_time,
-          schedule.end_time,
-          schedule.slot_duration,
-          dayAppointments,
-          dateStr,
-          leaves,
-          overrides
-        );
-        allSlots.push(...slots);
+      const slots = getAvailableSlotsForDate({
+        dateStr,
+        schedules: response.data.schedules || [],
+        leaves,
+        overrides,
+        appointments: dayAppointments,
       });
       
-      const uniqueSlots = allSlots.filter((slot, index, self) =>
-        index === self.findIndex((s) => s.time === slot.time)
-      ).sort((a, b) => a.time.localeCompare(b.time));
-      
-      setAvailableSlots(uniqueSlots.filter(slot => slot.available));
+      setAvailableSlots(slots.filter(slot => slot.available));
     } catch (error) {
       console.error('Error fetching availability:', error);
       setAvailableSlots([]);
@@ -189,7 +181,7 @@ export default function BookAppointment() {
 
     setLoading(true);
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = toLocalDateKey(selectedDate);
       const appointmentTimeStr = `${dateStr}T${selectedTime}:00`;
       
       await axios.post(`${API_BASE}/api/appointments`, {

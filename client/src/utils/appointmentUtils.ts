@@ -1,29 +1,26 @@
 import { TimeSlot, Appointment, ScheduleRule } from '../types/appointment';
+import { isSlotOnLeave, parseTimeToMinutes, toLocalDateKey } from './schedulingEngine';
 
 /**
  * Returns true if the given time string (HH:MM) falls within a leave or block override.
  */
-const isTimeBlocked = (
+export const isTimeBlocked = (
   timeString: string,
   dateStr: string,
   leaves: any[],
   overrides: any[]
 ): boolean => {
-  // Check leaves — if doctor is on full-day leave, all slots are blocked
-  const onLeave = leaves.some(l => {
-    const start = l.start_date?.substring(0, 10);
-    const end = l.end_date?.substring(0, 10);
-    return dateStr >= start && dateStr <= end;
-  });
+  // Check leaves (supporting partial-day leaves)
+  const onLeave = leaves.some(l => isSlotOnLeave(dateStr, timeString, l));
   if (onLeave) return true;
 
   // Check overrides — a manual block override takes priority over schedule
   const blockedByOverride = overrides.some(o => {
     if (o.override_date?.substring(0, 10) !== dateStr) return false;
     if (o.is_available) return false; // it's an "open" override, not a block
-    const slotMins = parseInt(timeString.split(':')[0]) * 60 + parseInt(timeString.split(':')[1]);
-    const startMins = parseInt(o.start_time.split(':')[0]) * 60 + parseInt(o.start_time.split(':')[1]);
-    const endMins = parseInt(o.end_time.split(':')[0]) * 60 + parseInt(o.end_time.split(':')[1]);
+    const slotMins = parseTimeToMinutes(timeString);
+    const startMins = parseTimeToMinutes(o.start_time);
+    const endMins = parseTimeToMinutes(o.end_time);
     return slotMins >= startMins && slotMins < endMins;
   });
   return blockedByOverride;
@@ -50,8 +47,9 @@ export const generateTimeSlots = (
     
     const hasAppointment = appointments.some(apt => {
       const aptTime = new Date(apt.appointment_time);
+      const aptDateStr = toLocalDateKey(aptTime);
       const aptTimeString = `${aptTime.getHours().toString().padStart(2, '0')}:${aptTime.getMinutes().toString().padStart(2, '0')}`;
-      return aptTimeString === timeString;
+      return aptDateStr === dateStr && aptTimeString === timeString;
     });
 
     const blocked = isTimeBlocked(timeString, dateStr, leaves, overrides);
@@ -61,8 +59,9 @@ export const generateTimeSlots = (
       available: !hasAppointment && !blocked,
       appointment: hasAppointment ? appointments.find(apt => {
         const aptTime = new Date(apt.appointment_time);
+        const aptDateStr = toLocalDateKey(aptTime);
         const aptTimeString = `${aptTime.getHours().toString().padStart(2, '0')}:${aptTime.getMinutes().toString().padStart(2, '0')}`;
-        return aptTimeString === timeString;
+        return aptDateStr === dateStr && aptTimeString === timeString;
       }) : undefined
     });
     

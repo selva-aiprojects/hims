@@ -408,6 +408,8 @@ router.get("/settings", async (req, res, next) => {
 router.get("/doctors", async (req, res, next) => {
   try {
     await ensureStaffColumns(req);
+    await ensureDoctorScheduleTable(req);
+
     // Staff creation stores roles in lowercase, while seeded doctors use uppercase.
     // Keep the doctor lookup case-insensitive so newly added doctors appear here.
     const data = await req.prisma.$queryRawUnsafe(`
@@ -416,9 +418,19 @@ router.get("/doctors", async (req, res, next) => {
       WHERE (role ILIKE 'doctor' OR name ILIKE 'Dr.%') AND is_active = true
       ORDER BY name ASC
     `);
+
+    // Optimize seeding: only seed default schedule for doctors that have NO schedules defined
+    const scheduleCounts = await req.prisma.$queryRawUnsafe(`
+      SELECT DISTINCT doctor_id::text FROM "${req.schemaName}".doctor_schedules
+    `);
+    const seededDoctors = new Set(scheduleCounts.map(r => r.doctor_id));
+
     for (const doctor of data) {
-      await ensureDefaultDoctorSchedule(req, doctor.id);
+      if (!seededDoctors.has(doctor.id)) {
+        await ensureDefaultDoctorSchedule(req, doctor.id);
+      }
     }
+
     console.log(`[HOSPITAL] Returning ${data.length} active doctors for schema ${req.schemaName}`);
     res.json(data);
   } catch (error) { next(error); }

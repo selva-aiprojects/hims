@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { User, ChevronLeft, ChevronRight, Filter, CheckCircle, X } from 'lucide-react';
+import { User, ChevronLeft, ChevronRight, Filter, CheckCircle, X, Calendar, AlertCircle } from 'lucide-react';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { API_BASE_URL as API_BASE } from '../../../config/api';
 import { Doctor, Appointment, ScheduleRule, TimeSlot } from '../../../types/appointment';
-import { generateTimeSlots, getWeekDates, formatTime, isToday, isPastDate, getScheduleForDay } from '../../../utils/appointmentUtils';
+import { getWeekDates, generateTimeSlots, getScheduleForDay } from '../../../utils/appointmentUtils';
+import { toLocalDateKey, getAvailableSlotsForDate } from '../../../utils/schedulingEngine';
 
 export default function DoctorAvailabilitySchedule() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -13,6 +14,8 @@ export default function DoctorAvailabilitySchedule() {
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [schedules, setSchedules] = useState<ScheduleRule[]>([]);
+  const [leaves, setLeaves] = useState<any[]>([]);
+  const [overrides, setOverrides] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'available' | 'booked'>('all');
 
@@ -54,12 +57,14 @@ export default function DoctorAvailabilitySchedule() {
       const end = getWeekDates(currentWeek)[6];
       
       const response = await axios.get(
-        `${API_BASE}/api/doctors/${selectedDoctor.id}/availability-rules?startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`,
+        `${API_BASE}/api/doctors/${selectedDoctor.id}/availability-rules?startDate=${toLocalDateKey(start)}&endDate=${toLocalDateKey(end)}`,
         { headers }
       );
 
       setAppointments(response.data.appointments || []);
       setSchedules(response.data.schedules || []);
+      setLeaves(response.data.leaves || []);
+      setOverrides(response.data.overrides || []);
     } catch (error) {
       console.error('Error fetching doctor data:', error);
     }
@@ -72,33 +77,14 @@ export default function DoctorAvailabilitySchedule() {
   };
 
   const getSlotsForDay = (date: Date): TimeSlot[] => {
-    const weekday = date.getDay();
-    const daySchedule = getScheduleForDay(schedules, weekday);
-    
-    if (daySchedule.length === 0) return [];
-
-    const dayAppointments = appointments.filter(apt => {
-      const aptDate = new Date(apt.appointment_time);
-      return aptDate.toDateString() === date.toDateString();
+    const dateStr = toLocalDateKey(date);
+    return getAvailableSlotsForDate({
+      dateStr,
+      schedules,
+      leaves,
+      overrides,
+      appointments
     });
-
-    const allSlots: TimeSlot[] = [];
-    daySchedule.forEach(schedule => {
-      const slots = generateTimeSlots(
-        schedule.start_time,
-        schedule.end_time,
-        schedule.slot_duration,
-        dayAppointments
-      );
-      allSlots.push(...slots);
-    });
-
-    // Remove duplicates and sort
-    const uniqueSlots = allSlots.filter((slot, index, self) =>
-      index === self.findIndex((s) => s.time === slot.time)
-    ).sort((a, b) => a.time.localeCompare(b.time));
-
-    return uniqueSlots;
   };
 
   
@@ -282,43 +268,72 @@ export default function DoctorAvailabilitySchedule() {
                         borderLeft: '1px solid #f1f5f9',
                         background: isPast ? '#f8fafc' : 'white'
                       }}>
-                        {slot && (
-                          <div style={{
-                            padding: '8px',
-                            borderRadius: '8px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            textAlign: 'center',
-                            cursor: isPast ? 'not-allowed' : 'pointer',
-                            background: slot.available 
-                              ? (isPast ? '#e2e8f0' : '#dcfce7') 
-                              : '#fee2e2',
-                            color: slot.available 
-                              ? (isPast ? '#64748b' : '#166534') 
-                              : '#dc2626',
-                            opacity: isPast ? 0.5 : 1,
-                            transition: 'all 0.2s'
-                          }}>
-                            {slot.available ? (
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                <CheckCircle size={12} />
-                                Available
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                                  <X size={12} />
-                                  Booked
-                                </div>
-                                {slot.appointment?.patient_name && (
-                                  <div style={{ fontSize: '10px', opacity: 0.8 }}>
-                                    {slot.appointment.patient_name}
+                        {slot && (selectedFilter === 'all' || 
+                          (selectedFilter === 'available' && slot.available) || 
+                          (selectedFilter === 'booked' && slot.isBooked)) && (() => {
+                            let bg = '#dcfce7'; 
+                            let color = '#166534';
+                            let icon = <CheckCircle size={12} />;
+                            let label = 'Available';
+                            let tooltip = 'Available for booking';
+                            
+                            if (isPast) {
+                              bg = '#e2e8f0';
+                              color = '#64748b';
+                              label = 'Past';
+                              tooltip = 'This slot has passed';
+                            } else if (slot.isBooked) {
+                              bg = '#fee2e2'; 
+                              color = '#991b1b';
+                              icon = <Calendar size={12} />;
+                              label = 'Booked';
+                              tooltip = `Booked: ${slot.appointment?.patient_name || 'Patient'}`;
+                            } else if (slot.isLeave) {
+                              bg = '#f1f5f9'; 
+                              color = '#475569'; 
+                              icon = <AlertCircle size={12} />;
+                              label = slot.leave?.leave_type || 'On Leave';
+                              tooltip = `On Leave: ${slot.leave?.reason || 'Doctor is on leave'}`;
+                            } else if (slot.isOverride && !slot.override?.is_available) {
+                              bg = '#fff7ed'; 
+                              color = '#c2410c'; 
+                              icon = <X size={12} />;
+                              label = 'Blocked';
+                              tooltip = `Blocked: ${slot.override?.reason || 'Unavailable override'}`;
+                            }
+
+                            return (
+                              <div 
+                                title={tooltip}
+                                style={{
+                                  padding: '8px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  textAlign: 'center',
+                                  cursor: isPast ? 'not-allowed' : 'pointer',
+                                  background: bg,
+                                  color: color,
+                                  opacity: isPast ? 0.5 : 1,
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center', justifyContent: 'center' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                    {icon}
+                                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '80px' }}>
+                                      {label}
+                                    </span>
                                   </div>
-                                )}
+                                  {slot.isBooked && slot.appointment?.patient_name && (
+                                    <div style={{ fontSize: '10px', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '90px' }}>
+                                      {slot.appointment.patient_name}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            )}
-                          </div>
-                        )}
+                            );
+                        })()}
                       </div>
                     );
                   })}
@@ -337,7 +352,8 @@ export default function DoctorAvailabilitySchedule() {
           background: 'white',
           borderRadius: '12px',
           fontSize: '12px',
-          color: '#64748b'
+          color: '#64748b',
+          flexWrap: 'wrap'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '12px', height: '12px', background: '#dcfce7', borderRadius: '4px' }}></div>
@@ -345,11 +361,19 @@ export default function DoctorAvailabilitySchedule() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '12px', height: '12px', background: '#fee2e2', borderRadius: '4px' }}></div>
-            Booked
+            Booked (Hover for Patient Name)
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '12px', height: '12px', background: '#f1f5f9', borderRadius: '4px' }}></div>
+            On Leave / Absence
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '12px', height: '12px', background: '#fff7ed', borderRadius: '4px' }}></div>
+            Blocked / Override
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '12px', height: '12px', background: '#e2e8f0', borderRadius: '4px' }}></div>
-            Past/Unavailable
+            Past
           </div>
         </div>
       </main>
