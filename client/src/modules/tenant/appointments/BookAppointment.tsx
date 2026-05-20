@@ -154,7 +154,11 @@ export default function BookAppointment() {
 
   const handlePatientSelect = (patient: Patient) => {
     setSelectedPatient(patient);
-    setCurrentStep('select-date');
+    if (selectedDoctor && selectedDate && selectedTime) {
+      setCurrentStep('confirm');
+    } else {
+      setCurrentStep('select-date');
+    }
   };
 
   const handleDateSelect = (date: Date) => {
@@ -841,6 +845,49 @@ export default function BookAppointment() {
           padding: '32px',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
+          {/* Active Selections Summary Banner */}
+          {(selectedDoctor || selectedPatient || selectedDate || selectedTime) && currentStep !== 'success' && currentStep !== 'confirm' && (
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '12px',
+              padding: '16px 20px',
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              marginBottom: '24px',
+              alignItems: 'center',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: '#475569'
+            }}>
+              <span style={{ fontWeight: 800, textTransform: 'uppercase', color: '#4f46e5', fontSize: '11px', letterSpacing: '0.05em' }}>Selected Context:</span>
+              {selectedDoctor && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <span style={{ color: '#94a3b8' }}>Doctor:</span>
+                  <span style={{ color: '#1e293b', fontWeight: 700 }}>Dr. {selectedDoctor.name}</span>
+                </div>
+              )}
+              {selectedPatient && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <span style={{ color: '#94a3b8' }}>Patient:</span>
+                  <span style={{ color: '#1e293b', fontWeight: 700 }}>{selectedPatient.name}</span>
+                </div>
+              )}
+              {selectedDate && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <span style={{ color: '#94a3b8' }}>Date:</span>
+                  <span style={{ color: '#1e293b', fontWeight: 700 }}>{selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+              )}
+              {selectedTime && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <span style={{ color: '#94a3b8' }}>Time:</span>
+                  <span style={{ color: '#1e293b', fontWeight: 700 }}>{formatTime(selectedTime)}</span>
+                </div>
+              )}
+            </div>
+          )}
           {renderCurrentStep()}
         </div>
       </main>
