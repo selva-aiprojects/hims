@@ -45,9 +45,10 @@ export default function HistoricalArchivesPage() {
     try {
       const res = await axios.get(`${API_BASE}/api/billing/invoices/${bill.id}/items`, { headers });
       items = res.data || [];
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch invoice items", err);
-      alert("Failed to load invoice items for printing");
+      const backendMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message;
+      alert(`Failed to load invoice items for printing${backendMessage ? `: ${backendMessage}` : ''}`);
       return;
     }
 

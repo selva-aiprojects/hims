@@ -70,6 +70,7 @@ function App() {
         {/* Tenant Routes */}
         <Route path="/tenant/dashboard" element={<DashboardPage />} />
         <Route path="/tenant/analytics" element={<ClinicalAnalyticsDashboard />} />
+        <Route path="/tenant/reports" element={<ClinicalAnalyticsDashboard />} />
         <Route path="/tenant/masters" element={<MastersPage />} />
         <Route path="/tenant/opd/registration" element={<OPDRegistrationPage />} />
         <Route path="/tenant/opd/queue" element={<OPDQueuePage />} />

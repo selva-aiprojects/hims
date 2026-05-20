@@ -1361,6 +1361,7 @@ router.post("/pharmacy/dispense", async (req, res, next) => {
   try {
     const { prescriptionId, items, encounterId } = req.body;
     await ensureBillingQueue(req);
+    await ensureInwardsTable(req);
 
     for (const item of items) {
       // 1. FEFO Stock Decrement (First Expired, First Out)

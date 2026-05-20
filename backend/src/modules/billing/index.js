@@ -196,6 +196,7 @@ router.post("/", async (req, res, next) => {
 });
 router.get("/invoices/:id/items", async (req, res, next) => {
   try {
+    await ensureBillingTables(req);
     const { id } = req.params;
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT * FROM "${req.schemaName}".invoice_items 
