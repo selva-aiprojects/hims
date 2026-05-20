@@ -551,7 +551,8 @@ CREATE TABLE invoice_items (
   tax_percent NUMERIC DEFAULT 0,
   discount_amount NUMERIC DEFAULT 0,
   amount NUMERIC DEFAULT 0,
-  source_queue_id UUID
+  source_queue_id UUID,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 DROP TABLE IF EXISTS payments CASCADE;

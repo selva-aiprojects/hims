@@ -314,6 +314,7 @@ app.get("/api/nexus/fix-billing-infrastructure", async (req, res) => {
         // 2. Add Discount Columns to Invoices
         await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoice_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0`);
         await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoice_items ADD COLUMN IF NOT EXISTS source_queue_id UUID`);
+        await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoice_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
         
         await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".lab_orders ADD COLUMN IF NOT EXISTS patient_id UUID REFERENCES "${schema}".patients(id)`);
         await prisma.$executeRawUnsafe(`ALTER TABLE "${schema}".invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
