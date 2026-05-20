@@ -215,12 +215,23 @@ export default function AdvancedDoctorAvailabilityPage() {
                 }}>
                   <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', fontWeight: 700, color: '#cbd5e1', borderRight: '1px solid #f1f5f9' }}>{time}</div>
                   {(viewMode === 'week' ? weekDates : [currentDate]).map((date, dayIdx) => {
-                    const appt = appointments.find(a => 
-                      a.doctor_id === selectedDoctor?.id && 
-                      new Date(a.appointment_time).getHours() === parseInt(time.split(':')[0]) &&
-                      new Date(a.appointment_time).getMinutes() === parseInt(time.split(':')[1]) &&
-                      new Date(a.appointment_time).toDateString() === date.toDateString()
-                    );
+                    const appt = appointments.find(a => {
+                      if (a.doctor_id !== selectedDoctor?.id || !a.appointment_time) return false;
+                      const str = typeof a.appointment_time === 'string' ? a.appointment_time : new Date(a.appointment_time).toISOString();
+                      const parts = str.split('T');
+                      if (parts.length >= 2) {
+                        const apptDateStr = parts[0];
+                        const apptTime = parts[1].substring(0, 5);
+                        
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const targetDateStr = `${year}-${month}-${day}`;
+                        
+                        return apptDateStr === targetDateStr && apptTime === time;
+                      }
+                      return false;
+                    });
                     return (
                       <div key={dayIdx} style={{ padding: '4px', borderRight: dayIdx < 6 ? '1px solid #f8fafc' : 'none' }}>
                         {appt ? (

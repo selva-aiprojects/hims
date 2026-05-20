@@ -17,6 +17,30 @@ export const toLocalDateKey = (date: Date): string => {
 };
 
 /**
+ * Safely extracts local YYYY-MM-DD and HH:MM components from database timestamps
+ * without timezone shift.
+ */
+export const parseApptTime = (appointmentTime: string | Date): { dateStr: string; timeStr: string } => {
+  const str = typeof appointmentTime === 'string' ? appointmentTime : new Date(appointmentTime).toISOString();
+  const parts = str.split('T');
+  if (parts.length >= 2) {
+    const dateStr = parts[0];
+    const timeStr = parts[1].substring(0, 5); // "HH:MM"
+    return { dateStr, timeStr };
+  }
+  const d = new Date(str);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const date = String(d.getUTCDate()).padStart(2, '0');
+  const hours = String(d.getUTCHours()).padStart(2, '0');
+  const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+  return {
+    dateStr: `${year}-${month}-${date}`,
+    timeStr: `${hours}:${minutes}`
+  };
+};
+
+/**
  * Returns the weekday (0-6) of a "YYYY-MM-DD" date string in local time.
  */
 export const getWeekdayFromDateStr = (dateStr: string): number => {
@@ -106,9 +130,7 @@ export const getSlotState = ({
     if (!appointments._lookupMap) {
       const map = new Map();
       appointments.forEach((a: any) => {
-        const apptDate = new Date(a.appointment_time);
-        const apptDateStr = toLocalDateKey(apptDate);
-        const apptTime = `${apptDate.getHours().toString().padStart(2, '0')}:${apptDate.getMinutes().toString().padStart(2, '0')}`;
+        const { dateStr: apptDateStr, timeStr: apptTime } = parseApptTime(a.appointment_time);
         map.set(`${apptDateStr}_${apptTime}`, a);
       });
       Object.defineProperty(appointments, '_lookupMap', {
@@ -269,9 +291,7 @@ export const getAvailableSlotsForDate = ({
   if (Array.isArray(appointments) && !appointments._lookupMap) {
     const map = new Map();
     appointments.forEach((a: any) => {
-      const apptDate = new Date(a.appointment_time);
-      const apptDateStr = toLocalDateKey(apptDate);
-      const apptTime = `${apptDate.getHours().toString().padStart(2, '0')}:${apptDate.getMinutes().toString().padStart(2, '0')}`;
+      const { dateStr: apptDateStr, timeStr: apptTime } = parseApptTime(a.appointment_time);
       map.set(`${apptDateStr}_${apptTime}`, a);
     });
     Object.defineProperty(appointments, '_lookupMap', {
@@ -318,9 +338,7 @@ export const getAvailableSlotsForDate = ({
       const appt = appointments._lookupMap 
         ? appointments._lookupMap.get(`${dateStr}_${timeStr}`)
         : appointments.find((a: any) => {
-            const apptDate = new Date(a.appointment_time);
-            const apptDateStr = toLocalDateKey(apptDate);
-            const apptTime = `${apptDate.getHours().toString().padStart(2, '0')}:${apptDate.getMinutes().toString().padStart(2, '0')}`;
+            const { dateStr: apptDateStr, timeStr: apptTime } = parseApptTime(a.appointment_time);
             return apptDateStr === dateStr && apptTime === timeStr;
           });
       

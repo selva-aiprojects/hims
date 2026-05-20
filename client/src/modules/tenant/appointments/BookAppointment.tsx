@@ -192,9 +192,10 @@ export default function BookAppointment() {
       }, { headers });
 
       setCurrentStep('success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error booking appointment:', error);
-      alert('Failed to book appointment. Please try again.');
+      const errMsg = error.response?.data?.error || 'Failed to book appointment. Please try again.';
+      alert(errMsg);
     } finally {
       setLoading(false);
     }

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
-import { getSlotState } from "../../../utils/schedulingEngine";
+import { getSlotState, parseApptTime } from "../../../utils/schedulingEngine";
 import { useSearchParams } from "react-router-dom";
 import { trackEvent } from "../../../utils/analytics";
 import { useToast } from "../../../components/ToastProvider";
@@ -314,7 +314,7 @@ export default function DoctorAvailabilityPage() {
             <div style={cardStyle}>
                <h4 style={sectionTitleStyle}>QUICK SUMMARY</h4>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <SummaryItem label="Appointments Today" value={appointments.filter(a => toLocalDateKey(new Date(a.appointment_time)) === toLocalDateKey(new Date())).length} icon={<CalendarIcon size={16}/>} />
+                  <SummaryItem label="Appointments Today" value={appointments.filter(a => parseApptTime(a.appointment_time).dateStr === toLocalDateKey(new Date())).length} icon={<CalendarIcon size={16}/>} />
                   <SummaryItem label="Active Leaves" value={leaves.filter(l => new Date(l.end_date) >= new Date()).length} icon={<ShieldAlert size={16}/>} />
                </div>
                
@@ -649,10 +649,10 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
     setLoading(true);
     try {
       const dateStr = toLocalDateKey(date);
-      const dt = new Date(`${dateStr} ${time}`);
+      const appointmentTimeStr = `${dateStr}T${time}:00`;
 
       await axios.patch(`${API_BASE}/api/appointments/${reschedulingAppt.id}`, {
-        appointment_time: dt.toISOString()
+        appointment_time: appointmentTimeStr
       }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
 
       trackEvent('appointment_rescheduled', {

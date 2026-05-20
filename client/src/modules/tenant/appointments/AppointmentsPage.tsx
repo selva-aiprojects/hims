@@ -6,6 +6,34 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { Calendar, Clock, User, Plus, X, CheckCircle, Users } from "lucide-react";
 import { toLocalDateKey, getAvailableSlotsForDate } from "../../../utils/schedulingEngine";
 
+const formatApptDateTime = (apptTimeStr: string) => {
+  if (!apptTimeStr) return { month: '---', date: '--', time: '--:--' };
+  try {
+    const str = typeof apptTimeStr === 'string' ? apptTimeStr : new Date(apptTimeStr).toISOString();
+    const parts = str.split('T');
+    if (parts.length >= 2) {
+      const datePart = parts[0];
+      const timePart = parts[1].substring(0, 5); // "10:00"
+      
+      const [y, mo, d] = datePart.split('-').map(Number);
+      const tempDate = new Date(y, mo - 1, d);
+      const monthShort = tempDate.toLocaleString('en-US', { month: 'short' });
+      const dayNum = tempDate.getDate();
+      
+      const [hStr, mStr] = timePart.split(':');
+      const h = parseInt(hStr, 10);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const formattedHour = h % 12 === 0 ? 12 : h % 12;
+      const timeFormatted = `${formattedHour}:${mStr} ${ampm}`;
+      
+      return { month: monthShort, date: String(dayNum), time: timeFormatted };
+    }
+  } catch (e) {
+    console.error("Format error:", e);
+  }
+  return { month: '---', date: '--', time: '--:--' };
+};
+
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -354,40 +382,42 @@ export default function AppointmentsPage() {
                   </div>
                 ) : viewMode === 'list' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {filteredAppointments.map((appt: any, i: number) => (
-                      <div key={i} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        padding: '24px', 
-                        borderRadius: '20px', 
-                        border: '1px solid #f1f5f9', 
-                        background: '#f8fafc',
-                        position: 'relative'
-                      }}>
-                        <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'white', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
-                            {appt.appointment_time ? new Date(appt.appointment_time).toLocaleString('en-US', { month: 'short' }) : '---'}
-                          </div>
-                          <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>
-                            {appt.appointment_time ? new Date(appt.appointment_time).getDate() : '--'}
-                          </div>
-                        </div>
-                        <div style={{ marginLeft: isMobile ? '12px' : '20px', flex: 1 }}>
-                          <div style={{ fontWeight: 800, color: '#1e293b', fontSize: isMobile ? '14px' : '16px' }}>{appt.patient_name}</div>
-                          <div style={{ fontSize: isMobile ? '11px' : '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <User size={14} /> {formatDoctorName(appt.doctor_name)}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '20px' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', fontWeight: 800, color: '#3b82f6', fontSize: isMobile ? '13px' : '16px' }}>
-                              <Clock size={isMobile ? 12 : 16} />
-                              {appt.appointment_time ? new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {filteredAppointments.map((appt: any, i: number) => {
+                      const formatted = formatApptDateTime(appt.appointment_time);
+                      return (
+                        <div key={i} style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          padding: '24px', 
+                          borderRadius: '20px', 
+                          border: '1px solid #f1f5f9', 
+                          background: '#f8fafc',
+                          position: 'relative'
+                        }}>
+                          <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'white', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>
+                              {formatted.month}
                             </div>
-                            <div style={{ fontSize: '10px', color: appt.status === 'Completed' ? '#10b981' : '#f59e0b', fontWeight: 800, background: appt.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '2px 8px', borderRadius: '100px', marginTop: '4px', display: 'inline-block' }}>
-                              {appt.status}
+                            <div style={{ fontSize: '20px', fontWeight: 900, color: '#1e293b' }}>
+                              {formatted.date}
                             </div>
                           </div>
+                          <div style={{ marginLeft: isMobile ? '12px' : '20px', flex: 1 }}>
+                            <div style={{ fontWeight: 800, color: '#1e293b', fontSize: isMobile ? '14px' : '16px' }}>{appt.patient_name}</div>
+                            <div style={{ fontSize: isMobile ? '11px' : '13px', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <User size={14} /> {formatDoctorName(appt.doctor_name)}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: isMobile ? '8px' : '20px' }}>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end', fontWeight: 800, color: '#3b82f6', fontSize: isMobile ? '13px' : '16px' }}>
+                                <Clock size={isMobile ? 12 : 16} />
+                                {formatted.time}
+                              </div>
+                              <div style={{ fontSize: '10px', color: appt.status === 'Completed' ? '#10b981' : '#f59e0b', fontWeight: 800, background: appt.status === 'Completed' ? '#f0fdf4' : '#fffbeb', padding: '2px 8px', borderRadius: '100px', marginTop: '4px', display: 'inline-block' }}>
+                                {appt.status}
+                              </div>
+                            </div>
                           
                           <div style={{ position: 'relative' }}>
                             <button 
@@ -444,7 +474,8 @@ export default function AppointmentsPage() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
@@ -458,15 +489,20 @@ export default function AppointmentsPage() {
                         flexDirection: 'column',
                         gap: '12px'
                       }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div style={{ background: 'white', padding: '6px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                            <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{appt.appointment_time ? new Date(appt.appointment_time).toLocaleString('en-US', { month: 'short' }) : '--'}</div>
-                            <div style={{ fontSize: '16px', fontWeight: 900 }}>{appt.appointment_time ? new Date(appt.appointment_time).getDate() : '--'}</div>
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 800, background: '#eff6ff', padding: '4px 10px', borderRadius: '100px' }}>
-                            {appt.appointment_time ? new Date(appt.appointment_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}
-                          </div>
-                        </div>
+                        {(() => {
+                          const formatted = formatApptDateTime(appt.appointment_time);
+                          return (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ background: 'white', padding: '6px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                                <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800 }}>{formatted.month}</div>
+                                <div style={{ fontSize: '16px', fontWeight: 900 }}>{formatted.date}</div>
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 800, background: '#eff6ff', padding: '4px 10px', borderRadius: '100px' }}>
+                                {formatted.time}
+                              </div>
+                            </div>
+                          );
+                        })()}
                         <div>
                           <div style={{ fontWeight: 800, color: '#1e293b', fontSize: '15px' }}>{appt.patient_name}</div>
                           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{formatDoctorName(appt.doctor_name)}</div>

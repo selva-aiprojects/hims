@@ -1,5 +1,5 @@
-import { TimeSlot, Appointment, ScheduleRule } from '../types/appointment';
-import { isSlotOnLeave, parseTimeToMinutes, toLocalDateKey } from './schedulingEngine';
+import { TimeSlot, Appointment } from '../types/appointment';
+import { isSlotOnLeave, parseTimeToMinutes, toLocalDateKey, parseApptTime } from './schedulingEngine';
 
 /**
  * Returns true if the given time string (HH:MM) falls within a leave or block override.
@@ -46,9 +46,7 @@ export const generateTimeSlots = (
     const timeString = `${Math.floor(currentMinutes / 60).toString().padStart(2, '0')}:${(currentMinutes % 60).toString().padStart(2, '0')}`;
     
     const hasAppointment = appointments.some(apt => {
-      const aptTime = new Date(apt.appointment_time);
-      const aptDateStr = toLocalDateKey(aptTime);
-      const aptTimeString = `${aptTime.getHours().toString().padStart(2, '0')}:${aptTime.getMinutes().toString().padStart(2, '0')}`;
+      const { dateStr: aptDateStr, timeStr: aptTimeString } = parseApptTime(apt.appointment_time);
       return aptDateStr === dateStr && aptTimeString === timeString;
     });
 
@@ -58,9 +56,7 @@ export const generateTimeSlots = (
       time: timeString,
       available: !hasAppointment && !blocked,
       appointment: hasAppointment ? appointments.find(apt => {
-        const aptTime = new Date(apt.appointment_time);
-        const aptDateStr = toLocalDateKey(aptTime);
-        const aptTimeString = `${aptTime.getHours().toString().padStart(2, '0')}:${aptTime.getMinutes().toString().padStart(2, '0')}`;
+        const { dateStr: aptDateStr, timeStr: aptTimeString } = parseApptTime(apt.appointment_time);
         return aptDateStr === dateStr && aptTimeString === timeString;
       }) : undefined
     });

@@ -226,17 +226,22 @@ export default function DoctorAvailabilityPage() {
   };
 
   const bookAppointment = async () => {
-    if (!selectedPatient || !selectedTime || !selectedDoctor) {
+    if (!selectedPatient || !selectedTime || !selectedDoctor || !selectedDate) {
       alert("Please ensure patient, doctor, and slot are selected.");
       return;
     }
 
     try {
-      const appointmentDateTime = new Date(`${selectedDate?.toDateString()} ${selectedTime}`);
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      const appointmentTimeStr = `${dateStr}T${selectedTime}:00`;
+
       const appointmentData = {
         patient_id: selectedPatient,
         doctor_id: selectedDoctor.id,
-        appointment_time: appointmentDateTime.toISOString(),
+        appointment_time: appointmentTimeStr,
         status: 'Scheduled'
       };
 
@@ -245,9 +250,10 @@ export default function DoctorAvailabilityPage() {
       setShowBookingModal(false);
       setSelectedPatient("");
       alert("Success! Appointment has been scheduled.");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Booking failed. Please try again.");
+      const errMsg = err.response?.data?.error || "Booking failed. Please try again.";
+      alert(errMsg);
     }
   };
 
@@ -493,11 +499,23 @@ export default function DoctorAvailabilityPage() {
                         const dateStr = date.toLocaleDateString('en-CA');
                         const isToday = date.toDateString() === new Date().toDateString();
                         
-                        const appt = appointments.find(a => 
-                          new Date(a.appointment_time).getHours() === parseInt(time.split(':')[0]) &&
-                          new Date(a.appointment_time).getMinutes() === parseInt(time.split(':')[1]) &&
-                          new Date(a.appointment_time).toDateString() === date.toDateString()
-                        );
+                        const appt = appointments.find(a => {
+                          if (!a.appointment_time) return false;
+                          const str = typeof a.appointment_time === 'string' ? a.appointment_time : new Date(a.appointment_time).toISOString();
+                          const parts = str.split('T');
+                          if (parts.length >= 2) {
+                            const apptDateStr = parts[0];
+                            const apptTime = parts[1].substring(0, 5);
+                            
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const targetDateStr = `${year}-${month}-${day}`;
+                            
+                            return apptDateStr === targetDateStr && apptTime === time;
+                          }
+                          return false;
+                        });
 
                         const block = availability.find(a => 
                           a.dateStr === dateStr && a.timeStr === time && !a.is_available
