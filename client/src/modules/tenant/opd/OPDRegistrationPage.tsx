@@ -1,19 +1,15 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
-import PrivacyValue from "../../../components/PrivacyValue";
 import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { 
-  Search, UserPlus, Zap, Activity, Clock, 
-  CheckCircle2, Users, ArrowRight, Save, Trash2, User,
-  Calendar, Phone, Mail, MapPin, Shield, HeartPulse, Briefcase, Scale
+  Search, UserPlus, Shield, CheckCircle2, Trash2, User,
+  Activity, Scale, HeartPulse, MapPin, Users, Zap
 } from 'lucide-react';
 
 export default function OPDRegistrationPage() {
-  const navigate = useNavigate();
   const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -38,6 +34,7 @@ export default function OPDRegistrationPage() {
   const [regData, setRegData] = useState({ 
     name: '', phone: '', email: '', dob: '', gender: 'Male', 
     blood_group: '', occupation: '', address: '', 
+    guardian_name: '', guardian_phone: '',
     medical_history: '', allergies: '',
     abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
   });
@@ -284,7 +281,7 @@ export default function OPDRegistrationPage() {
         name: '', phone: '', email: '', dob: '', gender: 'Male', 
         blood_group: '', occupation: '', address: '', 
         guardian_name: '', guardian_phone: '', medical_history: '', allergies: '',
-        abhaId: ''
+        abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
     });
     setVitals({ weight: '', bp: '', temp: '', height: '' });
     setSelectedDoctorId("");

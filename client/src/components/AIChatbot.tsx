@@ -3,7 +3,7 @@ import axios from 'axios';
 import { MessageSquare, X, Send, GripVertical, Loader2 } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
+const API_BASE = (import.meta as any).env?.VITE_API_BASE || 'http://localhost:4000';
 const STORAGE_KEY = 'chatbot_position';
 
 // Position type: either "anchored" (bottom-right corner) or "free" (user dragged it)

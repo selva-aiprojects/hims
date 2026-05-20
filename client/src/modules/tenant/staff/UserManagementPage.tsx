@@ -1,22 +1,18 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Users, Settings, Shield, Activity, Key, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { Users, Shield, Activity, Key, Lock, Unlock } from 'lucide-react';
 
 export default function UserManagementPage() {
-  const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'permissions' | 'audit'>('users');
   const [showUserModal, setShowUserModal] = useState(false);
-  const [showRoleModal, setShowRoleModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [selectedRole, setSelectedRole] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const headers = {
@@ -59,6 +55,7 @@ export default function UserManagementPage() {
     } catch (err) { console.error(err); }
   };
 
+  /*
   const handleRoleAssignment = async (userId: string, roleId: string) => {
     try {
       await axios.post(`${API_BASE}/api/hospital/users/${userId}/roles`, 
@@ -86,6 +83,7 @@ export default function UserManagementPage() {
       fetchData();
     } catch (err) { console.error(err); }
   };
+  */
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -232,7 +230,7 @@ export default function UserManagementPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.map((user, i) => (
+                      {filteredUsers.map((user) => (
                         <tr key={user.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '16px', fontSize: '14px', fontWeight: 600 }}>{user.name}</td>
                           <td style={{ padding: '16px', fontSize: '14px', color: '#64748b' }}>{user.email}</td>
@@ -294,7 +292,7 @@ export default function UserManagementPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                 <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>Role Management</h3>
                 <button
-                  onClick={() => setShowRoleModal(true)}
+                  onClick={() => alert('Role creation form will be implemented here...')}
                   style={{ padding: '12px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 600, cursor: 'pointer' }}
                 >
                   + Create Role
@@ -302,7 +300,7 @@ export default function UserManagementPage() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                {roles.map((role, i) => (
+                {roles.map((role) => (
                   <div key={role.id} style={{ 
                     background: 'white', 
                     borderRadius: '16px', 
@@ -317,7 +315,7 @@ export default function UserManagementPage() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
-                          onClick={() => setSelectedRole(role)}
+                          onClick={() => alert('Role management form will be implemented here...')}
                           style={{ padding: '6px 12px', borderRadius: '8px', background: '#f1f5f9', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
                         >
                           Edit
@@ -341,7 +339,7 @@ export default function UserManagementPage() {
               <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#1e293b', marginBottom: '24px' }}>Permission Management</h3>
               
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                {permissions.map((permission, i) => (
+                {permissions.map((permission) => (
                   <div key={permission.id} style={{ 
                     background: 'white', 
                     borderRadius: '16px', 

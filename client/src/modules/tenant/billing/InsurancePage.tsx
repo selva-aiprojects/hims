@@ -3,7 +3,7 @@ import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Shield, Plus, Filter, Search, FileText, CheckCircle, Clock, AlertCircle, Building2, UserPlus, CreditCard } from "lucide-react";
+import { Shield, Plus, Search, FileText, CheckCircle, Clock, AlertCircle, Building2, UserPlus } from "lucide-react";
 
 export default function InsurancePage() {
   const [activeTab, setActiveTab] = useState('claims');
@@ -12,11 +12,11 @@ export default function InsurancePage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [patientMappings, setPatientMappings] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [showProvModal, setShowProvModal] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [showMapModal, setShowMapModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+
 
   const [newProv, setNewProv] = useState({ name: '', tpa_name: '', contact_person: '', email: '' });
   const [newPlan, setNewPlan] = useState({ provider_id: '', plan_name: '', description: '', base_coverage: '', copay_percent: '' });
@@ -46,7 +46,6 @@ export default function InsurancePage() {
       setPatientMappings(mapRes.data);
       setPatients(patRes.data);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
   };
 
   const handleAddProvider = async (e: any) => {

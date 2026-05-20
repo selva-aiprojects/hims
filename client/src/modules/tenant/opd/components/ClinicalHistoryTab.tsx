@@ -1,4 +1,4 @@
-import { Zap, ClipboardList, Heart, AlertTriangle, Info, FlaskConical, Pill, CheckCircle2 } from 'lucide-react';
+import { Zap, Heart, FlaskConical, Pill } from 'lucide-react';
 
 interface ClinicalHistoryTabProps {
   patient: any;

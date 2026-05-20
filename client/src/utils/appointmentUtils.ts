@@ -1,5 +1,5 @@
 import { TimeSlot, Appointment } from '../types/appointment';
-import { isSlotOnLeave, parseTimeToMinutes, toLocalDateKey, parseApptTime } from './schedulingEngine';
+import { isSlotOnLeave, parseTimeToMinutes, parseApptTime } from './schedulingEngine';
 
 /**
  * Returns true if the given time string (HH:MM) falls within a leave or block override.
@@ -97,7 +97,7 @@ export const formatDate = (date: Date) => {
   });
 };
 
-export const getScheduleForDay = (schedules: ScheduleRule[], weekday: number) => {
+export const getScheduleForDay = (schedules: any[], weekday: number) => {
   return schedules.filter(schedule => schedule.weekday === weekday && schedule.is_active);
 };
 

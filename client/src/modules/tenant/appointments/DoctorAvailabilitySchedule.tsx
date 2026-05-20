@@ -4,8 +4,8 @@ import { User, ChevronLeft, ChevronRight, Filter, CheckCircle, X, Calendar, Aler
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { API_BASE_URL as API_BASE } from '../../../config/api';
-import { Doctor, Appointment, ScheduleRule, TimeSlot } from '../../../types/appointment';
-import { getWeekDates, generateTimeSlots, getScheduleForDay } from '../../../utils/appointmentUtils';
+import { Doctor, Appointment, ScheduleRule } from '../../../types/appointment';
+import { getWeekDates, isToday, formatTime, isPastDate } from '../../../utils/appointmentUtils';
 import { toLocalDateKey, getAvailableSlotsForDate } from '../../../utils/schedulingEngine';
 
 export default function DoctorAvailabilitySchedule() {
@@ -76,7 +76,7 @@ export default function DoctorAvailabilitySchedule() {
     setCurrentWeek(newWeek);
   };
 
-  const getSlotsForDay = (date: Date): TimeSlot[] => {
+  const getSlotsForDay = (date: Date): any[] => {
     const dateStr = toLocalDateKey(date);
     return getAvailableSlotsForDate({
       dateStr,

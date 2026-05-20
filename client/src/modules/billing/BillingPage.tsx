@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import axios from "axios";
 import { 
   Wallet, 
   ShieldCheck, 
   Receipt, 
   Search, 
-  Plus, 
   Trash2, 
   Printer, 
   CreditCard, 
@@ -41,7 +40,6 @@ const BILLING_TABS: BillingTab[] = [
 
 export default function BillingPage() {
   const location = useLocation();
-  const navigate = useNavigate();
   const state = location.state as any;
   const queryParams = new URLSearchParams(location.search);
   const initialType = (queryParams.get('type') as BillType) || state?.billType || 'OPD';
@@ -148,7 +146,7 @@ export default function BillingPage() {
   const fetchHospitalSettings = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/hospital/settings`, { headers });
-      setHospitalSettings(prev => ({ ...prev, ...res.data }));
+      setHospitalSettings((prev: any) => ({ ...prev, ...res.data }));
     } catch (err) { console.error('Failed to fetch hospital settings', err); }
   };
 

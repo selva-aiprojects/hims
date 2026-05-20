@@ -29,51 +29,106 @@ router.get("/stats", async (req, res, next) => {
       );
     `);
 
-    // 1. CORE KPIs (LIVE)
-    const [patientCount, admissionCount, billCount, revenue] = await Promise.all([
-      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".patients WHERE created_at > NOW() - INTERVAL '24 hours'`),
-      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Admitted'`),
+    // Helper to safely execute queries with fallbacks in case of table/schema stage mismatch
+    const runQuery = async (sql, fallback = 0) => {
+      try {
+        const queryRes = await req.prisma.$queryRawUnsafe(sql);
+        if (Array.isArray(queryRes)) {
+          if (queryRes.length === 1 && queryRes[0] && typeof queryRes[0] === 'object') {
+            const keys = Object.keys(queryRes[0]);
+            if (keys.length === 1) {
+              const val = queryRes[0][keys[0]];
+              return val !== null ? val : fallback;
+            }
+          }
+          return queryRes;
+        }
+        return queryRes || fallback;
+      } catch (err) {
+        console.warn(`[METRICS QUERY FAIL] ${sql}:`, err.message);
+        return fallback;
+      }
+    };
 
-      req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int FROM "${schema}".invoices WHERE status = 'Unpaid'`),
-      req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE status = 'Paid' AND created_at > NOW() - INTERVAL '24 hours'`)
+    // 1. CORE KPIs (LIVE)
+    const [
+      patientCountToday,
+      appointmentsToday,
+      checkedInToday,
+      pendingBills,
+      dailyRevenue,
+      prescriptionsToday,
+      admissionsToday,
+      dischargesToday,
+      ipdActivePatients,
+      totalBedsCount,
+      occupiedBedsCount,
+      completedEncountersToday,
+      newPatientsToday,
+      returningPatientsToday
+    ] = await Promise.all([
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".patients WHERE created_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".appointments WHERE appointment_time::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".encounters WHERE created_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".invoices WHERE status ILIKE 'unpaid' OR status ILIKE 'pending' OR status ILIKE 'partial'`, 0),
+      runQuery(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE (status ILIKE 'paid' OR status ILIKE 'settled') AND created_at::date = CURRENT_DATE`, 0.0),
+      runQuery(`SELECT COUNT(DISTINCT COALESCE(prescription_id, encounter_id))::int FROM "${schema}".prescription_items WHERE created_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE admitted_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Discharged' AND discharged_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Admitted' OR status = 'Active'`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".beds`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".beds WHERE status ILIKE 'occupied'`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".encounters WHERE (status = 'Completed' OR status = 'Finished') AND created_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(*)::int FROM "${schema}".patients WHERE created_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(DISTINCT e.patient_id)::int FROM "${schema}".encounters e JOIN "${schema}".patients p ON e.patient_id = p.id WHERE e.created_at::date = CURRENT_DATE AND p.created_at::date < CURRENT_DATE`, 0)
     ]);
 
+    // Average Waiting Time (Today)
+    const avgWaitingTime = await runQuery(`
+      SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (e2.created_at - e1.created_at))/60), 0)::int as avg_wait
+      FROM "${schema}".consultation_events e1
+      JOIN "${schema}".consultation_events e2 ON e1.encounter_id = e2.encounter_id
+      WHERE e1.event_type = 'CHECK_IN' AND e2.event_type = 'CONSULT_START'
+      AND e1.created_at::date = CURRENT_DATE
+    `, 0);
+
     // 2. IP vs OP Ratio (Last 30 Days)
-    const ipOpRatio = await req.prisma.$queryRawUnsafe(`
+    const ipOpRatioRes = await runQuery(`
       SELECT 
         (SELECT COUNT(*)::int FROM "${schema}".appointments WHERE created_at > NOW() - INTERVAL '30 days') as op_count,
         (SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE admitted_at > NOW() - INTERVAL '30 days') as ip_count
-    `);
+    `, [{ op_count: 0, ip_count: 0 }]);
+    const ipOpRatio = ipOpRatioRes[0] || { op_count: 0, ip_count: 0 };
 
     // 3. Pharmacy Stock Alerts (Critical < 20 units)
-    const stockAlerts = await req.prisma.$queryRawUnsafe(`
+    const stockAlerts = await runQuery(`
       SELECT name, stock_quantity 
       FROM "${schema}".medicines 
       WHERE stock_quantity < 20 AND is_active = true 
       ORDER BY stock_quantity ASC LIMIT 5
-    `);
+    `, []);
 
     // 4. Bed Occupancy (Live)
-    const bedStats = await req.prisma.$queryRawUnsafe(`
+    const bedStats = await runQuery(`
       SELECT 
         status, 
         COUNT(*)::int as count 
       FROM "${schema}".beds 
       GROUP BY status
-    `);
+    `, []);
 
     // 5. Lab Performance (Pending vs Completed)
-    const labStats = await req.prisma.$queryRawUnsafe(`
+    const labStats = await runQuery(`
       SELECT 
         status, 
         COUNT(*)::int as count 
       FROM "${schema}".lab_orders 
       WHERE created_at > NOW() - INTERVAL '7 days'
       GROUP BY status
-    `);
+    `, []);
 
     // 6. Discharge Comparison (Admissions vs Discharges last 7 days)
-    const dischargeTrend = await req.prisma.$queryRawUnsafe(`
+    const dischargeTrend = await runQuery(`
       SELECT 
         d.date::date as date,
         (SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE admitted_at::date = d.date::date) as admitted,
@@ -82,10 +137,10 @@ router.get("/stats", async (req, res, next) => {
         SELECT generate_series(CURRENT_DATE - INTERVAL '6 days', CURRENT_DATE, '1 day'::interval) as date
       ) d
       ORDER BY d.date ASC
-    `);
+    `, []);
 
     // 7. Weekly Patient Flow (Original)
-    const weeklyFlow = await req.prisma.$queryRawUnsafe(`
+    const weeklyFlow = await runQuery(`
       SELECT 
         d.date::date as date,
         COALESCE(count(p.id), 0)::int as count
@@ -95,18 +150,19 @@ router.get("/stats", async (req, res, next) => {
       LEFT JOIN "${schema}".patients p ON p.created_at::date = d.date::date
       GROUP BY d.date
       ORDER BY d.date ASC
-    `);
+    `, []);
 
     // 8. Latest Patient
-    const lastPatientRes = await req.prisma.$queryRawUnsafe(`SELECT name FROM "${schema}".patients ORDER BY created_at DESC LIMIT 1`);
+    const lastPatientRes = await runQuery(`SELECT name FROM "${schema}".patients ORDER BY created_at DESC LIMIT 1`, [{ name: 'N/A' }]);
+    const lastPatientName = lastPatientRes[0]?.name || 'N/A';
 
     // 9. PREDICTIVE ANALYTICS (REAL)
     // 9.1 Complexity Mix from AI Predictions
-    const complexityResults = await req.prisma.$queryRawUnsafe(`
+    const complexityResults = await runQuery(`
       SELECT complexity as name, COUNT(*)::int as count 
       FROM "${schema}".consultation_predictions 
       GROUP BY complexity
-    `);
+    `, []);
     const totalComplexity = complexityResults.reduce((acc, c) => acc + c.count, 0) || 1;
     const complexityMix = complexityResults.map(c => ({
       name: c.name,
@@ -115,7 +171,7 @@ router.get("/stats", async (req, res, next) => {
 
     // 9.2 Predicted vs Actual (Accuracy Tracker)
     // Fetch last 10 completed consultations
-    const accuracyStats = await req.prisma.$queryRawUnsafe(`
+    const accuracyStats = await runQuery(`
       SELECT 
         cp.predicted_time_mins as predicted,
         COALESCE(NULLIF(ce.metadata->>'totalDuration', '')::float, 0) / 60 as actual,
@@ -125,18 +181,19 @@ router.get("/stats", async (req, res, next) => {
       JOIN "${schema}".encounters e ON e.id = cp.encounter_id
       ORDER BY e.created_at DESC
       LIMIT 10
-    `);
+    `, []);
 
     // 9.3 Avg Predicted Time
-    const avgPredictedRes = await req.prisma.$queryRawUnsafe(`SELECT AVG(predicted_time_mins)::float FROM "${schema}".consultation_predictions`);
+    const avgPredictedRes = await runQuery(`SELECT AVG(predicted_time_mins)::float as avg FROM "${schema}".consultation_predictions`, [{ avg: 15 }]);
+    const avgPredictedTime = Math.round(typeof avgPredictedRes === 'number' ? avgPredictedRes : (avgPredictedRes[0]?.avg || 15));
 
     // 9.4 Physician Utilization (Last 24h)
-    const utilizationRes = await req.prisma.$queryRawUnsafe(`
+    const utilizationRes = await runQuery(`
       SELECT 
         COALESCE(SUM(NULLIF(metadata->>'totalDuration', '')::float), 0) / 3600 as active_hours
       FROM "${schema}".consultation_events 
       WHERE event_type = 'CONSULT_END' AND created_at > NOW() - INTERVAL '24 hours'
-    `);
+    `, [{ active_hours: 0 }]);
     const activeHours = utilizationRes[0]?.active_hours || 0;
     const utilizationPercent = Math.min(100, Math.round((activeHours / 8) * 100)); // Assuming 8h shift for index
 
@@ -144,45 +201,115 @@ router.get("/stats", async (req, res, next) => {
     let billingKpis = { dailyCollection: 0, pendingInsurance: 0, todayInvoices: 0, outstandingDues: 0 };
     try {
       const [dailyColl, pendingIns, todayInv, outstanding] = await Promise.all([
-        req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as val FROM "${schema}".invoices WHERE status = 'Paid' AND created_at > NOW() - INTERVAL '24 hours'`),
-        req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as val FROM "${schema}".invoices WHERE payment_mode = 'Insurance' AND status IN ('Unpaid', 'Pending')`),
-        req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as val FROM "${schema}".invoices WHERE created_at > NOW() - INTERVAL '24 hours'`),
-        req.prisma.$queryRawUnsafe(`SELECT COALESCE(SUM(total), 0)::float as val FROM "${schema}".invoices WHERE status IN ('Unpaid', 'Partial') AND created_at > NOW() - INTERVAL '30 days'`),
+        runQuery(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE status = 'Paid' AND created_at > NOW() - INTERVAL '24 hours'`, 0),
+        runQuery(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE payment_mode = 'Insurance' AND status IN ('Unpaid', 'Pending')`, 0),
+        runQuery(`SELECT COUNT(*)::int FROM "${schema}".invoices WHERE created_at > NOW() - INTERVAL '24 hours'`, 0),
+        runQuery(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE status IN ('Unpaid', 'Partial') AND created_at > NOW() - INTERVAL '30 days'`, 0),
       ]);
       billingKpis = {
-        dailyCollection: Math.round(dailyColl[0]?.val || 0),
-        pendingInsurance: Math.round(pendingIns[0]?.val || 0),
-        todayInvoices: todayInv[0]?.val || 0,
-        outstandingDues: Math.round(outstanding[0]?.val || 0),
+        dailyCollection: Math.round(dailyColl || 0),
+        pendingInsurance: Math.round(pendingIns || 0),
+        todayInvoices: todayInv || 0,
+        outstandingDues: Math.round(outstanding || 0),
       };
     } catch (e) { /* invoices table may not exist in all shards yet */ }
 
+    // 11. Additional Lists & Aggregations
+    const todayAppointments = await runQuery(`
+      SELECT 
+        a.id,
+        a.appointment_time,
+        a.status,
+        p.name as patient_name,
+        u.name as doctor_name
+      FROM "${schema}".appointments a
+      JOIN "${schema}".patients p ON a.patient_id = p.id
+      LEFT JOIN "${schema}".users u ON a.doctor_id = u.id
+      WHERE a.appointment_time::date = CURRENT_DATE
+      ORDER BY a.appointment_time ASC
+    `, []);
+
+    const revenueBreakdown = await runQuery(`
+      SELECT 
+        COALESCE(bill_type, 'Others') as type,
+        COALESCE(SUM(total), 0)::float as amount
+      FROM "${schema}".invoices
+      WHERE (status ILIKE 'paid' OR status ILIKE 'settled') AND created_at::date = CURRENT_DATE
+      GROUP BY COALESCE(bill_type, 'Others')
+    `, []);
+
+    const patientGenderStats = await runQuery(`
+      SELECT 
+        gender, 
+        COUNT(*)::int as count 
+      FROM "${schema}".patients 
+      GROUP BY gender
+    `, []);
+
+    const topComplaints = await runQuery(`
+      SELECT 
+        complaint as name,
+        COUNT(*)::int as count
+      FROM "${schema}".complaints
+      GROUP BY complaint
+      ORDER BY count DESC
+      LIMIT 4
+    `, []);
+
+    const wardStats = await runQuery(`
+      SELECT 
+        w.name as label,
+        COUNT(b.id)::int as total,
+        COUNT(CASE WHEN b.status = 'Occupied' THEN 1 END)::int as occupied
+      FROM "${schema}".wards w
+      LEFT JOIN "${schema}".beds b ON w.id = b.ward_id
+      GROUP BY w.id, w.name
+    `, []);
+
+    // Bed occupancy percent formatting:
+    const calculatedBedOccupancy = totalBedsCount > 0 ? Math.round((occupiedBedsCount * 100) / totalBedsCount) : 0;
+
     res.json({
       metrics: {
-        patientInflow: patientCount[0]?.count || 0,
-        activeAdmissions: admissionCount[0]?.count || 0,
-        pendingBills: billCount[0]?.count || 0,
-        dailyRevenue: revenue[0]?.sum || 0,
-        lastPatient: lastPatientRes[0]?.name || 'N/A',
+        patientInflow: patientCountToday || appointmentsToday || 0,
+        activeAdmissions: ipdActivePatients || 0,
+        pendingBills: pendingBills || 0,
+        dailyRevenue: dailyRevenue || 0,
+        lastPatient: lastPatientName,
+        appointmentsToday: appointmentsToday || 0,
+        checkedInToday: checkedInToday || 0,
+        prescriptionsToday: prescriptionsToday || 0,
+        admissionsToday: admissionsToday || 0,
+        dischargesToday: dischargesToday || 0,
+        bedOccupancy: calculatedBedOccupancy || 0,
+        avgWaitingTime: avgWaitingTime || 0,
+        completedEncountersToday: completedEncountersToday || 0,
+        newPatientsToday: newPatientsToday || 0,
+        returningPatientsToday: returningPatientsToday || 0,
         ...billingKpis,
       },
-      ipOpRatio: ipOpRatio[0],
+      ipOpRatio: ipOpRatio,
       stockAlerts,
       bedStats,
       labStats,
       dischargeTrend,
       weeklyFlow,
-      totalBeds: bedStats.reduce((acc, b) => acc + (b.count || 0), 0) || 49,
+      totalBeds: totalBedsCount || 49,
       predictive: {
         complexityMix: complexityMix.length ? complexityMix : [{ name: 'Routine', value: 100 }],
-        predictedAvgTime: Math.round(avgPredictedRes[0]?.avg || 15),
+        predictedAvgTime: avgPredictedTime,
         utilization: utilizationPercent,
         workloadForecast: (accuracyStats || []).map(s => ({
           time: s.time ? new Date(s.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A',
           actual: Math.round(Number(s.actual) || 0),
           predicted: Number(s.predicted) || 0
         })).reverse()
-      }
+      },
+      todayAppointments,
+      revenueBreakdown,
+      patientGenderStats,
+      topComplaints,
+      wardStats
     });
 
   } catch (error) { 

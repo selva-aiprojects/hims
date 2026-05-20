@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Truck, Search, Plus, AlertCircle, CheckCircle2, Ban } from 'lucide-react';
+import { Truck, Plus, CheckCircle2, Ban } from 'lucide-react';
 import { useToast } from "../../../components/ToastProvider";
 
 export default function InwardRegister({ embedded = false }: { embedded?: boolean }) {

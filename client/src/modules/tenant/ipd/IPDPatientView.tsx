@@ -7,18 +7,13 @@ import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
 
-import { 
-  User, Activity, Pill, FlaskConical, History, 
-  CheckCircle2, ChevronRight, FileText, 
-  Stethoscope, Thermometer, Droplets, Scale, Zap,
-  AlertTriangle, Heart, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, X, ClipboardCheck, ClipboardList
-} from 'lucide-react';
+import { Pill, FlaskConical, Zap, Sparkles, X } from 'lucide-react';
 
 export default function IPDPatientView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [data, setData] = useState<{ admission: any; notes: any[] } | null>(null);
+  const [data, setData] = useState<{ admission: any; notes: any[]; dischargeSummary?: any; } | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState("");
   const [noteType, setNoteType] = useState("Progress");
@@ -115,7 +110,7 @@ export default function IPDPatientView() {
     try {
       const res = await axios.post(`${API_BASE}/api/hospital/ipd/admissions/${id}/generate-summary`, {}, { headers });
       if (res.data.summaryText?.includes("AI_LIMIT_REACHED")) {
-        showToast("AI Quota Reached. Please wait 60 seconds.", "warning");
+        showToast("AI Quota Reached. Please wait 60 seconds.", "info");
       } else {
         showToast(`AI discharge summary generated.`, "success");
         fetchData(); 

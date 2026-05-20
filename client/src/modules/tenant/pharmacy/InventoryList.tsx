@@ -159,7 +159,7 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>UOM</label>
-                    <select style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewEntry({...newItem, uom: e.target.value})}>
+                    <select style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewItem({...newItem, uom: e.target.value})}>
                       <option value="Tablet">Tablet</option>
                       <option value="Capsule">Capsule</option>
                       <option value="Strip">Strip</option>

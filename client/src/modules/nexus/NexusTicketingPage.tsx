@@ -127,16 +127,18 @@ export default function NexusTicketingPage() {
 
                   <div style={{ display: 'flex', gap: '12px' }}>
                      <button 
+                       disabled={loading}
                        onClick={() => handleUpdate('Resolved')}
-                       style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#10b981', color: 'white', border: 'none', fontWeight: 800, cursor: 'pointer' }}
+                       style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#10b981', color: 'white', border: 'none', fontWeight: 800, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
                      >
-                       RESOLVE
+                       {loading ? 'RESOLVING...' : 'RESOLVE'}
                      </button>
                      <button 
+                       disabled={loading}
                        onClick={() => handleUpdate('In Progress')}
-                       style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#f59e0b', color: 'white', border: 'none', fontWeight: 800, cursor: 'pointer' }}
+                       style={{ flex: 1, padding: '16px', borderRadius: '16px', background: '#f59e0b', color: 'white', border: 'none', fontWeight: 800, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
                      >
-                       UPDATE
+                       {loading ? 'UPDATING...' : 'UPDATE'}
                      </button>
                   </div>
                </div>

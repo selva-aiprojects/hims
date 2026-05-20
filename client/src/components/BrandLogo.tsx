@@ -4,7 +4,7 @@ interface BrandLogoProps {
   light?: boolean;
 }
 
-export default function BrandLogo({ size = 'md', showText = true, light = false }: BrandLogoProps) {
+export default function BrandLogo({ size = 'md' }: BrandLogoProps) {
   const height = size === 'sm' ? 28 : size === 'md' ? 48 : 72;
   const customLogo = localStorage.getItem('theme_logo_url');
   

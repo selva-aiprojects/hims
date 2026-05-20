@@ -4,19 +4,10 @@ import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { 
-  Plus, 
   Settings, 
   ChevronRight, 
   ChevronLeft, 
-  X, 
-  Calendar, 
-  Clock, 
-  User, 
-  Layout, 
-  CalendarDays,
-  Stethoscope,
-  ChevronDown,
-  Info
+  Stethoscope
 } from 'lucide-react';
 
 export default function AdvancedDoctorAvailabilityPage() {

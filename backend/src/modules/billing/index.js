@@ -40,6 +40,8 @@ async function ensureBillingTables(req) {
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS discount_amount NUMERIC DEFAULT 0`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS source_queue_id UUID`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoice_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".invoices ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
 }
 
 

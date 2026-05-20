@@ -1,4 +1,3 @@
-import React from 'react';
 
 interface PrivacyValueProps {
   value: string | undefined | null;

@@ -127,7 +127,7 @@ export const getSlotState = ({
   // 2. Appointment Check
   let appointment = null;
   if (Array.isArray(appointments)) {
-    if (!appointments._lookupMap) {
+    if (!(appointments as any)._lookupMap) {
       const map = new Map();
       appointments.forEach((a: any) => {
         const { dateStr: apptDateStr, timeStr: apptTime } = parseApptTime(a.appointment_time);
@@ -140,7 +140,7 @@ export const getSlotState = ({
         enumerable: false
       });
     }
-    appointment = appointments._lookupMap.get(`${date}_${time}`);
+    appointment = (appointments as any)._lookupMap.get(`${date}_${time}`);
   }
 
   if (appointment) {
@@ -172,7 +172,7 @@ export const getSlotState = ({
   // 4. Master Schedule
   let schedule = null;
   if (Array.isArray(schedules)) {
-    if (!schedules._lookupMap) {
+    if (!(schedules as any)._lookupMap) {
       const map = new Map();
       schedules.forEach((s: any) => {
         if (!map.has(s.weekday)) {
@@ -192,7 +192,7 @@ export const getSlotState = ({
       });
     }
     const slotMins = parseTimeToMinutes(time);
-    const weekdaySchedules = schedules._lookupMap.get(weekday) || [];
+    const weekdaySchedules = (schedules as any)._lookupMap.get(weekday) || [];
     schedule = weekdaySchedules.find((s: any) => s.is_active && slotMins >= s.startMins && slotMins < s.endMins);
   } else {
     schedule = schedules.find((s: any) => s.weekday === weekday && time >= s.start_time && time < s.end_time && s.is_active);
@@ -201,7 +201,7 @@ export const getSlotState = ({
   // 5. Override
   let override = null;
   if (Array.isArray(overrides)) {
-    if (!overrides._lookupMap) {
+    if (!(overrides as any)._lookupMap) {
       const map = new Map();
       overrides.forEach((o: any) => {
         if (!map.has(o.override_date)) {
@@ -221,7 +221,7 @@ export const getSlotState = ({
       });
     }
     const slotMins = parseTimeToMinutes(time);
-    const dayOverrides = overrides._lookupMap.get(date) || [];
+    const dayOverrides = (overrides as any)._lookupMap.get(date) || [];
     override = dayOverrides.find((o: any) => slotMins >= o.startMins && slotMins < o.endMins);
   } else {
     override = overrides.find((o: any) => o.override_date === date && time >= o.start_time && time < o.end_time);
@@ -288,7 +288,7 @@ export const getAvailableSlotsForDate = ({
   }
   
   // Set up lookup map for appointments on the array if not already present
-  if (Array.isArray(appointments) && !appointments._lookupMap) {
+  if (Array.isArray(appointments) && !(appointments as any)._lookupMap) {
     const map = new Map();
     appointments.forEach((a: any) => {
       const { dateStr: apptDateStr, timeStr: apptTime } = parseApptTime(a.appointment_time);
@@ -303,7 +303,7 @@ export const getAvailableSlotsForDate = ({
   }
 
   // Set up lookup map for overrides on the array if not already present
-  if (Array.isArray(overrides) && !overrides._lookupMap) {
+  if (Array.isArray(overrides) && !(overrides as any)._lookupMap) {
     const map = new Map();
     overrides.forEach((o: any) => {
       if (!map.has(o.override_date)) {
@@ -335,8 +335,8 @@ export const getAvailableSlotsForDate = ({
       const timeStr = `${Math.floor(currentMins / 60).toString().padStart(2, '0')}:${(currentMins % 60).toString().padStart(2, '0')}`;
       
       // O(1) Appointment Check
-      const appt = appointments._lookupMap 
-        ? appointments._lookupMap.get(`${dateStr}_${timeStr}`)
+      const appt = (appointments as any)._lookupMap 
+        ? (appointments as any)._lookupMap.get(`${dateStr}_${timeStr}`)
         : appointments.find((a: any) => {
             const { dateStr: apptDateStr, timeStr: apptTime } = parseApptTime(a.appointment_time);
             return apptDateStr === dateStr && apptTime === timeStr;
@@ -347,8 +347,8 @@ export const getAvailableSlotsForDate = ({
       
       // Check overrides (using pre-parsed values if available)
       let override = null;
-      if (overrides._lookupMap) {
-        const dayOverrides = overrides._lookupMap.get(dateStr) || [];
+      if ((overrides as any)._lookupMap) {
+        const dayOverrides = (overrides as any)._lookupMap.get(dateStr) || [];
         const slotMins = parseTimeToMinutes(timeStr);
         override = dayOverrides.find((o: any) => slotMins >= o.startMins && slotMins < o.endMins);
       } else {

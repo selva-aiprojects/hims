@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { useToast } from "../../../components/ToastProvider";
@@ -9,7 +9,7 @@ import { Pill } from 'lucide-react';
 
 
 export default function PrescriptionQueue({ embedded = false }: { embedded?: boolean }) {
-  const navigate = useNavigate();
+
   const { showToast } = useToast();
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [activePrescription, setActivePrescription] = useState<any>(null);

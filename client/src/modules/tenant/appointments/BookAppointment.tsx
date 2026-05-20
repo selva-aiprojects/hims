@@ -5,7 +5,7 @@ import { User, Calendar, Clock, CheckCircle, ArrowLeft, Search, Plus, Phone, Loa
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/Sidebar';
 import { Doctor, Patient, TimeSlot, BookingStep } from '../../../types/appointment';
-import { generateTimeSlots, formatTime, isToday, isPastDate, getScheduleForDay } from '../../../utils/appointmentUtils';
+import { formatTime, isToday, isPastDate } from '../../../utils/appointmentUtils';
 import { toLocalDateKey, parseLocalDate, getAvailableSlotsForDate } from '../../../utils/schedulingEngine';
 
 export default function BookAppointment() {
@@ -108,8 +108,6 @@ export default function BookAppointment() {
         { headers }
       );
       
-      const weekday = date.getDay();
-      const daySchedule = getScheduleForDay(response.data.schedules || [], weekday);
       const leaves = response.data.leaves || [];
       const overrides = response.data.overrides || [];
       const dayAppointments = response.data.appointments || [];

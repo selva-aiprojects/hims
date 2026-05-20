@@ -7,21 +7,14 @@ import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { 
   Plus, 
   Settings, 
-  ChevronRight, 
-  ChevronLeft, 
-  Calendar, 
-  Clock, 
   Layout, 
-  CalendarDays,
   Stethoscope,
   Activity,
-  ShieldCheck,
   Globe,
   BarChart3,
   Trash2,
-  Save,
-  CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  TrendingUp
 } from 'lucide-react';
 
 export default function AdvancedDoctorAvailabilityPage() {

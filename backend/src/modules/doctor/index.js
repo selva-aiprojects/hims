@@ -169,8 +169,9 @@ router.get("/:doctorId/schedule", async (req, res, next) => {
       FROM "${req.schemaName}".appointments a
       JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
       WHERE a.doctor_id = '${doctorId}'
-      AND a.appointment_time >= '${startDate || new Date().toISOString().split('T')[0]}'
-      AND a.appointment_time <= '${endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}'
+        AND COALESCE(a.status, 'Scheduled') != 'Cancelled'
+        AND a.appointment_time >= '${startDate || new Date().toISOString().split('T')[0]}'
+        AND a.appointment_time < ('${endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}'::date + INTERVAL '1 day')
       ORDER BY a.appointment_time ASC
     `);
     
@@ -525,6 +526,8 @@ router.get("/:doctorId/availability-rules", async (req, res, next) => {
     await ensureEnterpriseTables(req);
     const { doctorId } = req.params;
     const { startDate, endDate } = req.query;
+    const startDateValue = startDate || new Date().toISOString().split('T')[0];
+    const endDateValue = endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     const schedules = await req.prisma.$queryRawUnsafe(`
       SELECT
@@ -557,7 +560,7 @@ router.get("/:doctorId/availability-rules", async (req, res, next) => {
         created_at,
         updated_at
       FROM "${req.schemaName}".doctor_leaves
-      WHERE doctor_id = '${doctorId}' AND end_date >= '${startDate}' AND start_date <= '${endDate}'
+      WHERE doctor_id = '${doctorId}' AND end_date >= '${startDateValue}' AND start_date <= '${endDateValue}'
     `);
     const overrides = await req.prisma.$queryRawUnsafe(`
       SELECT
@@ -571,13 +574,16 @@ router.get("/:doctorId/availability-rules", async (req, res, next) => {
         created_at,
         updated_at
       FROM "${req.schemaName}".doctor_overrides
-      WHERE doctor_id = '${doctorId}' AND override_date >= '${startDate}' AND override_date <= '${endDate}'
+      WHERE doctor_id = '${doctorId}' AND override_date >= '${startDateValue}' AND override_date <= '${endDateValue}'
     `);
     const appointments = await req.prisma.$queryRawUnsafe(`
       SELECT a.*, p.name as patient_name 
       FROM "${req.schemaName}".appointments a
       JOIN "${req.schemaName}".patients p ON a.patient_id = p.id
-      WHERE a.doctor_id = '${doctorId}' AND a.appointment_time >= '${startDate}' AND a.appointment_time <= '${endDate}'
+      WHERE a.doctor_id = '${doctorId}'
+        AND COALESCE(a.status, 'Scheduled') != 'Cancelled'
+        AND a.appointment_time >= '${startDateValue}'
+        AND a.appointment_time < ('${endDateValue}'::date + INTERVAL '1 day')
     `);
 
     const statusRes = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".doctor_status WHERE doctor_id = '${doctorId}'`);

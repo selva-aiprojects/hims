@@ -4,12 +4,11 @@ import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { CheckCircle2, Lock, FileEdit, Printer, X, Sparkles, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, FileEdit, Printer, X, Sparkles, ShieldCheck } from 'lucide-react';
 
 export default function DischargeSummariesPage() {
   const [summaries, setSummaries] = useState<any[]>([]);
   const [activeSummary, setActiveSummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -29,7 +28,6 @@ export default function DischargeSummariesPage() {
       const res = await axios.get(`${API_BASE}/api/hospital/ipd/discharges`, { headers });
       setSummaries(res.data);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
   };
 
   const printSummary = () => {
@@ -127,7 +125,7 @@ export default function DischargeSummariesPage() {
           <div className="print-modal" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
              <div className="print-document" style={{ width: '840px', maxHeight: '92vh', overflowY: 'auto', background: 'white', borderRadius: '28px', padding: '48px', boxShadow: '0 25px 60px rgba(0,0,0,0.25)', position: 'relative' }}>
               
-              <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', borderBottom: '1px solid #f1f5f9', pb: '20px' }}>
+              <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button onClick={() => setActiveSummary(null)} style={{ padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: 'pointer' }}><X size={20} /></button>
                   <h3 style={{ margin: 0, fontWeight: 900 }}>Discharge Record</h3>

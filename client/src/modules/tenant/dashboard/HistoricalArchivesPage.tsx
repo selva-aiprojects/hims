@@ -3,10 +3,7 @@ import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { 
-  History, FileText, Receipt, Search, Filter, 
-  Download, Printer, ChevronRight, User, Calendar, Pill, FlaskConical 
-} from "lucide-react";
+import { FileText, Receipt, Search, Printer } from "lucide-react";
 
 export default function HistoricalArchivesPage() {
   const [bills, setBills] = useState<any[]>([]);

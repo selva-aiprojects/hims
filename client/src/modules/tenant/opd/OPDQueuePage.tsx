@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Clock, User, ArrowRight, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Clock, ArrowRight, Activity, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function OPDQueuePage() {
   const navigate = useNavigate();

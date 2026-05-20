@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { API_BASE_URL as API_BASE } from '../../../config/api';
 import axios from "axios";
 import { 
   Calendar as CalendarIcon, 
-  Clock, 
   User, 
   ChevronLeft, 
   ChevronRight, 
@@ -15,8 +14,7 @@ import {
   Activity,
   Zap,
   AlertCircle,
-  TrendingUp,
-  CheckCircle2 as CheckCircleIcon
+  TrendingUp
 } from "lucide-react";
 import Header from "../../../components/Header";
 import Sidebar from "../../../components/Sidebar";
@@ -55,7 +53,7 @@ export default function DoctorAvailabilityPage() {
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+
   const [appointments, setAppointments] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [leaves, setLeaves] = useState<any[]>([]);
@@ -563,15 +561,16 @@ const StatusBadge = ({ status, delay }: any) => {
 };
 
 const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess, reschedulingAppt, setReschedulingAppt }: any) => {
-  const { showToast } = useToast();
-  const [patientId, setPatientId] = useState("");
-  const [patientSearch, setPatientSearch] = useState("");
+
+  // const [patientId, setPatientId] = useState("");
+  // const [patientSearch, setPatientSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [reason, setReason] = useState("");
 
-  const [localPatients, setLocalPatients] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  // const [localPatients, setLocalPatients] = useState<any[]>([]);
+  // const [isSearching, setIsSearching] = useState(false);
 
+  /*
   useEffect(() => {
     if (patientSearch.length > 1) {
       const delayDebounceFn = setTimeout(async () => {
@@ -591,6 +590,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
   }, [patientSearch]);
 
   const filteredPatients = localPatients;
+  */
 
   const createSlotOverride = async (available: boolean) => {
     // Calculate end time (30 mins duration for a single slot override)
@@ -609,6 +609,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
     }, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}`, "x-tenant-id": localStorage.getItem("tenant") || "" } });
   };
 
+  /*
   const handleBook = async () => {
     if (!patientId) return alert("Select patient");
     if (state.isPast) return alert("Historical slots cannot be booked.");
@@ -643,6 +644,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
       showToast(err.response?.data?.error || "Appointment booking failed. Please try again.", "error");
     } finally { setLoading(false); }
   };
+  */
 
   const handleReschedule = async () => {
     if (!reschedulingAppt) return;
@@ -706,7 +708,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
 
   if (!open) return null;
 
-  const canQuickBook = !!patientId && !loading && (state.isBookable || (state.status === 'UNAVAILABLE' && !state.isPast));
+  // const canQuickBook = !!patientId && !loading && (state.isBookable || (state.status === 'UNAVAILABLE' && !state.isPast));
 
   return (
     <div style={drawerOverlayStyle}>
@@ -1076,7 +1078,7 @@ const LeaveTab = ({ doctor, leaves, onUpdate }: any) => {
 
   const handleAdd = async () => {
     if (!newLeave.start_date || !newLeave.end_date) {
-      showToast("Please select both start and end dates.", "warning");
+      showToast("Please select both start and end dates.", "info");
       return;
     }
     try {

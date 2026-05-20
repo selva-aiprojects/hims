@@ -3,14 +3,13 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
-import PrivacyValue from "../../../components/PrivacyValue";
 import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import {
-  User, Activity, Pill, FlaskConical, History,
+  User, Activity, Pill, FlaskConical,
   CheckCircle2, ChevronRight, FileText,
-  Stethoscope, Thermometer, Droplets, Scale, Zap,
-  AlertTriangle, Heart, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Clock, Timer
+  Stethoscope, Thermometer, Scale, Zap,
+  AlertTriangle, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Clock, Timer
 } from 'lucide-react';
 import PrescriptionTab from './components/PrescriptionTab';
 import LabTab from './components/LabTab';
@@ -51,13 +50,11 @@ export default function OPDConsultationPage() {
   const [admissionReason, setAdmissionReason] = useState("");
 
   const [predictions, setPredictions] = useState<any>(null);
-  const [isPredicting, setIsPredicting] = useState(false);
 
   // Timer & Event State
   const [hasStarted, setHasStarted] = useState(() => localStorage.getItem("isAutomation") === "true");
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [startTime, setStartTime] = useState<Date | null>(null);
 
 
   const getHeaders = () => ({
@@ -84,7 +81,6 @@ export default function OPDConsultationPage() {
 
   const fetchPredictions = async () => {
     if (!patient || !encounter) return;
-    setIsPredicting(true);
     try {
       const res = await axios.post(`${API_BASE}/api/consultations/predict`, {
         patientId: patient.id,
@@ -95,8 +91,6 @@ export default function OPDConsultationPage() {
       setPredictions(res.data);
     } catch (err) {
       console.error("Prediction failed:", err);
-    } finally {
-      setIsPredicting(false);
     }
   };
 
@@ -114,7 +108,6 @@ export default function OPDConsultationPage() {
 
   const startConsultation = () => {
     setHasStarted(true);
-    setStartTime(new Date());
     recordEvent('CONSULT_START');
   };
 
@@ -168,7 +161,7 @@ export default function OPDConsultationPage() {
       setDiagnostics(diagRes.data || []);
     } catch (err) {
       console.error(err);
-      showToast("Master data fetch failed. Some clinical dropdowns may be empty.", "warning");
+      showToast("Master data fetch failed. Some clinical dropdowns may be empty.", "info");
     }
   };
 
@@ -394,7 +387,7 @@ export default function OPDConsultationPage() {
       setAiAdvice(res.data);
     } catch (err: any) {
       if (err.response?.status === 429) {
-        showToast("AI limit reached. Please wait 30 seconds.", "warning");
+        showToast("AI limit reached. Please wait 30 seconds.", "info");
         setAiAdvice({ error: "LIMIT", message: "Maximum clinical AI capacity reached for this minute. Please pause for 30 seconds before retry." });
       } else {
         console.error(err);

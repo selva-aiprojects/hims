@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import axios from "axios";
 import { 
   LayoutDashboard, 
   Users, 
@@ -20,7 +19,6 @@ import {
   TrendingUp,
   Palette
 } from 'lucide-react';
-import { API_BASE_URL as API_BASE } from "../config/api";
 
 const Icons: Record<string, any> = {
   Dashboard: LayoutDashboard,
@@ -84,16 +82,14 @@ export default function Sidebar() {
   const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
   const plan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
   
-  const getHeaders = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-    "x-tenant-id": localStorage.getItem("tenant") || ""
-  });
-
   const { groups, ungroupped } = useMemo(() => {
     let dm = JSON.parse(localStorage.getItem("userMenus") || "[]");
     
 
     
+    if (!dm.some((m: any) => m.label.toLowerCase().includes("patient scheduling"))) {
+      dm.push({ label: "Patient Scheduling", path: "/tenant/appointments", icon: "Calendar", sort_order: 5 });
+    }
     if (!dm.some((m: any) => m.label.toLowerCase().includes("advanced scheduling console"))) {
       dm.push({ label: "Advanced Scheduling Console", path: "/tenant/appointments/doctor-calendar?tab=Weekly+Rules", icon: "CalendarDays", sort_order: 9 });
     }
@@ -113,6 +109,8 @@ export default function Sidebar() {
       "opd queue": "OPD Queue",
       "doctor's queue": "OPD Queue",
       "consultation desk": "Consultation Desk",
+      "patient scheduling": "Patient Scheduling",
+      "appointment list": "Patient Scheduling",
       "admission desk": "IPD Admission Hub",
       "ipd admission desk": "IPD Admission Hub",
       "ipd bed map": "Bed Management",
@@ -155,7 +153,7 @@ export default function Sidebar() {
     };
 
     const uniqueMap = new Map();
-    dm.forEach(m => {
+    dm.forEach((m: any) => {
       const mappedLabel = labelMap[m.label.toLowerCase()] || m.label;
       const nPath = normalizePath(mappedLabel, m.path);
       if (!uniqueMap.has(nPath)) uniqueMap.set(nPath, { ...m, label: mappedLabel, path: nPath });
@@ -180,7 +178,7 @@ export default function Sidebar() {
 
     const clinicalFlow = [
       "Clinical Intelligence Hub",
-      "Doctor's Schedule", "Appointment List", 
+      "Doctor's Schedule", "Patient Scheduling", 
       "OPD Center", "OPD Queue", "Consultation Desk", 
       "Patient Register",
       "IPD Admission Hub", "Bed Management", "Discharge Summaries",

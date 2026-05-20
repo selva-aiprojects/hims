@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Shield, User, Calendar, Activity, Mic, Bell, ArrowLeft, CheckCircle2, ChevronRight, Video, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Shield, User, Calendar, Activity, Mic, Bell, ArrowLeft, ChevronRight, Video, FileText } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE = "http://localhost:4000";
@@ -7,14 +7,12 @@ const API_BASE = "http://localhost:4000";
 const MobilePreviewPortal = () => {
   const [view, setView] = useState('doctor-dashboard'); // doctor-dashboard, patient-dashboard, abha-card, patient-record
   const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     fetchAppointments();
   }, []);
 
   const fetchAppointments = async () => {
-    setLoading(true);
     try {
       // Reusing existing HIMS API
       const res = await axios.get(`${API_BASE}/api/appointments`, {
@@ -26,7 +24,7 @@ const MobilePreviewPortal = () => {
       setAppointments(res.data.slice(0, 5));
     } catch (e) {
       console.error(e);
-    } finally { setLoading(false); }
+    }
   };
 
   const renderHeader = (title: string, showBack = true) => (

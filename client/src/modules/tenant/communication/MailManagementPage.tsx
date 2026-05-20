@@ -31,6 +31,14 @@ export default function MailManagementPage() {
     } finally { setLoading(false); }
   };
 
+  if (loading) {
+    return (
+      <div style={{ display: "grid", placeItems: "center", height: "100vh", background: "#f8fafc", fontSize: "18px", fontWeight: 800, color: "#0f172a" }}>
+        Loading Communication Logs...
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-layout">
       <Sidebar />

@@ -121,6 +121,9 @@ export default function AppointmentsPage() {
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!bookingForm.patient_id || !bookingForm.doctor_id || !bookingForm.appointment_time) {
+      return alert("Please select a patient, doctor, and appointment slot before confirming.");
+    }
     const headers = { 
       Authorization: `Bearer ${localStorage.getItem("token")}`,
       "x-tenant-id": localStorage.getItem("tenant") || ""
@@ -131,9 +134,10 @@ export default function AppointmentsPage() {
       fetchAppointments();
       setBookingForm({ patient_id: '', doctor_id: '', appointment_time: '', status: 'Scheduled' });
       alert("Appointment confirmed!");
-    } catch (err) { 
+    } catch (err: any) { 
       console.error(err);
-      alert("Booking failed. Please ensure all fields are selected correctly."); 
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Booking failed. Please ensure all fields are selected correctly.";
+      alert(errMsg);
     }
   };
 
@@ -774,7 +778,7 @@ export default function AppointmentsPage() {
                             key={slot.time}
                             type="button"
                             disabled={slot.isBooked}
-                            onClick={() => setBookingForm({...bookingForm, appointment_time: `${modalSelectedDate} ${slot.time}`})}
+                            onClick={() => setBookingForm({...bookingForm, appointment_time: `${modalSelectedDate}T${slot.time}:00`})}
                             style={{
                               padding: '10px',
                               borderRadius: '10px',
