@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
-import { Calendar, Clock, User, Plus, X, CheckCircle, Users } from "lucide-react";
-import { toLocalDateKey, getAvailableSlotsForDate } from "../../../utils/schedulingEngine";
+import { Calendar, Clock, User, Plus, Users } from "lucide-react";
 
 const formatApptDateTime = (apptTimeStr: string) => {
   if (!apptTimeStr) return { month: '---', date: '--', time: '--:--' };
@@ -35,29 +35,16 @@ const formatApptDateTime = (apptTimeStr: string) => {
 };
 
 export default function AppointmentsPage() {
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showBookModal, setShowBookModal] = useState(false);
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [showActionMenu, setShowActionMenu] = useState<number | null>(null);
-  const [bookingForm, setBookingForm] = useState({ 
-    patient_id: '', 
-    doctor_id: '', 
-    appointment_time: '', 
-    status: 'Scheduled' 
-  });
-
-  // Modal specific states for "Grid & Search"
-  const [modalSearchPatient, setModalSearchPatient] = useState("");
-  const [modalSelectedDate, setModalSelectedDate] = useState(toLocalDateKey(new Date()));
-  const [doctorSlots, setDoctorSlots] = useState<any[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
@@ -80,10 +67,9 @@ export default function AppointmentsPage() {
       : `${API_BASE}/api/appointments`;
 
     try {
-      const [apptRes, docRes, patRes] = await Promise.all([
+      const [apptRes, docRes] = await Promise.all([
         axios.get(appointmentsUrl, { headers }),
-        axios.get(`${API_BASE}/api/hospital/doctors`, { headers }),
-        axios.get(`${API_BASE}/api/patients?limit=100`, { headers })
+        axios.get(`${API_BASE}/api/hospital/doctors`, { headers })
       ]);
       setAppointments(apptRes.data || []);
       const allDocs = docRes.data || [];
@@ -91,9 +77,7 @@ export default function AppointmentsPage() {
       setDoctors(isDoctorView && currentUserId ? doctorList.filter((d: any) => d.id === currentUserId) : doctorList);
       if (isDoctorView && currentUserId) {
         setSelectedDoctorId(currentUserId);
-        setBookingForm(prev => ({ ...prev, doctor_id: currentUserId }));
       }
-      setPatients(patRes.data || []);
     } catch (err) { 
       console.error(err); 
     } finally { 
@@ -119,28 +103,6 @@ export default function AppointmentsPage() {
     fetchAppointments(); 
   }, []);
 
-  const handleBook = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bookingForm.patient_id || !bookingForm.doctor_id || !bookingForm.appointment_time) {
-      return alert("Please select a patient, doctor, and appointment slot before confirming.");
-    }
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-    try {
-      await axios.post(`${API_BASE}/api/appointments`, bookingForm, { headers });
-      setShowBookModal(false);
-      fetchAppointments();
-      setBookingForm({ patient_id: '', doctor_id: '', appointment_time: '', status: 'Scheduled' });
-      alert("Appointment confirmed!");
-    } catch (err: any) { 
-      console.error(err);
-      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err?.message || "Booking failed. Please ensure all fields are selected correctly.";
-      alert(errMsg);
-    }
-  };
-
   const currentRole = (localStorage.getItem("role") || "").toLowerCase();
   const currentUserId = localStorage.getItem("userId") || "";
   const isDoctorView = currentRole === "doctor";
@@ -160,47 +122,7 @@ export default function AppointmentsPage() {
       );
     });
 
-  const fetchDoctorAvailability = async (doctorId: string, date: string) => {
-    if (!doctorId || !date) return;
-    setLoadingSlots(true);
-    const headers = { 
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-      "x-tenant-id": localStorage.getItem("tenant") || ""
-    };
-    try {
-      const res = await axios.get(`${API_BASE}/api/doctors/${doctorId}/availability-rules?startDate=${date}&endDate=${date}`, { headers });
-      const slots = getAvailableSlotsForDate({
-        dateStr: date,
-        schedules: res.data.schedules || [],
-        leaves: res.data.leaves || [],
-        overrides: res.data.overrides || [],
-        appointments: res.data.appointments || [],
-      });
-      const mappedSlots = slots.map((s: any) => ({
-        time: s.time,
-        isBooked: !s.available
-      }));
-      setDoctorSlots(mappedSlots);
-    } catch (err) { console.error(err); }
-    finally { setLoadingSlots(false); }
-  };
 
-  useEffect(() => {
-    if (showBookModal && bookingForm.doctor_id && modalSelectedDate) {
-      fetchDoctorAvailability(bookingForm.doctor_id, modalSelectedDate);
-    }
-  }, [bookingForm.doctor_id, modalSelectedDate, showBookModal]);
-
-  const inputStyle = { 
-    width: '100%', 
-    padding: '14px', 
-    borderRadius: '14px', 
-    border: '1px solid #e2e8f0', 
-    outline: 'none', 
-    fontSize: '14px', 
-    fontWeight: 600,
-    background: '#f8fafc'
-  };
 
   return (
     <div className="dashboard-layout" style={{ background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
@@ -222,7 +144,7 @@ export default function AppointmentsPage() {
             <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>Check doctor availability and book patient appointments.</p>
           </div>
           <button 
-            onClick={() => setShowBookModal(true)}
+            onClick={() => navigate('/tenant/appointments/book')}
             className="button-primary"
             style={{ 
               display: 'flex', 
@@ -612,236 +534,7 @@ export default function AppointmentsPage() {
           </aside>
         </div>
 
-        {/* Booking Modal */}
-        {showBookModal && (
-          <div style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            background: 'rgba(15, 23, 42, 0.6)', 
-            backdropFilter: 'blur(8px)',
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            zIndex: 1000 
-          }}>
-            <div style={{ 
-              background: 'white', 
-              padding: isMobile ? '24px' : '40px', 
-              borderRadius: isMobile ? '24px 24px 0 0' : '32px', 
-              width: '100%', 
-              maxWidth: '500px',
-              height: isMobile ? '90vh' : 'auto',
-              maxHeight: isMobile ? '90vh' : 'auto',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              position: isMobile ? 'fixed' : 'relative',
-              bottom: isMobile ? 0 : 'auto',
-              overflowY: 'auto'
-            }}>
-              <div style={{ 
-                position: 'absolute', 
-                top: 0, 
-                left: 0, 
-                right: 0, 
-                height: '6px', 
-                background: 'linear-gradient(to right, #3b82f6, #10b981)' 
-              }}></div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                <div>
-                  <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#1e293b', margin: 0 }}>Book Appointment</h2>
-                  <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>Fill in details to schedule a visit.</p>
-                </div>
-                <button 
-                  onClick={() => setShowBookModal(false)} 
-                  style={{ 
-                    border: 'none', 
-                    background: '#f1f5f9', 
-                    width: '36px', 
-                    height: '36px', 
-                    borderRadius: '50%', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    cursor: 'pointer',
-                    color: '#64748b'
-                  }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
 
-              <form onSubmit={handleBook}>
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Select Patient
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ position: 'relative' }}>
-                      <input 
-                        type="text" 
-                        placeholder="Search patient name or MRN..." 
-                        value={modalSearchPatient}
-                        onChange={(e) => setModalSearchPatient(e.target.value)}
-                        style={{ ...inputStyle, paddingLeft: '44px' }}
-                      />
-                      <Users size={18} color="#94a3b8" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-                    </div>
-                    
-                    <div style={{ 
-                      maxHeight: '150px', 
-                      overflowY: 'auto', 
-                      background: '#f8fafc', 
-                      borderRadius: '16px', 
-                      border: '1px solid #f1f5f9',
-                      padding: '8px'
-                    }}>
-                      {patients.filter(p => !modalSearchPatient || p.name?.toLowerCase().includes(modalSearchPatient.toLowerCase()) || p.mrn?.includes(modalSearchPatient)).map(p => (
-                        <div 
-                          key={p.id}
-                          onClick={() => { setBookingForm({...bookingForm, patient_id: p.id}); setModalSearchPatient(p.name); }}
-                          style={{ 
-                            padding: '10px 16px', 
-                            borderRadius: '10px', 
-                            cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: 700,
-                            background: bookingForm.patient_id === p.id ? '#3b82f6' : 'transparent',
-                            color: bookingForm.patient_id === p.id ? 'white' : '#1e293b',
-                            marginBottom: '4px'
-                          }}
-                        >
-                          {p.name} ({p.mrn})
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '24px' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Assign Doctor
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <select 
-                      required 
-                      value={bookingForm.doctor_id}
-                      style={{ 
-                        width: '100%', 
-                        padding: '16px 44px 16px 16px', 
-                        borderRadius: '16px', 
-                        border: '2px solid #f1f5f9', 
-                        fontWeight: 700, 
-                        appearance: 'none',
-                        background: '#f8fafc',
-                        fontSize: '15px',
-                        outline: 'none'
-                      }}
-                      onChange={e => setBookingForm({...bookingForm, doctor_id: e.target.value})}
-                    >
-                      <option value="">Select Medical Professional...</option>
-                      {doctors.map(d => <option key={d.id} value={d.id}>{formatDoctorName(d.name)}</option>)}
-                    </select>
-                    <div style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                      <User size={18} color="#94a3b8" />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '32px' }}>
-                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 800, color: '#94a3b8', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Choose Slot (Searchable Grid)
-                  </label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <input 
-                      type="date" 
-                      value={modalSelectedDate}
-                      onChange={(e) => setModalSelectedDate(e.target.value)}
-                      style={{ ...inputStyle }}
-                    />
-                    
-                    {loadingSlots ? (
-                      <div style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#94a3b8' }}>Checking doctor availability...</div>
-                    ) : bookingForm.doctor_id ? (
-                      <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(4, 1fr)', 
-                        gap: '8px',
-                        maxHeight: '200px',
-                        overflowY: 'auto',
-                        padding: '4px'
-                      }}>
-                        {doctorSlots.map(slot => (
-                          <button
-                            key={slot.time}
-                            type="button"
-                            disabled={slot.isBooked}
-                            onClick={() => setBookingForm({...bookingForm, appointment_time: `${modalSelectedDate}T${slot.time}:00`})}
-                            style={{
-                              padding: '10px',
-                              borderRadius: '10px',
-                              border: 'none',
-                              fontSize: '12px',
-                              fontWeight: 800,
-                              cursor: slot.isBooked ? 'not-allowed' : 'pointer',
-                              background: bookingForm.appointment_time.includes(slot.time) ? '#10b981' : (slot.isBooked ? '#f1f5f9' : '#eef2ff'),
-                              color: bookingForm.appointment_time.includes(slot.time) ? 'white' : (slot.isBooked ? '#cbd5e1' : '#3b82f6'),
-                              opacity: slot.isBooked ? 0.6 : 1
-                            }}
-                          >
-                            {slot.time}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '20px', fontSize: '12px', color: '#94a3b8', background: '#f8fafc', borderRadius: '12px' }}>
-                        Please select a doctor to see available slots.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '16px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowBookModal(false)} 
-                    style={{ 
-                      flex: 1, 
-                      padding: '18px', 
-                      borderRadius: '18px', 
-                      border: '2px solid #f1f5f9', 
-                      background: 'white', 
-                      fontWeight: 800, 
-                      cursor: 'pointer',
-                      color: '#64748b'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    type="submit" 
-                    className="button-primary"
-                    style={{ 
-                      flex: 2, 
-                      padding: '18px', 
-                      borderRadius: '18px', 
-                      boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px'
-                    }}
-                  >
-                    <CheckCircle size={20} />
-                    Confirm Appointment
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
