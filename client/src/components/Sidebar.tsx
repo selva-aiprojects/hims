@@ -77,6 +77,68 @@ const normalizePath = (label: string, originalPath: string) => {
   return overrides[l] || originalPath;
 };
 
+const normalizeLabel = (label: string) => {
+  const l = label.toLowerCase();
+  if (l.includes("doctor availability")) return "Doctor's Schedule";
+  if (l.includes("advanced scheduling console")) return "Doctor's Schedule";
+  if (l.includes("patient scheduling")) return "Patient Scheduling";
+  if (l.includes("prescription queue")) return "Prescription Queue";
+  if (l.includes("clinical & financial archives")) return "Clinical & Financial Archives";
+  if (l.includes("mail & communications")) return "Mail & Communications";
+  if (l.includes("hospital settings")) return "Hospital Settings";
+  if (l.includes("insurance & tpa")) return "Insurance & TPA";
+
+  const labelMap: Record<string, string> = {
+    "opd registration": "OPD Center",
+    "opd registration desk": "OPD Center",
+    "opd queue": "OPD Queue",
+    "doctor's queue": "OPD Queue",
+    "consultation desk": "Consultation Desk",
+    "patient scheduling": "Patient Scheduling",
+    "appointment list": "Patient Scheduling",
+    "admission desk": "IPD Admission Hub",
+    "ipd admission desk": "IPD Admission Hub",
+    "ipd bed map": "Bed Management",
+    "bed management": "Bed Management",
+    "discharge summaries": "Discharge Summaries",
+    "advanced scheduling console": "Doctor's Schedule",
+    "enterprise scheduling console": "Doctor's Schedule",
+    "laboratory": "Laboratory",
+    "laboratory / diagnostics": "Laboratory",
+    "lab": "Laboratory",
+    "ai lab assistant": "AI Lab Assistant",
+    "pharmacy dashboard": "Pharmacy Dashboard",
+    "stock inventory": "Stock Inventory",
+    "prescription queue": "Prescription Queue",
+    "ipd census & daycare": "Bed Management",
+    "ipd census": "Bed Management",
+    "laboratory billing": "Central Billing",
+    "pharmacy billing": "Central Billing",
+    "opd billing": "Central Billing",
+    "consultation billing": "Central Billing",
+    "discharge billing": "Central Billing",
+    "invoicing & billing": "Central Billing",
+    "opd billing & revenue center": "Central Billing",
+    "ipd & discharge billing": "Central Billing",
+    "insurance & tpa claims": "Insurance & TPA",
+    "insurance management": "Insurance & TPA",
+    "branding & ui settings": "Branding Settings",
+    "branding settings": "Branding Settings",
+    "hospital settings (masters)": "Hospital Settings",
+    "hospital settings": "Hospital Settings",
+    "operational analytics": "Hospital Settings",
+    "staff & rbac": "Staff & Access",
+    "user management": "Staff & Access",
+    "staff management": "Staff & Access",
+    "message board": "Message Board",
+    "mail management": "Mail & Communications",
+    "ticketing management system": "Support & Tickets",
+    "help & support": "Support & Tickets",
+    "patient register": "Patient Register"
+  };
+  return labelMap[l] || label;
+};
+
 export default function Sidebar() {
   const location = useLocation();
   const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
@@ -103,58 +165,9 @@ export default function Sidebar() {
       dm.push({ label: "Branding Settings", path: "/tenant/settings", icon: "Palette", sort_order: 12 });
     }
 
-    const labelMap: Record<string, string> = {
-      "opd registration": "OPD Center",
-      "opd registration desk": "OPD Center",
-      "opd queue": "OPD Queue",
-      "doctor's queue": "OPD Queue",
-      "consultation desk": "Consultation Desk",
-      "patient scheduling": "Patient Scheduling",
-      "appointment list": "Patient Scheduling",
-      "admission desk": "IPD Admission Hub",
-      "ipd admission desk": "IPD Admission Hub",
-      "ipd bed map": "Bed Management",
-      "bed management": "Bed Management",
-      "discharge summaries": "Discharge Summaries",
-      "advanced scheduling console": "Doctor's Schedule",
-      "enterprise scheduling console": "Doctor's Schedule",
-      "laboratory": "Laboratory",
-      "laboratory / diagnostics": "Laboratory",
-      "lab": "Laboratory",
-      "ai lab assistant": "AI Lab Assistant",
-      "pharmacy dashboard": "Pharmacy Dashboard",
-      "stock inventory": "Stock Inventory",
-      "prescription queue": "Prescription Queue",
-      "ipd census & daycare": "Bed Management",
-      "ipd census": "Bed Management",
-      "laboratory billing": "Central Billing",
-      "pharmacy billing": "Central Billing",
-      "opd billing": "Central Billing",
-      "consultation billing": "Central Billing",
-      "discharge billing": "Central Billing",
-      "invoicing & billing": "Central Billing",
-      "opd billing & revenue center": "Central Billing",
-      "ipd & discharge billing": "Central Billing",
-      "insurance & tpa claims": "Insurance & TPA",
-      "insurance management": "Insurance & TPA",
-      "branding & ui settings": "Branding Settings",
-      "branding settings": "Branding Settings",
-      "hospital settings (masters)": "Hospital Settings",
-      "hospital settings": "Hospital Settings",
-      "operational analytics": "Hospital Settings",
-      "staff & rbac": "Staff & Access",
-      "user management": "Staff & Access",
-      "staff management": "Staff & Access",
-      "message board": "Message Board",
-      "mail management": "Mail & Communications",
-      "ticketing management system": "Support & Tickets",
-      "help & support": "Support & Tickets",
-      "patient register": "Patient Register"
-    };
-
     const uniqueMap = new Map();
     dm.forEach((m: any) => {
-      const mappedLabel = labelMap[m.label.toLowerCase()] || m.label;
+      const mappedLabel = normalizeLabel(m.label);
       const nPath = normalizePath(mappedLabel, m.path);
       if (!uniqueMap.has(nPath)) uniqueMap.set(nPath, { ...m, label: mappedLabel, path: nPath });
     });
@@ -178,14 +191,13 @@ export default function Sidebar() {
 
     const clinicalFlow = [
       "Clinical Intelligence Hub",
-      "Doctor's Schedule", "Patient Scheduling", 
-      "OPD Center", "OPD Queue", "Consultation Desk", 
-      "Patient Register",
+      "Doctor's Schedule", "Patient Register", "Patient Scheduling",
+      "OPD Center", "OPD Queue", "Consultation Desk", "Prescription Queue",
       "IPD Admission Hub", "Bed Management", "Discharge Summaries",
       "Clinical & Financial Archives"
     ];
     const serviceFlow = [
-      "Laboratory", "AI Lab Assistant", 
+      "Laboratory", "AI Lab Assistant",
       "Pharmacy Hub", "Pharmacy Dashboard", "Stock Inventory"
     ];
     const billingFlow = [
