@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { getTenantBrandingConfig } from "../config/theme";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
   LayoutDashboard, 
@@ -143,6 +144,7 @@ export default function Sidebar() {
   const location = useLocation();
   const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
   const plan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
+  const sidebarLogoUrl = getTenantBrandingConfig() ? (localStorage.getItem('theme_logo_url') || '/logo.png') : '/logo.png';
   
   const { groups, ungroupped } = useMemo(() => {
     let dm = JSON.parse(localStorage.getItem("userMenus") || "[]");
@@ -265,10 +267,10 @@ export default function Sidebar() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
 
-        <div style={{ padding: '0 8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', marginTop: '40px' }}>
+        <div style={{ padding: '0 8px 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', marginTop: '16px' }}>
           <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
             <img 
-              src={localStorage.getItem('theme_logo_url') || "/logo.png"} 
+              src={sidebarLogoUrl} 
               alt={tenantName} 
               style={{ width: '100%', height: 'auto', maxHeight: '80px', objectFit: 'contain', cursor: 'pointer' }} 
               onError={(e) => {
@@ -296,7 +298,7 @@ export default function Sidebar() {
             <div key={group.id} style={{ marginBottom: '8px' }}>
               <button 
                 onClick={() => toggleGroup(group.id)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'none', border: 'none', color: openGroup === group.id ? 'white' : '#64748b', cursor: 'pointer', fontSize: '13px', fontWeight: 700, borderRadius: '10px' }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'none', border: 'none', color: openGroup === group.id ? 'white' : 'var(--sidebar-text, #94a3b8)', cursor: 'pointer', fontSize: '13px', fontWeight: 700, borderRadius: '10px' }}
               >
                 <group.icon size={18} style={{ opacity: openGroup === group.id ? 1 : 0.5 }} />
                 <span style={{ flex: 1, textAlign: 'left' }}>{group.title}</span>
@@ -312,12 +314,18 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        <div style={{ padding: '24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.2)' }}>
+        <div style={{ padding: '18px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '6px' }}>
+            <span style={{ fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#94a3b8' }}>Powered by</span>
+            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Healthezee</span>
+          </div>
+        </div>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.18)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <ShieldCheck size={20} color="#0ea5e9" />
+            <ShieldCheck size={18} color="#0ea5e9" />
             <div>
               <div style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>Nexus Secured</div>
-              <div style={{ fontSize: '10px', color: '#475569' }}>v2.4.0 Build 102</div>
+              <div style={{ fontSize: '10px', color: '#94a3b8' }}>v2.4.0 Build 102</div>
             </div>
           </div>
         </div>
@@ -334,7 +342,7 @@ export default function Sidebar() {
           gap: 10px;
           padding: 10px 12px;
           border-radius: 8px;
-          color: #94a3b8;
+          color: var(--sidebar-text, #94a3b8);
           text-decoration: none;
           font-size: 13px;
           font-weight: 600;

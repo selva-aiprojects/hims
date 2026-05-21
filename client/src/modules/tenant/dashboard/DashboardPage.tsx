@@ -58,11 +58,53 @@ export default function DashboardPage() {
     wardStats: []
   });
 
+
   const [queue, setQueue] = useState<any[]>([]);
   const [queueLoading, setQueueLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [upgradeModal, setUpgradeModal] = useState<{ isOpen: boolean; tier: string }>({ isOpen: false, tier: "" });
   const [activeApptTab, setActiveApptTab] = useState<'upcoming' | 'inprogress' | 'completed' | 'cancelled'>('upcoming');
+
+  // Animated count-up hook
+  const useAnimatedCount = (target: number, duration: number = 1200) => {
+    const [count, setCount] = useState(0);
+    useEffect(() => {
+      if (target === 0) { setCount(0); return; }
+      let start = 0;
+      const startTime = performance.now();
+      let animationFrameId: number;
+      const step = (timestamp: number) => {
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+        setCount(Math.round(eased * target));
+        if (progress < 1) {
+          animationFrameId = requestAnimationFrame(step);
+        }
+      };
+      animationFrameId = requestAnimationFrame(step);
+      return () => cancelAnimationFrame(animationFrameId);
+    }, [target, duration]);
+    return count;
+  };
+
+  const renderKpiSkeletons = (count: number) => {
+    return Array.from({ length: count }).map((_, idx) => (
+      <div 
+        key={idx} 
+        className="skeleton-shimmer" 
+        style={{ 
+          padding: '16px', 
+          backgroundColor: '#fff', 
+          border: '1px solid #e2e8f0', 
+          borderRadius: '16px', 
+          height: '115px', 
+          boxShadow: '0 1px 3px rgba(0,0,0,0.02)' 
+        }} 
+      />
+    ));
+  };
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -126,7 +168,7 @@ export default function DashboardPage() {
       } catch (err: any) {
         console.error("Stats Fetch Error:", err);
       } finally {
-        // finished
+        setStatsLoading(false);
       }
     };
     fetchStats();
@@ -137,12 +179,14 @@ export default function DashboardPage() {
       const token = localStorage.getItem("token");
       const tenant = localStorage.getItem("tenant");
       try {
-        const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active`, {
+        const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active&todayOnly=true`, {
           headers: { Authorization: `Bearer ${token}`, "x-tenant-id": tenant }
         });
-        if (Array.isArray(res.data)) {
-          setQueue(res.data);
-        }
+        // API returns { total, page, pageSize, data: [...] } OR plain array (for compatibility)
+        const encounterList = Array.isArray(res.data) 
+          ? res.data 
+          : (Array.isArray(res.data?.data) ? res.data.data : []);
+        setQueue(encounterList);
       } catch (err: any) {
         console.error("Queue Fetch Error:", err);
       } finally {
@@ -161,8 +205,6 @@ export default function DashboardPage() {
   };
 
   // --- CHART OPTIONS ---
-  const hasRevenueBreakdown = stats.revenueBreakdown && stats.revenueBreakdown.length > 0;
-  
   const getRevenueColor = (type: string) => {
     const t = (type || '').toLowerCase();
     if (t.includes('consult')) return '#3b82f6';
@@ -171,42 +213,89 @@ export default function DashboardPage() {
     return '#7c3aed';
   };
 
-  const revenueData = hasRevenueBreakdown 
-    ? stats.revenueBreakdown.map((r: any) => ({ value: r.amount || 0, name: r.type }))
-    : [
-        { value: 4200, name: 'Consultation' },
-        { value: 2850, name: 'Pharmacy' },
-        { value: 1100, name: 'Lab & Diagnostics' },
-        { value: 300, name: 'Others' }
-      ];
+  const liveRevenueList = (stats.revenueBreakdown || []).map((r: any) => {
+    let color = '#7c3aed';
+    if (r.type.toLowerCase().includes('consult')) color = '#3b82f6';
+    else if (r.type.toLowerCase().includes('pharm')) color = '#10b981';
+    else if (r.type.toLowerCase().includes('lab') || r.type.toLowerCase().includes('diag')) color = '#f59e0b';
+    return {
+      name: r.type,
+      amount: r.amount || 0,
+      color
+    };
+  });
 
-  const revenueColors = hasRevenueBreakdown 
-    ? stats.revenueBreakdown.map((r: any) => getRevenueColor(r.type))
-    : ['#3b82f6', '#10b981', '#f59e0b', '#7c3aed'];
+  const totalBreakdownRevenue = liveRevenueList.reduce((acc: number, curr: any) => acc + curr.amount, 0);
+  const liveRevenueItems = liveRevenueList.map((item: any) => {
+    const pctVal = totalBreakdownRevenue > 0 ? Math.round((item.amount * 100) / totalBreakdownRevenue) : 0;
+    return {
+      name: item.name,
+      val: `₹${item.amount.toLocaleString()}`,
+      pct: `${pctVal}%`,
+      color: item.color
+    };
+  });
+
+  const displayRevenueItems = liveRevenueItems.length ? liveRevenueItems : [
+    { name: 'Consultation', val: '₹0', pct: '0%', color: '#3b82f6' },
+    { name: 'Pharmacy', val: '₹0', pct: '0%', color: '#10b981' },
+    { name: 'Lab & Diagnostics', val: '₹0', pct: '0%', color: '#f59e0b' },
+    { name: 'Others', val: '₹0', pct: '0%', color: '#7c3aed' }
+  ];
+
+  const displayTotalRevenue = liveRevenueItems.length ? totalBreakdownRevenue : 0;
+
+  const isZeroRevenue = displayTotalRevenue === 0;
+  const hasRevenueBreakdown = stats.revenueBreakdown && stats.revenueBreakdown.length > 0;
+
+  const revenueData = isZeroRevenue 
+    ? [{ value: 1, name: 'No Transactions' }]
+    : (hasRevenueBreakdown 
+        ? stats.revenueBreakdown.map((r: any) => ({ value: r.amount || 0, name: r.type }))
+        : [
+            { value: 4200, name: 'Consultation' },
+            { value: 2850, name: 'Pharmacy' },
+            { value: 1100, name: 'Lab & Diagnostics' },
+            { value: 300, name: 'Others' }
+          ]
+      );
+
+  const revenueColors = isZeroRevenue 
+    ? ['#e2e8f0']
+    : (hasRevenueBreakdown 
+        ? stats.revenueBreakdown.map((r: any) => getRevenueColor(r.type))
+        : ['#3b82f6', '#10b981', '#f59e0b', '#7c3aed']
+      );
 
   const revenueSnapshotOption = {
-    tooltip: { trigger: 'item' },
+    tooltip: isZeroRevenue ? { show: false } : { trigger: 'item', formatter: '{b}: ₹{c} ({d}%)' },
+    animationDuration: 1500,
+    animationEasing: 'cubicOut',
     series: [{
       type: 'pie',
       radius: ['60%', '80%'],
       avoidLabelOverlap: false,
       itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
       label: { show: false },
+      emphasis: isZeroRevenue ? { scale: false } : {
+        scale: true,
+        scaleSize: 6,
+        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.15)' }
+      },
       data: revenueData,
       color: revenueColors
     }]
   };
 
   const hasGenderStats = stats.patientGenderStats && stats.patientGenderStats.length > 0;
-  const totalGenderPatients = hasGenderStats ? stats.patientGenderStats.reduce((sum: number, g: any) => sum + (g.count || 0), 0) : 18;
+  const totalGenderPatients = hasGenderStats ? stats.patientGenderStats.reduce((sum: number, g: any) => sum + (g.count || 0), 0) : 0;
   const genderData = hasGenderStats
     ? stats.patientGenderStats.map((g: any) => ({
         value: g.count || 0,
         name: g.gender ? g.gender.charAt(0).toUpperCase() + g.gender.slice(1).toLowerCase() : 'Unknown'
       }))
     : [
-        { value: 60, name: 'Male' },
-        { value: 40, name: 'Female' }
+        { value: 1, name: 'No Patients' }
       ];
 
   const getGenderColor = (gender: string) => {
@@ -218,13 +307,20 @@ export default function DashboardPage() {
 
   const genderColors = hasGenderStats
     ? stats.patientGenderStats.map((g: any) => getGenderColor(g.gender))
-    : ['#3b82f6', '#ec4899'];
+    : ['#e2e8f0'];
 
   const genderOption = {
+    tooltip: hasGenderStats ? { trigger: 'item', formatter: '{b}: {c} ({d}%)' } : { show: false },
     series: [{
       type: 'pie',
       radius: ['60%', '85%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 1.5 },
       label: { show: false },
+      emphasis: hasGenderStats ? {
+        scale: true,
+        scaleSize: 4
+      } : { scale: false },
       data: genderData,
       color: genderColors
     }]
@@ -394,47 +490,20 @@ export default function DashboardPage() {
     };
   });
 
-  const displayAppointments = liveAppointments.length ? liveAppointments : [
-    { time: '10:00 AM', name: 'Ramesh Kumar', type: 'Dr. Mrutyunjaya', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
-    { time: '10:30 AM', name: 'Priya Sharma', type: 'Dr. Mrutyunjaya', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
-    { time: '11:00 AM', name: 'Anita Desai', type: 'Dr. Mrutyunjaya', status: 'In Progress', tab: 'inprogress', badgeColor: '#3b82f6', badgeBg: '#eff6ff' },
-    { time: '11:30 AM', name: 'Vikram Singh', type: 'Dr. Mrutyunjaya', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
-    { time: '12:00 PM', name: 'Neha Patel', type: 'Dr. Mrutyunjaya', status: 'Upcoming', tab: 'upcoming', badgeColor: '#10b981', badgeBg: '#ecfdf5' },
-    { time: '02:00 PM', name: 'Rajesh Mehta', type: 'Dr. Mrutyunjaya', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
-    { time: '02:30 PM', name: 'Karan Johar', type: 'Dr. Mrutyunjaya', status: 'Completed', tab: 'completed', badgeColor: '#7c3aed', badgeBg: '#f5f3ff' },
-  ];
+  const displayAppointments = liveAppointments;
 
-  const liveRevenueList = (stats.revenueBreakdown || []).map((r: any) => {
-    let color = '#7c3aed';
-    if (r.type.toLowerCase().includes('consult')) color = '#3b82f6';
-    else if (r.type.toLowerCase().includes('pharm')) color = '#10b981';
-    else if (r.type.toLowerCase().includes('lab') || r.type.toLowerCase().includes('diag')) color = '#f59e0b';
-    return {
-      name: r.type,
-      amount: r.amount || 0,
-      color
-    };
-  });
 
-  const totalBreakdownRevenue = liveRevenueList.reduce((acc: number, curr: any) => acc + curr.amount, 0);
-  const liveRevenueItems = liveRevenueList.map((item: any) => {
-    const pctVal = totalBreakdownRevenue > 0 ? Math.round((item.amount * 100) / totalBreakdownRevenue) : 0;
-    return {
-      name: item.name,
-      val: `₹${item.amount.toLocaleString()}`,
-      pct: `${pctVal}%`,
-      color: item.color
-    };
-  });
+  const animatedRevenue = useAnimatedCount(displayTotalRevenue);
+  const [isFilled, setIsFilled] = useState(false);
 
-  const displayRevenueItems = liveRevenueItems.length ? liveRevenueItems : [
-    { name: 'Consultation', val: '₹4,200', pct: '49%', color: '#3b82f6' },
-    { name: 'Pharmacy', val: '₹2,850', pct: '34%', color: '#10b981' },
-    { name: 'Lab & Diagnostics', val: '₹1,100', pct: '13%', color: '#f59e0b' },
-    { name: 'Others', val: '₹300', pct: '4%', color: '#7c3aed' }
-  ];
-
-  const displayTotalRevenue = liveRevenueItems.length ? totalBreakdownRevenue : 8450;
+  useEffect(() => {
+    if (!statsLoading) {
+      const timer = setTimeout(() => setIsFilled(true), 100);
+      return () => clearTimeout(timer);
+    } else {
+      setIsFilled(false);
+    }
+  }, [statsLoading]);
 
   const displayGenderStats = hasGenderStats ? stats.patientGenderStats.map((g: any) => {
     const total = stats.patientGenderStats.reduce((acc: number, val: any) => acc + (val.count || 0), 0) || 1;
@@ -446,11 +515,11 @@ export default function DashboardPage() {
       color: getGenderColor(g.gender)
     };
   }) : [
-    { name: 'Male', pct: '60%', count: 12, color: '#3b82f6' },
-    { name: 'Female', pct: '40%', count: 8, color: '#ec4899' }
+    { name: 'Male', pct: '0%', count: 0, color: '#3b82f6' },
+    { name: 'Female', pct: '0%', count: 0, color: '#ec4899' }
   ];
   
-  const displayTotalPatientsCount = hasGenderStats ? totalGenderPatients : 18;
+  const displayTotalPatientsCount = hasGenderStats ? totalGenderPatients : 0;
 
   const recentPatientsData = stats.todayAppointments && stats.todayAppointments.length > 0
     ? stats.todayAppointments.slice(0, 5).map((appt: any, idx: number) => {
@@ -475,13 +544,7 @@ export default function DashboardPage() {
           status: appt.status || 'Scheduled'
         };
       })
-    : [
-        { name: 'Ramesh Kumar', initial: 'R', token: 'OPD-005', time: '10:15 AM', avatarBg: '#eff6ff', avatarColor: '#3b82f6', status: 'Completed' },
-        { name: 'Priya Sharma', initial: 'P', token: 'OPD-004', time: '09:45 AM', avatarBg: '#f5f3ff', avatarColor: '#7c3aed', status: 'Completed' },
-        { name: 'Anita Desai', initial: 'A', token: 'OPD-003', time: '09:20 AM', avatarBg: '#fffbeb', avatarColor: '#d97706', status: 'Completed' },
-        { name: 'Vikram Singh', initial: 'V', token: 'OPD-002', time: '09:00 AM', avatarBg: '#f0fdf4', avatarColor: '#16a34a', status: 'Completed' },
-        { name: 'Neha Patel', initial: 'N', token: 'OPD-001', time: '08:30 AM', avatarBg: '#fef2f2', avatarColor: '#dc2626', status: 'Completed' }
-      ];
+    : [];
 
   const getLabCount = (status: string) => {
     if (!stats.labStats) return 0;
@@ -489,12 +552,7 @@ export default function DashboardPage() {
     return found ? found.count : 0;
   };
 
-  const displayComplaints = stats.topComplaints && stats.topComplaints.length > 0 ? stats.topComplaints : [
-    { name: 'Fever', count: 5 },
-    { name: 'Cough', count: 4 },
-    { name: 'Diabetes', count: 3 },
-    { name: 'BP', count: 2 }
-  ];
+  const displayComplaints = stats.topComplaints && stats.topComplaints.length > 0 ? stats.topComplaints : [];
 
   return (
     <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', minHeight: '100vh', width: '100%' }}>
@@ -507,6 +565,32 @@ export default function DashboardPage() {
         }
         code, pre, .font-mono, [style*="monospace"] {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+        }
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+        .skeleton-shimmer {
+          background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+          background-size: 200px 100%;
+          animation: shimmer 1.5s ease-in-out infinite;
+          border-radius: 8px;
+        }
+        @keyframes revenuePulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.15); transform: scale(1); }
+          50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); transform: scale(1.03); }
+        }
+        .revenue-total-badge {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          background: #ffffff;
+          width: 90px;
+          height: 90px;
+          transition: all 0.3s ease;
+          animation: revenuePulse 3s ease-in-out infinite;
         }
       `}</style>
       <Sidebar />
@@ -570,13 +654,13 @@ export default function DashboardPage() {
         {plan === 'basic' && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(6, 1fr)', gap: '16px', marginBottom: '24px' }}>
-              {[
+              {statsLoading ? renderKpiSkeletons(6) : [
                 { label: "Today's Appointments", val: stats.metrics.appointmentsToday || 0, trend: "vs yesterday", isUp: true, icon: Calendar, color: "#3b82f6", bg: "#eff6ff" },
                 { label: "Patients Checked-In", val: stats.metrics.checkedInToday || queue.length || 0, trend: "vs yesterday", isUp: true, icon: Users, color: "#f59e0b", bg: "#fffbeb" },
                 { label: "Pending Bills", val: stats.metrics.pendingBills || 0, trend: "vs yesterday", isUp: true, icon: FileText, color: "#ef4444", bg: "#fef2f2" },
                 { label: "Revenue Today", val: `₹${stats.metrics.dailyRevenue?.toLocaleString?.() || 0}`, trend: "vs yesterday", isUp: true, icon: TrendingUp, color: "#10b981", bg: "#f0fdf4" },
                 { label: "Invoices Today", val: stats.metrics.todayInvoices || 0, trend: "vs yesterday", isUp: true, icon: Stethoscope, color: "#7c3aed", bg: "#f5f3ff" },
-                { label: "Avg. Waiting Time", val: `${stats.predictive.predictedAvgTime || 0}m`, trend: "vs yesterday", isUp: true, icon: Clock, color: "#0d9488", bg: "#f0fdf4" }
+                { label: "Avg. Waiting Time", val: queueLoading ? '...' : (queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length === 0 ? '0m' : `${stats.predictive.predictedAvgTime || 0}m`), trend: "vs yesterday", isUp: true, icon: Clock, color: "#0d9488", bg: "#f0fdf4" }
               ].map((card, idx) => (
                 <div key={idx} className="stat-card" style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                   <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: card.bg, color: card.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
@@ -614,11 +698,11 @@ export default function DashboardPage() {
                     <div>
                       <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Avg. Wait Time</div>
                       <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>
-                        {queue.length ? `${Math.round(queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).reduce((total, enc) => {
+                        {queueLoading ? '...' : (queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length === 0 ? '0m' : `${Math.round(queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).reduce((total, enc) => {
                           const start = new Date(enc.created_at).getTime();
                           const diff = Math.floor((Date.now() - start) / 60000);
                           return total + diff;
-                        }, 0) / Math.max(1, queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length))}m` : (queueLoading ? '...' : `${stats.predictive.predictedAvgTime || 0}m`)}
+                        }, 0) / queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length)}m`)}
                       </div>
                     </div>
                   </div>
@@ -694,58 +778,87 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-                  {displayAppointments
-                    .filter((appt: any) => appt.tab === activeApptTab)
-                    .map((appt: any, idx: number) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
-                        </div>
-                      </div>
-                    ))}
+                  {displayAppointments.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '140px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                      No appointments scheduled for today
+                    </div>
+                  ) : (
+                    <>
+                      {displayAppointments
+                        .filter((appt: any) => appt.tab === activeApptTab)
+                        .map((appt: any, idx: number) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
+                            </div>
+                          </div>
+                        ))}
+                      {displayAppointments.filter((appt: any) => appt.tab === activeApptTab).length === 0 && (
+                        <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center', padding: '24px 0' }}>No appointments in this tab today</div>
+                      )}
+                    </>
+                  )}
                 </div>
                 <button onClick={() => navigate('/tenant/appointments')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
                   View all appointments →
                 </button>
               </div>
 
-              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Snapshot</h3>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-                  <div style={{ width: '110px', height: '110px', position: 'relative' }}>
-                    <ReactECharts option={revenueSnapshotOption} style={{ height: '110px', width: '110px' }} />
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Total</span>
-                      <span style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>₹{displayTotalRevenue.toLocaleString()}</span>
-                    </div>
+              {statsLoading ? (
+                <div className="page-card skeleton-shimmer" style={{ height: '220px', borderRadius: '24px' }} />
+              ) : (
+                <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Snapshot</h3>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
-                    {displayRevenueItems.map((item: any, idx: number) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
-                          <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
-                          <span>{item.val}</span>
-                          <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                    <div style={{ width: '110px', height: '110px', position: 'relative' }}>
+                      <ReactECharts option={revenueSnapshotOption} style={{ height: '110px', width: '110px' }} />
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className="revenue-total-badge" style={{ border: 'none', background: 'transparent' }}>
+                          <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Total</span>
+                          <span style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>₹{animatedRevenue.toLocaleString()}</span>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                      {displayRevenueItems.map((item: any, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                              <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                              <span>{item.val}</span>
+                              <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                            </div>
+                          </div>
+                          <div style={{ height: '3px', backgroundColor: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ 
+                              height: '100%', 
+                              backgroundColor: item.color, 
+                              borderRadius: '2px',
+                              width: isFilled ? item.pct : '0%',
+                              transition: 'width 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                              transitionDelay: `${idx * 150}ms`
+                            }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                  <button onClick={() => navigate('/tenant/reports')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                    View full report →
+                  </button>
                 </div>
-                <button onClick={() => navigate('/tenant/reports')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
-                  View full report →
-                </button>
-              </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '24px', marginBottom: '24px' }}>
@@ -804,23 +917,29 @@ export default function DashboardPage() {
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {recentPatientsData.map((pat: any, idx: number) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: pat.avatarBg, color: pat.avatarColor, display: 'grid', placeItems: 'center', fontSize: '12px', fontWeight: 800 }}>
-                          {pat.initial}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{pat.name}</div>
-                          <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>{pat.token}</div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>{pat.time}</span>
-                        <span style={{ fontSize: '9px', fontWeight: 800, color: '#10b981', backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '4px' }}>{pat.status}</span>
-                      </div>
+                  {recentPatientsData.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '140px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                      No recent patients today
                     </div>
-                  ))}
+                  ) : (
+                    recentPatientsData.map((pat: any, idx: number) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: pat.avatarBg, color: pat.avatarColor, display: 'grid', placeItems: 'center', fontSize: '12px', fontWeight: 800 }}>
+                            {pat.initial}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{pat.name}</div>
+                            <div style={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8' }}>{pat.token}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>{pat.time}</span>
+                          <span style={{ fontSize: '9px', fontWeight: 800, color: '#10b981', backgroundColor: '#ecfdf5', padding: '1px 6px', borderRadius: '4px' }}>{pat.status}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -879,17 +998,17 @@ export default function DashboardPage() {
         {plan === 'standard' && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(6, 1fr)', gap: '16px', marginBottom: '24px' }}>
-              {[
+              {statsLoading ? renderKpiSkeletons(6) : [
                 { label: "Today's Appointments", val: stats.metrics.appointmentsToday || 0, trend: "12% vs yesterday", isUp: true, icon: Calendar, color: "#3b82f6", bg: "#eff6ff" },
                 { label: "Patients Checked-In", val: stats.metrics.checkedInToday || queue.length || 0, trend: "10% vs yesterday", isUp: true, icon: Users, color: "#f59e0b", bg: "#fffbeb" },
                 { label: "Pending Bills", val: stats.metrics.pendingBills || 0, trend: "25% vs yesterday", isUp: true, icon: FileText, color: "#ef4444", bg: "#fef2f2" },
                 { label: "Revenue Today", val: `₹${stats.metrics.dailyRevenue?.toLocaleString?.() || 0}`, trend: "18% vs yesterday", isUp: true, icon: TrendingUp, color: "#10b981", bg: "#f0fdf4" },
                 { label: "Prescriptions Issued", val: stats.metrics.prescriptionsToday || 0, trend: "9% vs yesterday", isUp: true, icon: Stethoscope, color: "#7c3aed", bg: "#f5f3ff" },
-                { label: "Avg. Waiting Time", val: `${queue.length ? Math.round(queue.reduce((sum, enc) => {
+                { label: "Avg. Waiting Time", val: queueLoading ? '...' : (queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length === 0 ? '0m' : `${queue.length ? Math.round(queue.reduce((sum, enc) => {
                   const start = new Date(enc.created_at).getTime();
                   const diff = Math.floor((Date.now() - start) / 60000);
                   return sum + diff;
-                }, 0) / queue.length) : stats.predictive.predictedAvgTime || 0}m`, trend: "5m vs yesterday", isUp: true, icon: Clock, color: "#0d9488", bg: "#f0fdf4" }
+                }, 0) / queue.length) : stats.predictive.predictedAvgTime || 0}m`), trend: "5m vs yesterday", isUp: true, icon: Clock, color: "#0d9488", bg: "#f0fdf4" }
               ].map((card, idx) => (
                 <div key={idx} className="stat-card" style={{ padding: '16px', backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
                   <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: card.bg, color: card.color, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
@@ -927,11 +1046,11 @@ export default function DashboardPage() {
                     <div>
                       <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Avg. Wait Time</div>
                       <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', marginTop: '4px' }}>
-                        {queue.length ? `${Math.round(queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).reduce((total, enc) => {
+                        {queueLoading ? '...' : (queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length === 0 ? '0m' : `${Math.round(queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).reduce((total, enc) => {
                           const start = new Date(enc.created_at).getTime();
                           const diff = Math.floor((Date.now() - start) / 60000);
                           return total + diff;
-                        }, 0) / Math.max(1, queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length))}m` : (queueLoading ? '...' : `${stats.predictive.predictedAvgTime || 0}m`)}
+                        }, 0) / queue.filter((enc) => !enc.is_in_consultation && !enc.is_finished).length)}m`)}
                       </div>
                     </div>
                   </div>
@@ -1007,22 +1126,30 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-                  {displayAppointments
-                    .filter((appt: any) => appt.tab === activeApptTab)
-                    .map((appt: any, idx: number) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  {displayAppointments.filter((appt: any) => appt.tab === activeApptTab).length === 0 && (
-                    <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center', padding: '24px 0' }}>No appointments in this tab today</div>
+                  {displayAppointments.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '140px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                      No appointments scheduled for today
+                    </div>
+                  ) : (
+                    <>
+                      {displayAppointments
+                        .filter((appt: any) => appt.tab === activeApptTab)
+                        .map((appt: any, idx: number) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
+                            </div>
+                          </div>
+                        ))}
+                      {displayAppointments.filter((appt: any) => appt.tab === activeApptTab).length === 0 && (
+                        <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center', padding: '24px 0' }}>No appointments in this tab today</div>
+                      )}
+                    </>
                   )}
                 </div>
                 <button onClick={() => navigate('/tenant/appointments')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
@@ -1030,38 +1157,56 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Snapshot</h3>
-                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
-                  <div style={{ width: '110px', height: '110px', position: 'relative' }}>
-                    <ReactECharts option={revenueSnapshotOption} style={{ height: '110px', width: '110px' }} />
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Total</span>
-                      <span style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>₹{displayTotalRevenue.toLocaleString()}</span>
-                    </div>
+              {statsLoading ? (
+                <div className="page-card skeleton-shimmer" style={{ height: '220px', borderRadius: '24px' }} />
+              ) : (
+                <div className="page-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Snapshot</h3>
+                    <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '6px' }}>Today</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
-                    {displayRevenueItems.map((item: any, idx: number) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
-                          <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
-                          <span>{item.val}</span>
-                          <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                    <div style={{ width: '110px', height: '110px', position: 'relative' }}>
+                      <ReactECharts option={revenueSnapshotOption} style={{ height: '110px', width: '110px' }} />
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                        <div className="revenue-total-badge" style={{ border: 'none', background: 'transparent' }}>
+                          <span style={{ fontSize: '9px', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase' }}>Total</span>
+                          <span style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a' }}>₹{animatedRevenue.toLocaleString()}</span>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1 }}>
+                      {displayRevenueItems.map((item: any, idx: number) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                              <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                              <span>{item.val}</span>
+                              <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                            </div>
+                          </div>
+                          <div style={{ height: '3px', backgroundColor: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                            <div style={{ 
+                              height: '100%', 
+                              backgroundColor: item.color, 
+                              borderRadius: '2px',
+                              width: isFilled ? item.pct : '0%',
+                              transition: 'width 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                              transitionDelay: `${idx * 150}ms`
+                            }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                  <button onClick={() => navigate('/tenant/reports')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
+                    View full report →
+                  </button>
                 </div>
-                <button onClick={() => navigate('/tenant/reports')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
-                  View full report →
-                </button>
-              </div>
+              )}
             </div>
 
             {/* Row 3: Lab Operations Overview (Full Width) */}
@@ -1256,7 +1401,7 @@ export default function DashboardPage() {
         {(plan === 'professional' || plan === 'enterprise') && (
           <div>
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(7, 1fr)', gap: '16px', marginBottom: '24px' }}>
-              {[
+              {statsLoading ? renderKpiSkeletons(7) : [
                 { label: "Today's Appointments", val: stats.metrics.appointmentsToday || 0, trend: "12% vs yesterday", isUp: true, icon: Calendar, color: "#3b82f6", bg: "#eff6ff" },
                 { label: "Patients Checked-In", val: stats.metrics.checkedInToday || queue.length || 0, trend: "10% vs yesterday", isUp: true, icon: Users, color: "#f59e0b", bg: "#fffbeb" },
                 { label: "Admissions Today", val: stats.metrics.admissionsToday || 0, trend: "33% vs yesterday", isUp: true, icon: Bed, color: "#10b981", bg: "#f0fdf4" },
@@ -1413,22 +1558,30 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
-                  {displayAppointments
-                    .filter((appt: any) => appt.tab === activeApptTab)
-                    .map((appt: any, idx: number) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
-                          <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
-                          <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
-                        </div>
-                      </div>
-                    ))}
-                  {displayAppointments.filter((appt: any) => appt.tab === activeApptTab).length === 0 && (
-                    <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center', padding: '24px 0' }}>No appointments in this tab today</div>
+                  {displayAppointments.length === 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '140px', color: '#64748b', fontSize: '13px', fontWeight: 600 }}>
+                      No appointments scheduled for today
+                    </div>
+                  ) : (
+                    <>
+                      {displayAppointments
+                        .filter((appt: any) => appt.tab === activeApptTab)
+                        .map((appt: any, idx: number) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#64748b', width: '60px' }}>{appt.time}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{appt.name}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{appt.type}</span>
+                              <span style={{ fontSize: '10px', fontWeight: 800, color: appt.badgeColor, backgroundColor: appt.badgeBg, padding: '2px 8px', borderRadius: '6px' }}>{appt.status}</span>
+                            </div>
+                          </div>
+                        ))}
+                      {displayAppointments.filter((appt: any) => appt.tab === activeApptTab).length === 0 && (
+                        <div style={{ fontSize: '12px', color: '#64748b', textAlign: 'center', padding: '24px 0' }}>No appointments in this tab today</div>
+                      )}
+                    </>
                   )}
                 </div>
                 <button onClick={() => navigate('/tenant/appointments')} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 800, color: '#3b82f6', border: 'none', background: 'none', cursor: 'pointer', marginTop: '16px', padding: 0 }}>
@@ -1476,36 +1629,52 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="page-card font-sans" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Overview (Today)</h3>
-                  <button onClick={() => navigate('/tenant/reports')} style={{ border: 'none', background: 'none', color: '#3b82f6', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>View report</button>
-                </div>
+              {statsLoading ? (
+                <div className="page-card skeleton-shimmer" style={{ height: '320px', borderRadius: '24px' }} />
+              ) : (
+                <div className="page-card font-sans" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Revenue Overview (Today)</h3>
+                    <button onClick={() => navigate('/tenant/reports')} style={{ border: 'none', background: 'none', color: '#3b82f6', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}>View report</button>
+                  </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>₹{displayTotalRevenue.toLocaleString()}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>↑ 18% vs yesterday</div>
-                </div>
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a' }}>₹{animatedRevenue.toLocaleString()}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>↑ 18% vs yesterday</div>
+                  </div>
 
-                <div style={{ height: '80px', width: '100%', marginBottom: '16px' }}>
-                  <ReactECharts option={professionalRevenueOption} style={{ height: '80px', width: '100%' }} />
-                </div>
+                  <div style={{ height: '80px', width: '100%', marginBottom: '16px' }}>
+                    <ReactECharts option={professionalRevenueOption} style={{ height: '80px', width: '100%' }} />
+                  </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-                  {displayRevenueItems.map((item: any, idx: number) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
-                        <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                    {displayRevenueItems.map((item: any, idx: number) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: item.color }} />
+                            <span style={{ color: '#64748b', fontWeight: 700 }}>{item.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
+                            <span>{item.val}</span>
+                            <span style={{ color: '#94a3b8' }}>{item.pct}</span>
+                          </div>
+                        </div>
+                        <div style={{ height: '3px', backgroundColor: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                          <div style={{ 
+                            height: '100%', 
+                            backgroundColor: item.color, 
+                            borderRadius: '2px',
+                            width: isFilled ? item.pct : '0%',
+                            transition: 'width 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                            transitionDelay: `${idx * 150}ms`
+                          }} />
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '6px', fontWeight: 800, color: '#0f172a' }}>
-                        <span>{item.val}</span>
-                        <span style={{ color: '#94a3b8' }}>{item.pct}</span>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="page-card" style={{ padding: '28px' }}>

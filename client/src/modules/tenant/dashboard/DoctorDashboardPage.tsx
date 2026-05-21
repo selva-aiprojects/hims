@@ -45,9 +45,8 @@ export default function DoctorDashboardPage() {
           headers: { Authorization: `Bearer ${token}`, "x-tenant-id": tenant }
         });
 
-        if (patientsRes.data) {
-          setRecentPatients(patientsRes.data.slice(0, 10));
-        }
+        const list = Array.isArray(patientsRes.data) ? patientsRes.data : (Array.isArray(patientsRes.data?.data) ? patientsRes.data.data : []);
+        setRecentPatients(list.slice(0, 10));
       } catch (err) {
         console.error("Doctor Stats Error:", err);
       } finally {

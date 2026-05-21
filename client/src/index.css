@@ -374,7 +374,7 @@ code, pre, .font-mono, [style*="monospace"] {
   color: white;
   display: flex;
   flex-direction: column;
-  padding: 32px 24px;
+  padding: 16px 20px;
   transition: all 0.3s ease;
   flex-shrink: 0;
   height: 100vh;
@@ -443,7 +443,7 @@ code, pre, .font-mono, [style*="monospace"] {
 
 .main-content {
   flex: 1;
-  padding: 40px;
+  padding: 16px;
   overflow-y: auto;
 }
 
@@ -457,7 +457,7 @@ code, pre, .font-mono, [style*="monospace"] {
   background: var(--hero-bg, #ffffff);
   color: var(--hero-text, #0f172a);
   border-radius: 24px;
-  padding: 24px;
+  padding: 16px;
 }
 
 .welcome-msg h1 {

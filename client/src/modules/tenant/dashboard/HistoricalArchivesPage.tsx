@@ -29,7 +29,8 @@ export default function HistoricalArchivesPage() {
         axios.get(`${API_BASE}/api/hospital/encounters?status=Completed`, { headers })
       ]);
       setBills(billRes.data || []);
-      setPrescriptions(presRes.data || []);
+      const presList = Array.isArray(presRes.data) ? presRes.data : (Array.isArray(presRes.data?.data) ? presRes.data.data : []);
+      setPrescriptions(presList);
     } catch (err) {
       console.error("Failed to fetch archives", err);
     } finally {

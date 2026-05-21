@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [primaryAccent, setPrimaryAccent] = useState(localStorage.getItem('theme_primary_accent') || '#3b82f6');
   const [appBg, setAppBg] = useState(localStorage.getItem('theme_app_bg') || '#f8fafc');
   const [textMain, setTextMain] = useState(localStorage.getItem('theme_text_main') || '#1e293b');
+  const [sidebarText, setSidebarText] = useState(localStorage.getItem('theme_sidebar_text') || '#94a3b8');
   const [fontSize, setFontSize] = useState(localStorage.getItem('theme_font_size') || '14');
   const [logoUrl, setLogoUrl] = useState(localStorage.getItem('theme_logo_url') || '');
   
@@ -23,7 +24,7 @@ export default function SettingsPage() {
     if (tenantId) {
        try {
          await axios.put(`${API_BASE}/api/nexus/tenants/${tenantId}/branding`, {
-           hospitalName, primaryDark, primaryAccent, appBg, textMain, fontSize, logoUrl, heroBg, heroText
+           hospitalName, primaryDark, primaryAccent, appBg, textMain, fontSize, logoUrl, heroBg, heroText, sidebarText
          }, {
            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
          });
@@ -36,6 +37,7 @@ export default function SettingsPage() {
     localStorage.setItem('theme_primary_accent', primaryAccent);
     localStorage.setItem('theme_app_bg', appBg);
     localStorage.setItem('theme_text_main', textMain);
+    localStorage.setItem('theme_sidebar_text', sidebarText);
     localStorage.setItem('theme_font_size', fontSize);
     localStorage.setItem('theme_logo_url', logoUrl);
     localStorage.setItem('theme_hero_bg', heroBg);
@@ -104,6 +106,7 @@ export default function SettingsPage() {
             <h3 style={{ marginBottom: '20px', fontWeight: 800 }}>Theme Colors</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <ColorPicker label="Sidebar / Primary Dark" value={primaryDark} onChange={setPrimaryDark} />
+              <ColorPicker label="Sidebar Text Color" value={sidebarText} onChange={setSidebarText} />
               <ColorPicker label="Accent / Primary Highlight" value={primaryAccent} onChange={setPrimaryAccent} />
               <ColorPicker label="Application Background" value={appBg} onChange={setAppBg} />
               <ColorPicker label="Main Text Color" value={textMain} onChange={setTextMain} />

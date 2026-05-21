@@ -63,6 +63,7 @@ export default function LoginPage() {
          if (data.uiSettings.logoUrl) localStorage.setItem('theme_logo_url', data.uiSettings.logoUrl);
          if (data.uiSettings.heroBg) localStorage.setItem('theme_hero_bg', data.uiSettings.heroBg);
          if (data.uiSettings.heroText) localStorage.setItem('theme_hero_text', data.uiSettings.heroText);
+         if (data.uiSettings.sidebarText) localStorage.setItem('theme_sidebar_text', data.uiSettings.sidebarText);
       }
 
       // Apply theme immediately after saving to localStorage

@@ -144,7 +144,8 @@ export default function OPDConsultationPage() {
         axios.get(`${API_BASE}/api/hospital/encounters?patientId=${id}&status=Completed`, { headers: getHeaders() })
       ]);
       setPastLabs(labRes.data || []);
-      setPastMeds(medRes.data || []);
+      const medList = Array.isArray(medRes.data) ? medRes.data : (Array.isArray(medRes.data?.data) ? medRes.data.data : []);
+      setPastMeds(medList);
     } catch (err) { console.error(err); }
   };
 

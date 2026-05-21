@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import LoginPage from './modules/auth/LoginPage';
 import { applyTheme } from './config/theme';
 import DashboardPage from './modules/tenant/dashboard/DashboardPage';
@@ -53,6 +53,14 @@ import AIChatbot from './components/AIChatbot';
 
 import MobilePreviewPortal from './modules/mobile_preview/MobilePreviewPortal';
 
+function ThemeObserver() {
+  const location = useLocation();
+  useEffect(() => {
+    applyTheme();
+  }, [location.pathname]);
+  return null;
+}
+
 function App() {
   // Apply saved theme on app load
   useEffect(() => {
@@ -61,6 +69,7 @@ function App() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ThemeObserver />
       <Routes>
         <Route path="/" element={<LoginPage />} />
         
@@ -73,11 +82,11 @@ function App() {
         <Route path="/tenant/reports" element={<ClinicalAnalyticsDashboard />} />
         <Route path="/tenant/masters" element={<MastersPage />} />
         <Route path="/tenant/opd/registration" element={<OPDRegistrationPage />} />
-        <Route path="/tenant/opd/queue" element={<OPDQueuePage />} />
+        <Route path="/tenant/opd/queue" element={<RoleGuard allowedRoles={['admin', 'doctor', 'receptionist', 'staff']} moduleName="OPD Queue"><OPDQueuePage /></RoleGuard>} />
         <Route path="/tenant/opd/consultation" element={<OPDConsultationPage />} />
         <Route path="/tenant/clinical/patient-register" element={<PatientRegisterPage />} />
         <Route path="/tenant/appointments" element={<TenantAppointmentsPage />} />
-        <Route path="/tenant/archives" element={<HistoricalArchivesPage />} />
+        <Route path="/tenant/archives" element={<RoleGuard allowedRoles={['admin', 'doctor', 'staff', 'billing']} moduleName="Clinical & Financial Archives"><HistoricalArchivesPage /></RoleGuard>} />
 
         <Route path="/tenant/appointments/doctor-calendar" element={<DoctorAvailabilityPage />} />
         <Route path="/tenant/appointments/advanced-calendar" element={<AdvancedDoctorAvailabilityPage />} />

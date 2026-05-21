@@ -70,8 +70,8 @@ export default function OPDRegistrationPage() {
 
     // Fetch queue independently
     try {
-      const queueRes = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active`, { headers: h });
-      setRecentQueue((queueRes.data || []).slice(0, 5));
+      const list = Array.isArray(queueRes.data) ? queueRes.data : (Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
+      setRecentQueue(list.slice(0, 5));
     } catch (err) { console.error("Queue fetch failed", err); }
 
     // Fetch ABHA Config

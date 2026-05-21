@@ -35,7 +35,8 @@ export default function OPDQueuePage() {
     };
     try {
       const res = await axios.get(`${API_BASE}/api/hospital/encounters?status=Active`, { headers });
-      setEncounters(res.data);
+      const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : []);
+      setEncounters(list);
     } catch (err) { 
       console.error(err); 
     } finally { 

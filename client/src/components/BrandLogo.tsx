@@ -1,3 +1,5 @@
+import { getTenantBrandingConfig } from "../config/theme";
+
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
   showText?: boolean;
@@ -6,7 +8,8 @@ interface BrandLogoProps {
 
 export default function BrandLogo({ size = 'md' }: BrandLogoProps) {
   const height = size === 'sm' ? 28 : size === 'md' ? 48 : 72;
-  const customLogo = localStorage.getItem('theme_logo_url');
+  const useTenantBranding = getTenantBrandingConfig();
+  const customLogo = useTenantBranding ? localStorage.getItem('theme_logo_url') : null;
   
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -23,3 +26,4 @@ export default function BrandLogo({ size = 'md' }: BrandLogoProps) {
     </div>
   );
 }
+

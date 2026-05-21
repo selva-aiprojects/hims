@@ -750,9 +750,11 @@ router.get("/encounters", async (req, res, next) => {
     const patientFilter = patientId ? `AND e.patient_id = '${patientId}'` : '';
     const doctorFilter = doctorId ? `AND e.doctor_id = '${doctorId}'` : '';
     const statusFilter = status === 'All' ? '' : `AND e.status = '${status}'`;
+    const todayOnly = req.query.todayOnly === 'true';
+    const dateFilter = todayOnly ? `AND e.created_at::date = CURRENT_DATE` : '';
 
     // Count total (lightweight)
-    const countQuery = `SELECT COUNT(*)::int as count FROM "${req.schemaName}".encounters e WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter}`;
+    const countQuery = `SELECT COUNT(*)::int as count FROM "${req.schemaName}".encounters e WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter} ${dateFilter}`;
     const countRes = await req.prisma.$queryRawUnsafe(countQuery);
     const total = (countRes && countRes[0] && Number(countRes[0].count)) || 0;
 
@@ -764,7 +766,8 @@ router.get("/encounters", async (req, res, next) => {
         u.name as doctor_name,
         cp.predicted_time_mins,
         latest.event_type as latest_event,
-        latest.start_time
+        latest.start_time,
+        CONCAT('OPD-', LPAD(RANK() OVER (ORDER BY e.created_at ASC)::text, 3, '0')) as token
       FROM "${req.schemaName}".encounters e
       JOIN "${req.schemaName}".patients p ON e.patient_id = p.id
       JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
@@ -776,7 +779,7 @@ router.get("/encounters", async (req, res, next) => {
         ORDER BY ce.created_at DESC
         LIMIT 1
       ) latest ON true
-      WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter}
+      WHERE 1=1 ${statusFilter} ${patientFilter} ${doctorFilter} ${dateFilter}
       ORDER BY e.created_at ASC
       LIMIT ${pageSize} OFFSET ${offset}
     `;
