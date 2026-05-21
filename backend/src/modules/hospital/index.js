@@ -761,7 +761,7 @@ router.get("/encounters", async (req, res, next) => {
     // Select only required columns and use LATERAL to fetch latest event efficiently
     const query = `
       SELECT 
-        e.id, e.patient_id, e.doctor_id, e.status, e.type, e.created_at,
+        e.id, e.patient_id, e.doctor_id, e.status, e.type, e.created_at, e.vitals,
         p.name as patient_name, p.mrn, p.age, p.gender,
         u.name as doctor_name,
         cp.predicted_time_mins,

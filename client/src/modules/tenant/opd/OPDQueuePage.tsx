@@ -59,7 +59,11 @@ export default function OPDQueuePage() {
       "x-tenant-id": localStorage.getItem("tenant") || ""
     };
     try {
-      await axios.put(`${API_BASE}/api/hospital/encounters/${vitalsModalEncounter.id}`, { vitals: vitalsData }, { headers });
+      const mergedVitals = {
+        ...(vitalsModalEncounter.vitals || {}),
+        ...vitalsData
+      };
+      await axios.put(`${API_BASE}/api/hospital/encounters/${vitalsModalEncounter.id}`, { vitals: mergedVitals }, { headers });
       setVitalsModalEncounter(null);
       setVitalsData({ bp: "", heartRate: "", temp: "" });
       fetchEncounters();
@@ -184,28 +188,42 @@ export default function OPDQueuePage() {
                    
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
                      <div style={{ fontWeight: 700, color: '#475569', fontSize: '12px' }}>Dr. {enc.doctor_name}</div>
-                     <div style={{ display: 'flex', gap: '6px' }}>
-                        {enc.vitals && enc.vitals.bp ? (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {enc.vitals && (enc.vitals.bp || enc.vitals.temp || enc.vitals.heartRate || enc.vitals.pulse || enc.vitals.weight || enc.vitals.height) ? (
                           <>
-                             {(() => {
+                             {enc.vitals.bp && (() => {
                                const bpStat = getBPStatus(enc.vitals.bp);
-                               return <span style={{ fontSize: '10px', background: bpStat.bg, color: bpStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{bpStat.label}</span>;
+                               return <span style={{ fontSize: '10px', background: bpStat.bg, color: bpStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>BP: {enc.vitals.bp}</span>;
                              })()}
-                             {(() => {
+                             {enc.vitals.temp && (() => {
                                const tempStat = getTempStatus(enc.vitals.temp);
-                               return <span style={{ fontSize: '10px', background: tempStat.bg, color: tempStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{tempStat.label}</span>;
+                               return <span style={{ fontSize: '10px', background: tempStat.bg, color: tempStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>Temp: {enc.vitals.temp}°F</span>;
                              })()}
-                           </>
+                             {(enc.vitals.heartRate || enc.vitals.pulse) && (
+                               <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>HR: {enc.vitals.heartRate || enc.vitals.pulse} bpm</span>
+                             )}
+                             {enc.vitals.weight && (
+                               <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>Wt: {enc.vitals.weight} kg</span>
+                             )}
+                             {enc.vitals.height && (
+                               <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>Ht: {enc.vitals.height} cm</span>
+                             )}
+                          </>
                         ) : (
                           <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>PENDING VITALS</span>
                         )}
-                     </div>
+                      </div>
                    </div>
 
-                    {!enc.vitals?.bp ? (
+                    {(!enc.vitals || (!enc.vitals.bp && !enc.vitals.temp && !enc.vitals.heartRate && !enc.vitals.pulse)) ? (
                       <button 
                         onClick={() => {
                           setVitalsModalEncounter(enc);
+                          setVitalsData({
+                            bp: enc.vitals?.bp || "",
+                            temp: enc.vitals?.temp || "",
+                            heartRate: enc.vitals?.heartRate || enc.vitals?.pulse || ""
+                          });
                         }}
                         style={{ 
                           width: '100%',
@@ -262,7 +280,7 @@ export default function OPDQueuePage() {
                     <td style={{ padding: '16px 24px' }}>
                       <div style={{ fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
                          {enc.patient_name} 
-                         {enc.vitals?.bp && <Activity size={14} style={{ color: '#10b981' }} />}
+                         {(enc.vitals?.bp || enc.vitals?.temp || enc.vitals?.heartRate || enc.vitals?.pulse || enc.vitals?.weight || enc.vitals?.height) && <Activity size={14} style={{ color: '#10b981' }} />}
                       </div>
                       <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 700 }}>{enc.mrn} • {enc.gender}, {enc.age} yrs</div>
                     </td>
@@ -273,17 +291,26 @@ export default function OPDQueuePage() {
                        </div>
                     </td>
                     <td style={{ padding: '16px 24px' }}>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        {enc.vitals && enc.vitals.bp ? (
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {enc.vitals && (enc.vitals.bp || enc.vitals.temp || enc.vitals.heartRate || enc.vitals.pulse || enc.vitals.weight || enc.vitals.height) ? (
                           <>
-                            {(() => {
+                            {enc.vitals.bp && (() => {
                               const bpStat = getBPStatus(enc.vitals.bp);
-                              return <span style={{ fontSize: '10px', background: bpStat.bg, color: bpStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{bpStat.label}</span>;
+                              return <span style={{ fontSize: '10px', background: bpStat.bg, color: bpStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>BP: {enc.vitals.bp}</span>;
                             })()}
-                            {(() => {
+                            {enc.vitals.temp && (() => {
                               const tempStat = getTempStatus(enc.vitals.temp);
-                              return <span style={{ fontSize: '10px', background: tempStat.bg, color: tempStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>{tempStat.label}</span>;
+                              return <span style={{ fontSize: '10px', background: tempStat.bg, color: tempStat.color, padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>Temp: {enc.vitals.temp}°F</span>;
                             })()}
+                            {(enc.vitals.heartRate || enc.vitals.pulse) && (
+                              <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>HR: {enc.vitals.heartRate || enc.vitals.pulse} bpm</span>
+                            )}
+                            {enc.vitals.weight && (
+                              <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>Wt: {enc.vitals.weight} kg</span>
+                            )}
+                            {enc.vitals.height && (
+                              <span style={{ fontSize: '10px', background: '#f1f5f9', color: '#475569', padding: '4px 8px', borderRadius: '6px', fontWeight: 800 }}>Ht: {enc.vitals.height} cm</span>
+                            )}
                           </>
                         ) : (
                           <span style={{ fontSize: '10px', background: '#fff7ed', color: '#c2410c', padding: '4px 8px', borderRadius: '6px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -305,10 +332,15 @@ export default function OPDQueuePage() {
                         </div>
                     </td>
                     <td style={{ padding: '16px 24px', textAlign: 'right' }}>
-                      {!enc.vitals?.bp ? (
+                      {(!enc.vitals || (!enc.vitals.bp && !enc.vitals.temp && !enc.vitals.heartRate && !enc.vitals.pulse)) ? (
                         <button 
                           onClick={() => {
                             setVitalsModalEncounter(enc);
+                            setVitalsData({
+                              bp: enc.vitals?.bp || "",
+                              temp: enc.vitals?.temp || "",
+                              heartRate: enc.vitals?.heartRate || enc.vitals?.pulse || ""
+                            });
                           }}
                           style={{ 
                             padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', 

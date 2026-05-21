@@ -9,7 +9,8 @@ import {
   User, Activity, Pill, FlaskConical,
   CheckCircle2, ChevronRight, FileText,
   Stethoscope, Thermometer, Scale, Zap,
-  AlertTriangle, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Clock, Timer
+  AlertTriangle, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Clock, Timer,
+  HeartPulse
 } from 'lucide-react';
 import PrescriptionTab from './components/PrescriptionTab';
 import LabTab from './components/LabTab';
@@ -268,10 +269,12 @@ export default function OPDConsultationPage() {
             </div>
           </div>
 
-          <div style="display: flex; gap: 40px; margin-bottom: 30px; background: #fff; padding: 12px; border-radius: 8px; border: 1px dashed #e2e8f0;">
+          <div style="display: flex; gap: 30px; margin-bottom: 30px; background: #fff; padding: 12px; border-radius: 8px; border: 1px dashed #e2e8f0;">
             <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">BP:</span> <span style="font-weight:800;">${encounter?.vitals?.bp || '--'}</span></div>
             <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">Temp:</span> <span style="font-weight:800;">${encounter?.vitals?.temp || '--'}°F</span></div>
+            <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">Pulse:</span> <span style="font-weight:800;">${encounter?.vitals?.heartRate || encounter?.vitals?.pulse || '--'} bpm</span></div>
             <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">Weight:</span> <span style="font-weight:800;">${encounter?.vitals?.weight || '--'}kg</span></div>
+            <div><span style="font-weight:700; color:#64748b; font-size:11px; text-transform:uppercase;">Height:</span> <span style="font-weight:800;">${encounter?.vitals?.height || '--'}cm</span></div>
           </div>
           
           <div class="rx-symbol">R<sub>x</sub></div>
@@ -518,7 +521,7 @@ export default function OPDConsultationPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '28px', borderLeft: '1px solid #f1f5f9', paddingLeft: '28px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '28px', borderLeft: '1px solid #f1f5f9', paddingLeft: '28px' }}>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Session Timer</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
                 <Timer size={16} style={{ color: isPaused ? '#ef4444' : '#10b981' }} />
@@ -530,7 +533,9 @@ export default function OPDConsultationPage() {
             </div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Blood Pressure</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Activity size={16} style={{ color: '#ef4444' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.bp || '--'}</span></div></div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Temperature</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Thermometer size={16} style={{ color: '#f59e0b' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.temp || '--'}°F</span></div></div>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Pulse / HR</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><HeartPulse size={16} style={{ color: '#10b981' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.heartRate || encounter.vitals?.pulse || '--'}</span></div></div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Weight</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Scale size={16} style={{ color: '#3b82f6' }} /><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.weight || '--'}kg</span></div></div>
+            <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Height</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><span style={{ fontSize: '12px', fontWeight: 900, color: '#8b5cf6' }}>Ht</span><span style={{ fontSize: '16px', fontWeight: 900 }}>{encounter.vitals?.height || '--'}cm</span></div></div>
             <div style={{ textAlign: 'center' }}><p style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 800, margin: '0 0 4px', textTransform: 'uppercase' }}>Occupation</p><div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}><Briefcase size={16} style={{ color: '#64748b' }} /><span style={{ fontSize: '14px', fontWeight: 800 }}>{patient?.occupation || '--'}</span></div></div>
           </div>
         </div>

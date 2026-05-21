@@ -38,7 +38,7 @@ export default function OPDRegistrationPage() {
     medical_history: '', allergies: '',
     abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
   });
-  const [vitals, setVitals] = useState({ weight: '', bp: '', temp: '', height: '' });
+  const [vitals, setVitals] = useState({ weight: '', bp: '', temp: '', height: '', heartRate: '' });
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [isAbhaMandatory, setIsAbhaMandatory] = useState(false);
   const [abhaStep, setAbhaStep] = useState<'IDLE' | 'OTP_SENT' | 'VERIFIED'>('IDLE');
@@ -48,6 +48,8 @@ export default function OPDRegistrationPage() {
   const [isAbhaLoading, setIsAbhaLoading] = useState(false);
   const [hasConsent, setHasConsent] = useState(false);
   const [discoveredAbhas, setDiscoveredAbhas] = useState<any[]>([]);
+  const [abhaMobile, setAbhaMobile] = useState("");
+  const [abhaMessage, setAbhaMessage] = useState("");
 
   useEffect(() => {
     fetchInitialData();
@@ -70,6 +72,7 @@ export default function OPDRegistrationPage() {
 
     // Fetch queue independently
     try {
+      const queueRes = await axios.get(`${API_BASE}/api/hospital/encounters`, { headers: h });
       const list = Array.isArray(queueRes.data) ? queueRes.data : (Array.isArray(queueRes.data?.data) ? queueRes.data.data : []);
       setRecentQueue(list.slice(0, 5));
     } catch (err) { console.error("Queue fetch failed", err); }
@@ -106,7 +109,7 @@ export default function OPDRegistrationPage() {
     } catch (err) { console.error(err); }
   };
 
-  const selectPatient = (p: any) => {
+  const selectPatient = async (p: any) => {
     setSelectedPatient(p);
     setSearchResults([]);
     setSearchTerm(p.name);
@@ -136,6 +139,28 @@ export default function OPDRegistrationPage() {
       setAbhaStep('IDLE');
     }
     setShowFullReg(true);
+
+    // Fetch previous vitals
+    try {
+      const res = await axios.get(`${API_BASE}/api/hospital/encounters?patientId=${p.id}&status=All`, { headers: getHeaders() });
+      const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : []);
+      if (list.length > 0) {
+        const sorted = [...list].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const latestEncWithVitals = sorted.find((enc: any) => enc.vitals && (enc.vitals.weight || enc.vitals.bp || enc.vitals.temp || enc.vitals.height || enc.vitals.heartRate));
+        if (latestEncWithVitals && latestEncWithVitals.vitals) {
+          setVitals({
+            weight: latestEncWithVitals.vitals.weight || '',
+            bp: latestEncWithVitals.vitals.bp || '',
+            temp: latestEncWithVitals.vitals.temp || '',
+            height: latestEncWithVitals.vitals.height || '',
+            heartRate: latestEncWithVitals.vitals.heartRate || latestEncWithVitals.vitals.pulse || ''
+          });
+          showToast("Pre-populated vitals from patient's previous visit.", "info");
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch previous vitals history", err);
+    }
   };
 
   const handleAbhaOtpRequest = async () => {
@@ -147,6 +172,8 @@ export default function OPDRegistrationPage() {
     try {
       const res = await axios.post(`${API_BASE}/api/abha/generate-otp`, { aadhaar: aadhaarInput }, { headers: getHeaders() });
       setAbhaTxnId(res.data.txnId);
+      setAbhaMobile(regData.phone || "");
+      setAbhaMessage(res.data.message || "OTP sent to Aadhaar-registered mobile number.");
       setAbhaStep('OTP_SENT');
       showToast("OTP sent to Aadhaar-registered mobile", "success");
     } catch (err: any) {
@@ -201,27 +228,42 @@ export default function OPDRegistrationPage() {
     }
     setIsAbhaLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/abha/verify-otp`, { otp: otpInput, txnId: abhaTxnId }, { headers: getHeaders() });
+      const payload: any = { otp: otpInput, txnId: abhaTxnId };
+      if (abhaMobile && abhaMobile.length === 10) {
+        payload.mobile = abhaMobile;
+      }
+      const res = await axios.post(`${API_BASE}/api/abha/verify-otp`, payload, { headers: getHeaders() });
       const profile = res.data;
+
+      // Safely build DOB — pad month/day to 2 digits
+      let dob = '';
+      if (profile.yearOfBirth && profile.monthOfBirth && profile.dayOfBirth) {
+        const mm = String(profile.monthOfBirth).padStart(2, '0');
+        const dd = String(profile.dayOfBirth).padStart(2, '0');
+        dob = `${profile.yearOfBirth}-${mm}-${dd}`;
+      }
+
       setRegData(prev => ({
         ...prev,
         name: profile.name || prev.name,
-        gender: profile.gender === 'M' ? 'Male' : profile.gender === 'F' ? 'Female' : 'Other',
-        dob: profile.dayOfBirth ? `${profile.yearOfBirth}-${profile.monthOfBirth}-${profile.dayOfBirth}` : prev.dob,
+        gender: profile.gender === 'M' ? 'Male' : profile.gender === 'F' ? 'Female' : (prev.gender || 'Other'),
+        dob: dob || prev.dob,
         address: profile.address || prev.address,
-        abhaId: profile.healthId,
-        abhaNumber: profile.healthIdNumber,
+        abhaId: profile.healthId || '',
+        abhaNumber: profile.healthIdNumber || '',
         abhaStatus: profile.status || 'ACTIVE',
         abhaVerified: true
       }));
       setAbhaStep('VERIFIED');
       showToast("ABHA Verified & Form Auto-populated!", "success");
     } catch (err: any) {
-      showToast(err.response?.data?.error || "ABHA Verification failed", "error");
+      const msg = err.response?.data?.error || err.response?.data?.message || "ABHA Verification failed";
+      showToast(msg, "error");
     } finally {
       setIsAbhaLoading(false);
     }
   };
+
 
   const registerAndQueue = async () => {
     if (!regData.name || !regData.phone || !selectedDoctorId) {
@@ -283,7 +325,7 @@ export default function OPDRegistrationPage() {
         guardian_name: '', guardian_phone: '', medical_history: '', allergies: '',
         abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
     });
-    setVitals({ weight: '', bp: '', temp: '', height: '' });
+    setVitals({ weight: '', bp: '', temp: '', height: '', heartRate: '' });
     setSelectedDoctorId("");
     setAbhaStep('IDLE');
     setAadhaarInput("");
@@ -435,23 +477,62 @@ export default function OPDRegistrationPage() {
                     )}
                   </div>
                 )}
-
                 {abhaStep === 'OTP_SENT' && (
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <input 
-                      placeholder="Enter 6-Digit OTP" 
-                      className="input-field" 
-                      style={{ background: 'white' }}
-                      value={otpInput}
-                      onChange={e => setOtpInput(e.target.value)}
-                      maxLength={6}
-                    />
-                    <button 
-                      onClick={handleAbhaVerify}
-                      disabled={isAbhaLoading}
-                      style={{ whiteSpace: 'nowrap', padding: '0 24px', background: '#059669', color: 'white', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '12px', color: '#0369a1', background: '#e0f2fe', padding: '12px', borderRadius: '12px', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div>
+                        {abhaMessage || `OTP sent to mobile linked with Aadhaar ${aadhaarInput ? `●●●● ${aadhaarInput.slice(-4)}` : ''}. Enter details below.`}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#0284c7', marginTop: '4px', borderTop: '1px solid #bae6fd', paddingTop: '6px', fontWeight: 500, lineHeight: 1.4 }}>
+                        <strong>⚠️ Aadhaar Mobile Match Required:</strong> ABDM sandbox requires the patient's phone number on the form to match their Aadhaar-registered mobile exactly.
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800 }}>1. Aadhaar-Registered Mobile Number*</label>
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="Enter 10-Digit Mobile" 
+                        className="input-field" 
+                        style={{ background: 'white', fontWeight: 600, fontSize: '15px' }}
+                        value={abhaMobile}
+                        onChange={e => setAbhaMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        maxLength={10}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '11px', color: '#0369a1', fontWeight: 800 }}>2. Enter 6-Digit OTP*</label>
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <input 
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="Enter 6-Digit OTP" 
+                          className="input-field" 
+                          style={{ background: 'white', letterSpacing: '4px', fontSize: '20px', fontWeight: 700 }}
+                          value={otpInput}
+                          onChange={e => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength={6}
+                          autoComplete="one-time-code"
+                        />
+                        <button 
+                          onClick={handleAbhaVerify}
+                          disabled={isAbhaLoading || otpInput.length !== 6 || abhaMobile.length !== 10}
+                          style={{ whiteSpace: 'nowrap', padding: '0 24px', background: '#059669', color: 'white', borderRadius: '12px', border: 'none', fontWeight: 700, cursor: isAbhaLoading || otpInput.length !== 6 || abhaMobile.length !== 10 ? 'not-allowed' : 'pointer', opacity: isAbhaLoading || otpInput.length !== 6 || abhaMobile.length !== 10 ? 0.6 : 1 }}
+                        >
+                          {isAbhaLoading ? '...' : 'VERIFY'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => { setAbhaStep('IDLE'); setOtpInput(''); setAbhaTxnId(''); setAbhaMessage(''); }}
+                      style={{ background: 'none', border: 'none', color: '#0369a1', fontSize: '12px', cursor: 'pointer', textAlign: 'left', padding: 0, fontWeight: 600, marginTop: '8px' }}
                     >
-                      {isAbhaLoading ? '...' : 'VERIFY'}
+                      ← Resend OTP / Change Aadhaar
                     </button>
                   </div>
                 )}
@@ -558,7 +639,7 @@ export default function OPDRegistrationPage() {
               <Activity size={18} /> 2. CAPTURE VITALS & ASSIGN DOCTOR
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(2, 1fr)', gap: isMobile ? '12px' : '20px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: isMobile ? '12px' : '20px', marginBottom: '32px' }}>
                <div className="input-group">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Scale size={12} /> Weight (kg)</label>
                   <input className="input-field high-velocity-input" placeholder="e.g. 70" value={vitals.weight} onChange={e => setVitals({...vitals, weight: e.target.value})} />
@@ -574,6 +655,10 @@ export default function OPDRegistrationPage() {
                <div className="input-group">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={12} /> Height (cm)</label>
                   <input className="input-field high-velocity-input" placeholder="e.g. 175" value={vitals.height} onChange={e => setVitals({...vitals, height: e.target.value})} />
+               </div>
+               <div className="input-group">
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><HeartPulse size={12} /> Pulse / HR (bpm)</label>
+                  <input className="input-field high-velocity-input" placeholder="e.g. 72" value={vitals.heartRate} onChange={e => setVitals({...vitals, heartRate: e.target.value})} />
                </div>
             </div>
 

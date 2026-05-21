@@ -27,7 +27,7 @@ router.use("/billing", auth, tenant, billingRoutes);
 router.use("/insurance", auth, tenant, insuranceRoutes);
 router.use("/doctor", auth, tenant, doctorRoutes);
 router.use("/doctors", auth, tenant, doctorRoutes);
-router.use("/abha", abhaRoutes);
+router.use("/abha", auth, tenant, abhaRoutes);
 router.get("/health-db", async (req, res) => {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
