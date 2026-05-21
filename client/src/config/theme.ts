@@ -15,4 +15,5 @@ export const applyTheme = () => {
   root.style.setProperty('--hero-bg', heroBg);
   root.style.setProperty('--hero-text', heroText);
   root.style.setProperty('--base-font-size', `${fontSize}px`);
+  document.body.style.fontSize = `${fontSize}px`;
 };

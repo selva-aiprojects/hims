@@ -31,7 +31,7 @@ body, div, span, p, a, button, input, select, textarea, label, td, th, strong, e
 }
 
 body {
-  font-size: 14px;
+  font-size: var(--base-font-size, 14px);
   background-color: var(--app-bg, #f8fafc);
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
@@ -454,19 +454,24 @@ code, pre, .font-mono, [style*="monospace"] {
   text-align: center;
   margin-bottom: 48px;
   position: relative;
+  background: var(--hero-bg, #ffffff);
+  color: var(--hero-text, #0f172a);
+  border-radius: 24px;
+  padding: 24px;
 }
 
 .welcome-msg h1 {
   font-size: 36px;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--hero-text, #0f172a);
   margin: 0;
   letter-spacing: -0.05em;
   line-height: 1;
 }
 
 .welcome-msg p {
-  color: var(--text-muted);
+  color: var(--hero-text, #0f172a);
+  opacity: 0.85;
   font-size: 14px;
   font-weight: 500;
   margin-top: 4px;
