@@ -484,7 +484,7 @@ export default function DoctorAvailabilityPage() {
                                                onClick={() => {
                                                  if (state.status === 'AVAILABLE' || state.status === 'DELAYED_AVAIL') {
                                                    const dateStr = toLocalDateKey(date);
-                                                   window.location.href = `/tenant/appointments/book?doctorId=${selectedDoctor.id}&date=${dateStr}&time=${time}`;
+                                                   window.location.href = `/tenant/appointments/book?doctorId=${selectedDoctor.id}&date=${dateStr}&time=${slotRow.time}`;
                                                  } else {
                                                    setSelectedDate(date);
                                                    setSelectedTime(time);
@@ -791,7 +791,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
                         <button 
                           onClick={() => {
                             const dateStr = toLocalDateKey(date);
-                            window.location.href = `/tenant/appointments/book?doctorId=${doctor.id}&date=${dateStr}&time=${time}`;
+                            window.location.href = `/tenant/appointments/book?doctorId=${doctor.id}&date=${dateStr}&time=${slotRow.time}`;
                           }}
                           style={{
                             ...primaryBtnStyle,

@@ -277,7 +277,10 @@ export default function OPDRegistrationPage() {
     setIsProcessing(true);
     try {
       const pRes = await axios.post(`${API_BASE}/api/patients`, regData, { headers: getHeaders() });
-      const patientId = pRes.data.id;
+      const patientId = pRes.data?.id || pRes.data?.[0]?.id;
+      if (!patientId) {
+        throw new Error("Patient registration returned an unexpected response.");
+      }
 
       await axios.post(`${API_BASE}/api/hospital/encounters`, {
         patientId,
@@ -289,7 +292,7 @@ export default function OPDRegistrationPage() {
 
       resetFlow("Registration Successful! Patient is now in queue.");
     } catch (err: any) { 
-      const msg = err.response?.data?.message || err.message || "Registration failed.";
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || "Registration failed.";
       showToast(msg, "error"); 
     }
     finally { setIsProcessing(false); }
@@ -311,7 +314,10 @@ export default function OPDRegistrationPage() {
         complaints: 'Follow-up Consultation'
       }, { headers: getHeaders() });
       resetFlow("Visit generated. Token issued.");
-    } catch (err) { showToast("Failed to issue token.", "error"); }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.response?.data?.message || err.message || "Failed to issue token.";
+      showToast(msg, "error");
+    }
     finally { setIsProcessing(false); }
   };
 

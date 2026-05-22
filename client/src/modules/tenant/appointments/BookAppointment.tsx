@@ -35,6 +35,16 @@ export default function BookAppointment() {
     "x-tenant-id": tenantId || ""
   };
 
+  const fetchPatientById = async (patientId: string) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/patients/${patientId}`, { headers });
+      return response.data;
+    } catch (error) {
+      console.warn(`Unable to fetch preselected patient ${patientId}`, error);
+      return null;
+    }
+  };
+
   useEffect(() => {
     fetchInitialData();
   }, []);
@@ -51,10 +61,20 @@ export default function BookAppointment() {
 
       const params = new URLSearchParams(window.location.search);
       const preselectedPatientId = params.get('patientId');
-      if (preselectedPatientId && pats.length > 0) {
-        const found = pats.find((p: any) => p.id === preselectedPatientId);
-        if (found) {
-          setSelectedPatient(found);
+      let foundPatient: Patient | null = null;
+      if (preselectedPatientId) {
+        foundPatient = pats.find((p: any) => p.id === preselectedPatientId) || null;
+        if (!foundPatient) {
+          foundPatient = await fetchPatientById(preselectedPatientId);
+          if (foundPatient) {
+            setPatients((prev) => {
+              if (prev.some((p) => p.id === foundPatient.id)) return prev;
+              return [...prev, foundPatient];
+            });
+          }
+        }
+        if (foundPatient) {
+          setSelectedPatient(foundPatient);
         }
       }
 
@@ -70,28 +90,30 @@ export default function BookAppointment() {
             const dateObj = parseLocalDate(preselectedDateStr);
             setSelectedDate(dateObj);
             fetchDoctorAvailability(docFound, dateObj);
-            
+
             if (preselectedTimeStr) {
               setSelectedTime(preselectedTimeStr);
-              if (preselectedPatientId && pats.length > 0) {
-                const patFound = pats.find((p: any) => p.id === preselectedPatientId);
-                if (patFound) {
-                  setSelectedPatient(patFound);
-                  setCurrentStep('confirm');
-                } else {
-                  setCurrentStep('select-patient');
-                }
+              if (foundPatient) {
+                setCurrentStep('confirm');
               } else {
                 setCurrentStep('select-patient');
               }
             } else {
-              setCurrentStep('select-time');
+              if (foundPatient) {
+                setCurrentStep('select-time');
+              } else {
+                setCurrentStep('select-patient');
+              }
             }
           } else {
-            setCurrentStep('select-date');
+            if (foundPatient) {
+              setCurrentStep('select-date');
+            } else {
+              setCurrentStep('select-patient');
+            }
           }
         }
-      } else if (preselectedPatientId) {
+      } else if (foundPatient) {
         setCurrentStep('select-doctor');
       }
     } catch (error) {
@@ -145,6 +167,9 @@ export default function BookAppointment() {
 
   const handleDoctorSelect = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
+    setSelectedDate(null);
+    setSelectedTime('');
+    setAvailableSlots([]);
     if (selectedPatient) {
       setCurrentStep('select-date');
     } else {
@@ -156,8 +181,12 @@ export default function BookAppointment() {
     setSelectedPatient(patient);
     if (selectedDoctor && selectedDate && selectedTime) {
       setCurrentStep('confirm');
-    } else {
+    } else if (selectedDoctor && selectedDate) {
+      setCurrentStep('select-time');
+    } else if (selectedDoctor) {
       setCurrentStep('select-date');
+    } else {
+      setCurrentStep('select-doctor');
     }
   };
 
@@ -170,12 +199,20 @@ export default function BookAppointment() {
     if (selectedDoctor) {
       fetchDoctorAvailability(selectedDoctor, date);
     }
-    setCurrentStep('select-time');
+    if (selectedPatient) {
+      setCurrentStep('select-time');
+    } else {
+      setCurrentStep('select-patient');
+    }
   };
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
-    setCurrentStep('confirm');
+    if (selectedPatient) {
+      setCurrentStep('confirm');
+    } else {
+      setCurrentStep('select-patient');
+    }
   };
 
   const confirmBooking = async () => {
@@ -456,7 +493,9 @@ export default function BookAppointment() {
             No patients found matching your search.
           </div>
           <button
-                        style={{
+            type="button"
+            onClick={() => window.location.href = '/tenant/clinical/patient-register'}
+            style={{
               padding: '12px 24px',
               background: '#4f46e5',
               color: 'white',
