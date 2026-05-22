@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
@@ -43,10 +43,13 @@ export default function AppointmentsPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [showActionMenu, setShowActionMenu] = useState<number | null>(null);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [page, setPage] = useState(1);
+  const pageSize = 30;
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -103,6 +106,12 @@ export default function AppointmentsPage() {
     fetchAppointments(); 
   }, []);
 
+  // Debounce search input to reduce re-renders and heavy filtering
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim().toLowerCase()), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
   const currentRole = (localStorage.getItem("role") || "").toLowerCase();
   const currentUserId = localStorage.getItem("userId") || "";
   const isDoctorView = currentRole === "doctor";
@@ -110,17 +119,43 @@ export default function AppointmentsPage() {
 
   const formatDoctorName = (name = "") => name.toLowerCase().startsWith("dr") ? name : `Dr. ${name}`;
 
-  const filteredAppointments = appointments
-    .filter(appt => !scopedDoctorId || appt.doctor_id === scopedDoctorId)
-    .filter(appt => activeCategory === "All" || appt.status === activeCategory)
-    .filter(appt => {
-      const query = searchTerm.toLowerCase();
-      return (
-        appt.patient_name?.toLowerCase().includes(query) ||
-        appt.doctor_name?.toLowerCase().includes(query) ||
-        appt.status?.toLowerCase().includes(query)
-      );
-    });
+  const filteredAppointments = useMemo(() => {
+    const query = debouncedSearch;
+    return appointments
+      .filter(appt => !scopedDoctorId || appt.doctor_id === scopedDoctorId)
+      .filter(appt => activeCategory === "All" || appt.status === activeCategory)
+      .filter(appt => {
+        if (!query) return true;
+        return (
+          appt.patient_name?.toLowerCase().includes(query) ||
+          appt.doctor_name?.toLowerCase().includes(query) ||
+          appt.status?.toLowerCase().includes(query)
+        );
+      })
+      .map(appt => ({ ...appt, __formatted: formatApptDateTime(appt.appointment_time) }));
+  }, [appointments, scopedDoctorId, activeCategory, debouncedSearch]);
+
+  // Category counts memoized to avoid repeated filtering on render
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: appointments.length, Scheduled: 0, Completed: 0, Cancelled: 0 };
+    for (const a of appointments) {
+      if (a.status === 'Scheduled') counts.Scheduled++;
+      if (a.status === 'Completed') counts.Completed++;
+      if (a.status === 'Cancelled') counts.Cancelled++;
+    }
+    return counts;
+  }, [appointments]);
+
+  // Pagination: slice visible items
+  const visibleAppointments = useMemo(() => {
+    setTimeout(() => {}, 0); // hint to avoid blocking synchronous UI
+    return filteredAppointments.slice(0, page * pageSize);
+  }, [filteredAppointments, page]);
+
+  // Reset pagination when filters/search/doctor selection change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, activeCategory, selectedDoctorId, viewMode]);
 
 
 
@@ -186,7 +221,7 @@ export default function AppointmentsPage() {
                 overflowX: isMobile ? 'auto' : 'visible'
               }}>
                 {!isMobile && <div style={{ fontSize: '11px', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '12px', paddingLeft: '12px' }}>Categories</div>}
-                {["All", "Scheduled", "Completed", "Cancelled"].map(cat => (
+                  {["All", "Scheduled", "Completed", "Cancelled"].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}
@@ -215,7 +250,7 @@ export default function AppointmentsPage() {
                       padding: '2px 8px',
                       borderRadius: '100px'
                     }}>
-                      {cat === "All" ? appointments.length : appointments.filter(a => a.status === cat).length}
+                      {categoryCounts[cat] ?? 0}
                     </span>
                   </button>
                 ))}
@@ -308,8 +343,8 @@ export default function AppointmentsPage() {
                   </div>
                 ) : viewMode === 'list' ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {filteredAppointments.map((appt: any, i: number) => {
-                      const formatted = formatApptDateTime(appt.appointment_time);
+                    {visibleAppointments.map((appt: any, i: number) => {
+                      const formatted = appt.__formatted || formatApptDateTime(appt.appointment_time);
                       return (
                         <div key={i} style={{ 
                           display: 'flex', 
@@ -405,7 +440,7 @@ export default function AppointmentsPage() {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '20px' }}>
-                    {filteredAppointments.map((appt: any, i: number) => (
+                    {visibleAppointments.map((appt: any, i: number) => (
                       <div key={i} style={{ 
                         padding: '20px', 
                         borderRadius: '24px', 
@@ -442,7 +477,20 @@ export default function AppointmentsPage() {
                   </div>
                 )}
 
+                {filteredAppointments.length > visibleAppointments.length && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+                    <button
+                      onClick={() => setPage(p => p + 1)}
+                      className="button-secondary"
+                      style={{ padding: '8px 16px', borderRadius: '12px' }}
+                    >
+                      Load more
+                    </button>
+                  </div>
+                )}
+
                 {!loading && filteredAppointments.length === 0 && (
+                  {!loading && filteredAppointments.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '60px', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
                     <Calendar size={40} color="#cbd5e1" style={{ marginBottom: '16px' }} />
                     <p style={{ color: '#94a3b8', margin: 0, fontWeight: 600 }}>No matching appointments found.</p>
