@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { API_BASE_URL as API_BASE } from '../../../config/api';
 import axios from "axios";
 import { 
@@ -214,6 +215,37 @@ export default function DoctorAvailabilityPage() {
     return dates;
   };
 
+  const weekDates = useMemo(() => {
+    const dates: Date[] = [];
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - start.getDay());
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      dates.push(d);
+    }
+    return dates;
+  }, [currentDate]);
+
+  const slotMatrix = useMemo(() => {
+    // Matrix: array of rows for each time slot, each row contains array of slot states per day
+    if (!timeSlots || timeSlots.length === 0 || !weekDates) return [];
+    return timeSlots.map(time => {
+      const row = weekDates.map(date => {
+        return getSlotState({
+          date: toLocalDateKey(date),
+          time,
+          appointments,
+          leaves,
+          schedules,
+          overrides,
+          doctorStatus
+        });
+      });
+      return { time, row };
+    });
+  }, [timeSlots, weekDates, appointments, leaves, schedules, overrides, doctorStatus]);
+
   if (loading) return <div className="loading-state">Initializing Clinical Engine...</div>;
 
   return (
@@ -412,7 +444,7 @@ export default function DoctorAvailabilityPage() {
                       <div style={gridScrollStyle}>
                          <div style={calendarGridStyle}>
                             <div style={{ padding: '20px', borderRight: '1px solid #f1f5f9', background: '#fcfdfe' }}></div>
-                             {getWeekDates().map((date, i) => {
+                             {weekDates.map((date, i) => {
                                const isToday = date.toDateString() === new Date().toDateString();
                                const isPastDay = date < new Date(new Date().setHours(0,0,0,0));
                                return (
@@ -429,19 +461,11 @@ export default function DoctorAvailabilityPage() {
                                );
                              })}
 
-                            {timeSlots.map((time, idx) => (
+                             {slotMatrix.map((slotRow, idx) => (
                                <div key={idx} style={{ display: 'contents' }}>
-                                  <div style={timeLabelStyle}>{time}</div>
-                                  {getWeekDates().map((date, dayIdx) => {
-                                     const state = getSlotState({
-                                        date: toLocalDateKey(date),
-                                        time,
-                                        appointments,
-                                        leaves,
-                                        schedules,
-                                        overrides,
-                                        doctorStatus
-                                     });
+                                 <div style={timeLabelStyle}>{slotRow.time}</div>
+                                 {slotRow.row.map((state, dayIdx) => {
+                                   const date = weekDates[dayIdx];
 
                                      // Apply Filters
                                      const matchesSearch = searchQuery && state.appointment?.patient_name?.toLowerCase().includes(searchQuery.toLowerCase());
