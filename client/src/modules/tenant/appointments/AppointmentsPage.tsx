@@ -490,7 +490,6 @@ export default function AppointmentsPage() {
                 )}
 
                 {!loading && filteredAppointments.length === 0 && (
-                  {!loading && filteredAppointments.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '60px', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
                     <Calendar size={40} color="#cbd5e1" style={{ marginBottom: '16px' }} />
                     <p style={{ color: '#94a3b8', margin: 0, fontWeight: 600 }}>No matching appointments found.</p>
