@@ -49,6 +49,7 @@ import MessageBoardPage from './modules/tenant/communication/MessageBoardPage';
 import MailManagementPage from './modules/tenant/communication/MailManagementPage';
 import { useEffect } from 'react';
 import SettingsPage from './modules/tenant/SettingsPage';
+import SecureConfigsPage from './modules/tenant/SecureConfigsPage';
 import AIChatbot from './components/AIChatbot';
 
 import MobilePreviewPortal from './modules/mobile_preview/MobilePreviewPortal';
@@ -107,6 +108,7 @@ function App() {
         <Route path="/tenant/pharmacy/queue" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Prescription Queue"><PrescriptionQueue /></RoleGuard>} />
         <Route path="/tenant/staff" element={<StaffManagementPage />} />
         <Route path="/tenant/settings" element={<SettingsPage />} />
+        <Route path="/tenant/settings/secure" element={<SecureConfigsPage />} />
         <Route path="/tenant/support" element={<SupportTicketsPage />} />
         <Route path="/tenant/communication" element={<MessageBoardPage />} />
         <Route path="/tenant/mail" element={<MailManagementPage />} />

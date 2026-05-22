@@ -166,6 +166,9 @@ export default function Sidebar() {
     if (!dm.some((m: any) => m.label.toLowerCase().includes("branding settings") || m.label.toLowerCase().includes("branding & ui settings"))) {
       dm.push({ label: "Branding Settings", path: "/tenant/settings", icon: "Palette", sort_order: 12 });
     }
+    if (!dm.some((m: any) => m.label.toLowerCase().includes("tenant sensitive configs") || m.label.toLowerCase().includes("tenant configurations"))) {
+      dm.push({ label: "Tenant Sensitive Configs", path: "/tenant/settings/secure", icon: "ShieldCheck", sort_order: 13 });
+    }
 
     const uniqueMap = new Map();
     dm.forEach((m: any) => {

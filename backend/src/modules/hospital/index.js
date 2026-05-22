@@ -114,6 +114,29 @@ async function ensureOrderColumns(req) {
   orderColumnsSynced.add(schema);
 }
 
+async function ensureTenantConfigTable(req) {
+  const schema = req.schemaName;
+  if (!schema) return;
+  try {
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${schema}".tenant_sensitive_settings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        settings JSONB DEFAULT '{}'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP
+      )
+    `);
+
+    // ensure at least one row exists to simplify reads/writes
+    const existing = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${schema}".tenant_sensitive_settings LIMIT 1`);
+    if (!existing.length) {
+      await req.prisma.$executeRawUnsafe(`INSERT INTO "${schema}".tenant_sensitive_settings (settings) VALUES ('{}')`);
+    }
+  } catch (err) {
+    console.warn(`[TENANT_CFG_HEAL] Failed to ensure tenant config table for ${schema}:`, err.message);
+  }
+}
+
 const staffSyncedSchemas = new Set();
 
 async function ensureStaffColumns(req, force = false) {
@@ -225,6 +248,34 @@ async function ensureDoctorScheduleTable(req) {
   `);
   doctorScheduleTableSynced.add(schema);
 }
+
+// Tenant-sensitive configuration endpoints
+router.get('/configs', async (req, res, next) => {
+  try {
+    await ensureTenantConfigTable(req);
+    // read tenant settings
+    const rows = await req.prisma.$queryRawUnsafe(`SELECT settings FROM "${req.schemaName}".tenant_sensitive_settings LIMIT 1`);
+    const tenantSettings = (rows && rows[0] && rows[0].settings) ? rows[0].settings : {};
+
+    // fallback to Nexus global if keys missing
+    const nexusRow = await req.prisma.$queryRawUnsafe(`SELECT sensitive_settings FROM nexus.tenants WHERE db_name = '${req.schemaName}' LIMIT 1`);
+    const nexusSettings = (nexusRow && nexusRow[0] && nexusRow[0].sensitive_settings) ? nexusRow[0].sensitive_settings : {};
+
+    // merge: tenantSettings wins, fallback to nexusSettings
+    const merged = Object.assign({}, nexusSettings || {}, tenantSettings || {});
+    res.json({ settings: merged });
+  } catch (err) { console.error('[TENANT_CFG_GET]', err.message); res.status(500).json({ error: err.message }); }
+});
+
+router.put('/configs', async (req, res, next) => {
+  try {
+    const cfg = req.body || {};
+    await ensureTenantConfigTable(req);
+    // update settings JSONB in single row
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".tenant_sensitive_settings SET settings = '${JSON.stringify(cfg).replace(/'/g, "''")}', updated_at = NOW()`);
+    res.json({ message: 'Tenant sensitive settings saved.' });
+  } catch (err) { console.error('[TENANT_CFG_PUT]', err.message); res.status(500).json({ error: err.message }); }
+});
 
 async function ensureDefaultDoctorSchedule(req, doctorId) {
   await ensureDoctorScheduleTable(req);

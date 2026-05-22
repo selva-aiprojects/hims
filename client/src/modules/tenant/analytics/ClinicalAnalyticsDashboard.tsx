@@ -134,7 +134,7 @@ export default function ClinicalAnalyticsDashboard() {
   return (
     <div className="dashboard-layout">
       <Sidebar />
-      <main className="main-content" style={{ flex: 1, padding: '0 32px 32px' }}>
+      <main className="main-content">
         <Header title="Clinical Command Analytics" />
 
         <div style={{ margin: '24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -149,39 +149,39 @@ export default function ClinicalAnalyticsDashboard() {
         </div>
 
         {/* METRIC CARDS */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px', marginBottom: '32px' }}>
-           <MetricCard icon={<Users size={24} />} label="Total Consultations" value={metrics.consultations} trend="+12%" color="#4f46e5" />
-           <MetricCard icon={<Clock size={24} />} label="Avg Wait Time" value={`${metrics.waitTime}m`} trend="-4m" color="#0ea5e9" />
-           <MetricCard icon={<AlertTriangle size={24} />} label="Emergency Triggers" value={metrics.emergencies} trend="+2" color="#ef4444" />
-           <MetricCard icon={<Target size={24} />} label="Revenue Realization" value={`₹${(metrics.revenue / 1000).toFixed(1)}k`} trend="+18%" color="#10b981" />
-        </div>
+          <div className="stats-grid">
+            <MetricCard icon={<Users size={24} />} label="Total Consultations" value={metrics.consultations} trend="+12%" color="#4f46e5" />
+            <MetricCard icon={<Clock size={24} />} label="Avg Wait Time" value={`${metrics.waitTime}m`} trend="-4m" color="#0ea5e9" />
+            <MetricCard icon={<AlertTriangle size={24} />} label="Emergency Triggers" value={metrics.emergencies} trend="+2" color="#ef4444" />
+            <MetricCard icon={<Target size={24} />} label="Revenue Realization" value={`₹${(metrics.revenue / 1000).toFixed(1)}k`} trend="+18%" color="#10b981" />
+          </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '24px' }}>
            {/* PATIENT VOLUME */}
-           <div style={chartCardStyle}>
+            <div className="form-card">
               <div style={chartHeaderStyle}>
-                 <h3 style={chartTitleStyle}>Patient Inflow Trend</h3>
-                 <Activity size={18} color="#94a3b8" />
+                <h3 style={chartTitleStyle}>Patient Inflow Trend</h3>
+                <Activity size={18} color="#94a3b8" />
               </div>
               <ReactECharts option={patientVolumeOption} style={{ height: '350px' }} />
-           </div>
+            </div>
 
            {/* CAPACITY GAUGE */}
-           <div style={chartCardStyle}>
+            <div className="form-card">
               <div style={chartHeaderStyle}>
-                 <h3 style={chartTitleStyle}>Clinic Utilization</h3>
-                 <Target size={18} color="#94a3b8" />
+                <h3 style={chartTitleStyle}>Clinic Utilization</h3>
+                <Target size={18} color="#94a3b8" />
               </div>
               <ReactECharts option={utilizationOption} style={{ height: '350px' }} />
               <div style={{ textAlign: 'center', marginTop: '-40px' }}>
-                 <p style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Currently operating at near peak capacity in Cardiology and OPD.</p>
+                <p style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Currently operating at near peak capacity in Cardiology and OPD.</p>
               </div>
-           </div>
+            </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
            {/* DELAY ANALYSIS */}
-           <div style={chartCardStyle}>
+            <div className="form-card">
               <div style={chartHeaderStyle}>
                  <h3 style={chartTitleStyle}>Departmental Delay Index</h3>
                  <TrendingUp size={18} color="#94a3b8" />
@@ -190,7 +190,7 @@ export default function ClinicalAnalyticsDashboard() {
            </div>
 
            {/* RECENT ALERTS */}
-           <div style={chartCardStyle}>
+            <div className="form-card">
               <div style={chartHeaderStyle}>
                  <h3 style={chartTitleStyle}>Operational Intelligence Feed</h3>
                  <ChevronRight size={18} color="#94a3b8" />
@@ -218,15 +218,15 @@ export default function ClinicalAnalyticsDashboard() {
 // --- SUBCOMPONENTS ---
 
 const MetricCard = ({ icon, label, value, trend, color }: any) => (
-  <div style={{ ...chartCardStyle, padding: '24px', borderLeft: `6px solid ${color}` }}>
-     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ color: '#94a3b8' }}>{icon}</div>
-        <span style={{ fontSize: '11px', fontWeight: 900, color: trend.startsWith('+') ? '#10b981' : '#ef4444', background: trend.startsWith('+') ? '#f0fdf4' : '#fef2f2', padding: '4px 8px', borderRadius: '6px' }}>{trend}</span>
-     </div>
-     <div style={{ marginTop: '16px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{label}</div>
-        <div style={{ fontSize: '32px', fontWeight: 900, color: '#1e293b', marginTop: '4px' }}>{value}</div>
-     </div>
+  <div className="stat-card" style={{ borderLeft: `6px solid ${color}` }}>
+    <div className="stat-header">
+      <div className="stat-icon" style={{ background: '#f8fafc' }}>{icon}</div>
+      <span style={{ fontSize: '11px', fontWeight: 900, color: trend.startsWith('+') ? '#10b981' : '#ef4444', background: trend.startsWith('+') ? '#f0fdf4' : '#fef2f2', padding: '4px 8px', borderRadius: '6px' }}>{trend}</span>
+    </div>
+    <div>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+    </div>
   </div>
 );
 
@@ -250,7 +250,6 @@ const AlertItem = ({ type, title, desc, time }: any) => {
 
 // --- STYLES ---
 
-const chartCardStyle: any = { background: 'white', borderRadius: '24px', padding: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', border: '1px solid #eef2f6' };
 const chartHeaderStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' };
 const chartTitleStyle = { margin: 0, fontSize: '16px', fontWeight: 900, color: '#1e293b' };
 const filterBtnStyle = { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#64748b' };
