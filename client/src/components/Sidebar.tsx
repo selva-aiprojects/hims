@@ -370,6 +370,39 @@ export default function Sidebar() {
           border-radius: 0 4px 4px 0;
         }
       `}</style>
+      <style>{`
+        /* Make main content shrink correctly inside flex containers */
+        .main-content { min-width: 0; }
+
+        /* Mobile / tablet: make sidebar off-canvas and show overlay when active */
+        @media (max-width: 1023px) {
+          .sidebar {
+            position: fixed !important;
+            left: -320px;
+            top: 0;
+            height: 100vh !important;
+            z-index: 1002;
+            transition: left 0.25s ease;
+            box-shadow: 2px 0 10px rgba(2,6,23,0.12);
+          }
+          .sidebar.mobile-open { left: 0 !important; }
+
+          .mobile-overlay {
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1001;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+          }
+          .mobile-overlay.active { opacity: 1; pointer-events: auto; }
+
+          /* Prevent horizontal scrolling caused by children min-widths */
+          body { overflow-x: hidden; }
+        }
+      `}</style>
     </>
   );
 }

@@ -124,11 +124,23 @@ router.post("/", async (req, res, next) => {
     }
 
     // 4. Save Prescriptions
-    if (Array.isArray(prescriptions)) {
+    let createdPrescriptionId = null;
+    if (Array.isArray(prescriptions) && prescriptions.length) {
+      // create a prescription header for this encounter
+      const presHeader = await req.prisma.$queryRawUnsafe(`
+        INSERT INTO "${req.schemaName}".prescriptions (encounter_id, patient_id, status)
+        VALUES ('${encounterId}', '${patientId || ''}', 'Pending') RETURNING id
+      `);
+      createdPrescriptionId = presHeader[0]?.id;
+
       for (const p of prescriptions) {
+        const drug = (p.drugName || '').replace(/'/g, "''");
+        const dosage = (p.dosage || '').replace(/'/g, "''");
+        const frequency = (p.frequency || '').replace(/'/g, "''");
+        const duration = (p.duration || '').replace(/'/g, "''");
         await req.prisma.$executeRawUnsafe(`
-          INSERT INTO "${req.schemaName}".prescription_items (encounter_id, drug_name, dosage, frequency, duration)
-          VALUES ('${encounterId}', '${p.drugName}', '${p.dosage || ''}', '${p.frequency || ''}', '${p.duration || ''}')
+          INSERT INTO "${req.schemaName}".prescription_items (prescription_id, drug_name, dosage, frequency, duration)
+          VALUES ('${createdPrescriptionId}', '${drug}', '${dosage}', '${frequency}', '${duration}')
         `);
       }
     }
@@ -157,15 +169,14 @@ router.post("/", async (req, res, next) => {
       VALUES ('${patientId}', '${encounterId}', 'CONSULTATION', '${doctorId}', 'Consultation: ${doctorData[0]?.name || 'Doctor'}', ${fee}, TRUE)
     `);
 
-    // B. Push Prescriptions (Fixed/Non-Discountable)
+    // B. Push Prescriptions (Fixed/Non-Discountable) -- use created prescription id if available
     if (Array.isArray(prescriptions)) {
       for (const p of prescriptions) {
-        const medData = await req.prisma.$queryRawUnsafe(`SELECT unit_price FROM "${req.schemaName}".medicines WHERE name ILIKE '%${p.drugName.replace(/'/g, "''")}%' LIMIT 1`);
+        const medData = await req.prisma.$queryRawUnsafe(`SELECT unit_price FROM "${req.schemaName}".medicines WHERE name ILIKE '%${(p.drugName||'').replace(/'/g, "''")}%' LIMIT 1`);
         const price = medData[0]?.unit_price || 0;
-        
         await req.prisma.$executeRawUnsafe(`
-          INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, description, unit_price, is_discountable)
-          VALUES ('${patientId}', '${encounterId}', 'PHARMACY', 'Medicine: ${p.drugName}', ${price}, FALSE)
+          INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, unit_price, is_discountable)
+          VALUES ('${patientId}', '${encounterId}', 'PHARMACY', ${createdPrescriptionId ? `'${createdPrescriptionId}'` : 'NULL'}, 'Medicine: ${ (p.drugName||'').replace(/'/g, "''") }', ${price}, FALSE)
         `);
       }
     }
