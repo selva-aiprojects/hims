@@ -52,6 +52,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         await prefs.setString('tenant_id', data['tenantId']);
         await prefs.setString('user_role', data['role'] ?? 'doctor');
         await prefs.setString('user_name', data['userName'] ?? 'User');
+        if (data['userId'] != null) {
+          await prefs.setString('user_id', data['userId'].toString());
+        }
 
         if (mounted) {
           Navigator.pushReplacement(
@@ -89,15 +92,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'assets/logo.png',
                   height: 120,
                   errorBuilder: (context, error, stackTrace) {
-                    return const Icon(Icons.health_and_safety, size: 80, color: Color(0xFF0284c7));
+                    return const Icon(Icons.health_and_safety,
+                        size: 80, color: Color(0xFF0284c7));
                   },
                 ),
               ),
               const SizedBox(height: 24),
               const Text(
-                'Healthezee HIMS',
+                'Healthezee',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF1e293b)),
+                style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1e293b)),
               ),
               const Text(
                 'Professional Clinical Suite',
@@ -105,7 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 style: TextStyle(fontSize: 16, color: Color(0xFF64748b)),
               ),
               const SizedBox(height: 48),
-              
+
               // Dynamic Facility Selection Dropdown
               tenantsAsync.when(
                 data: (tenants) {
@@ -113,20 +120,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   if (_selectedFacilityId == null && tenants.isNotEmpty) {
                     _selectedFacilityId = tenants.first['id'].toString();
                   }
-                  
+
                   return DropdownButtonFormField<String>(
-                    value: _selectedFacilityId,
+                    initialValue: _selectedFacilityId,
                     decoration: InputDecoration(
                       labelText: 'Select Facility / Tenant',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                      prefixIcon: const Icon(Icons.business, color: Color(0xFF0284c7)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      prefixIcon:
+                          const Icon(Icons.business, color: Color(0xFF0284c7)),
                       filled: true,
                       fillColor: Colors.white,
                     ),
                     items: tenants.map((dynamic tenant) {
                       return DropdownMenuItem<String>(
                         value: tenant['id'].toString(),
-                        child: Text(tenant['name'].toString(), style: const TextStyle(fontSize: 14)),
+                        child: Text(tenant['name'].toString(),
+                            style: const TextStyle(fontSize: 14)),
                       );
                     }).toList(),
                     onChanged: (String? newValue) {
@@ -140,23 +150,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 error: (err, stack) => DropdownButtonFormField<String>(
                   decoration: InputDecoration(
                     labelText: 'Facility (Offline Mode)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16)),
                     prefixIcon: const Icon(Icons.warning, color: Colors.orange),
                   ),
                   items: const [
                     DropdownMenuItem(value: '1', child: Text('City Clinic')),
-                    DropdownMenuItem(value: '2', child: Text('Metropolis Diagnostics')),
+                    DropdownMenuItem(
+                        value: '2', child: Text('Metropolis Diagnostics')),
                   ],
                   onChanged: (v) {},
                 ),
               ),
-              
+
               const SizedBox(height: 16),
               TextField(
                 controller: _emailController,
                 decoration: InputDecoration(
                   labelText: 'Email Address',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   prefixIcon: const Icon(Icons.email, color: Color(0xFF64748b)),
                 ),
               ),
@@ -166,20 +179,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 obscureText: true,
                 decoration: InputDecoration(
                   labelText: 'Password',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   prefixIcon: const Icon(Icons.lock, color: Color(0xFF64748b)),
                 ),
               ),
-              
+
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
                 Text(
                   _errorMessage!,
-                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
               ],
-              
+
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleLogin,
@@ -187,27 +202,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   backgroundColor: const Color(0xFF0284c7),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   elevation: 2,
                 ),
-                child: _isLoading 
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('SIGN IN AS DOCTOR', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2))
+                    : const Text('SIGN IN AS DOCTOR',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) => const PatientDashboardScreen()),
+                    MaterialPageRoute(
+                        builder: (context) => const PatientDashboardScreen()),
                   );
                 },
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   side: const BorderSide(color: Color(0xFFe2e8f0)),
                 ),
-                child: const Text('SWITCH TO PATIENT VIEW', style: TextStyle(color: Color(0xFF64748b), fontWeight: FontWeight.bold)),
+                child: const Text('SWITCH TO PATIENT VIEW',
+                    style: TextStyle(
+                        color: Color(0xFF64748b), fontWeight: FontWeight.bold)),
               ),
             ],
           ),

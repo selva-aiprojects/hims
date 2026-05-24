@@ -36,13 +36,18 @@ class FeaturePlaceholderScreen extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        shape: BoxShape.circle),
                     child: Icon(icon, size: 64, color: color),
                   ),
                   const SizedBox(height: 24),
                   Text(
                     '$title Module',
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF0f172a)),
+                    style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0f172a)),
                   ),
                   const SizedBox(height: 12),
                   const Text(

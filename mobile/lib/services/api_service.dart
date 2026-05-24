@@ -3,17 +3,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter/foundation.dart';
-import 'dart:html' as html; // ignore: avoid_web_libraries_in_flutter
 
 class ApiService {
   final Dio _dio = Dio();
-  
+
   // Smart Base URL: Pointing to your live HIMS-KAPPA backend
   static String get _baseUrl {
+    if (kReleaseMode) {
+      return "https://hims-kappa.vercel.app/api";
+    }
     if (kIsWeb) {
-      final String origin = html.window.location.origin;
-      // If running locally, use localhost:4000. If on Vercel, use the KAPPA production API.
-      return origin.contains('localhost') ? "http://localhost:4000/api" : "https://hims-kappa.vercel.app/api";
+      return Uri.base.origin.contains('localhost')
+          ? "http://localhost:4000/api"
+          : "https://hims-kappa.vercel.app/api";
     }
     return "http://10.0.2.2:4000/api"; // Android Emulator fallback
   }
@@ -24,7 +26,7 @@ class ApiService {
     _dio.options.baseUrl = baseUrl;
     _dio.options.connectTimeout = const Duration(seconds: 10);
     _dio.options.receiveTimeout = const Duration(seconds: 10);
-    
+
     // Global Interceptor for Headers (Multi-tenancy & Auth)
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -38,14 +40,15 @@ class ApiService {
         if (tenantId != null) {
           options.headers['x-tenant-id'] = tenantId;
         }
-        
+
         return handler.next(options);
       },
     ));
   }
 
   // Auth Methods
-  Future<Response> login(String email, String password, String facility, {String type = "tenant"}) async {
+  Future<Response> login(String email, String password, String facility,
+      {String type = "tenant"}) async {
     return _dio.post('/auth/login', data: {
       'email': email,
       'password': password,
@@ -57,6 +60,14 @@ class ApiService {
   // Patient Methods
   Future<Response> getPatients() async {
     return _dio.get('/patients');
+  }
+
+  Future<Response> getAppointments({String? doctorId}) async {
+    return _dio.get(
+      '/appointments',
+      queryParameters:
+          doctorId == null || doctorId.isEmpty ? null : {'doctorId': doctorId},
+    );
   }
 
   // ABHA / ABDM Methods
@@ -87,7 +98,12 @@ class ApiService {
   }
 
   Future<Response> createEncounter(Map<String, dynamic> encounterData) async {
-    return _dio.post('/hospital/encounters', data: encounterData);
+    return _dio.post('/consultations', data: encounterData);
+  }
+
+  Future<Response> updateAppointmentStatus(
+      String appointmentId, String status) {
+    return _dio.patch('/appointments/$appointmentId', data: {'status': status});
   }
 
   // Nexus Methods

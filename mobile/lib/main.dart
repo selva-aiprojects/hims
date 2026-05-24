@@ -17,7 +17,7 @@ class HealthezeeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Healthezee HIMS',
+      title: 'Healthezee',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -26,8 +26,8 @@ class HealthezeeApp extends StatelessWidget {
           primary: const Color(0xFF0284c7),
           secondary: const Color(0xFF0ea5e9),
           surface: Colors.white,
-          background: const Color(0xFFF8FAFC),
         ),
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
         textTheme: GoogleFonts.outfitTextTheme(),
         appBarTheme: const AppBarTheme(
           centerTitle: true,

@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
 
+import '../models/appointment.dart';
+import 'telehealth_screen.dart';
+import 'voice_note_screen.dart';
+
 class PatientRecordScreen extends StatelessWidget {
+  final Appointment? appointment;
   final String patientName;
-  const PatientRecordScreen({super.key, required this.patientName});
+  final String? fallbackDoctorId;
+
+  PatientRecordScreen({
+    super.key,
+    this.appointment,
+    String? patientName,
+    this.fallbackDoctorId,
+  }) : patientName = patientName ?? appointment?.patientName ?? 'Patient';
 
   @override
   Widget build(BuildContext context) {
@@ -10,7 +22,21 @@ class PatientRecordScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Patient Record'),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.share, color: Color(0xFF0284c7))),
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TelehealthScreen(
+                    patientName: patientName,
+                    appointmentId: appointment?.id,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.video_call, color: Color(0xFF0284c7)),
+            tooltip: 'Start tele-health',
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -30,8 +56,15 @@ class PatientRecordScreen extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(patientName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF1e293b))),
-                    const Text('MRN-2405-001243 • Male • 38y', style: TextStyle(color: Color(0xFF64748b), fontWeight: FontWeight.bold)),
+                    Text(patientName,
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF1e293b))),
+                    const Text('MRN-2405-001243 • Male • 38y',
+                        style: TextStyle(
+                            color: Color(0xFF64748b),
+                            fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
@@ -39,7 +72,12 @@ class PatientRecordScreen extends StatelessWidget {
             const SizedBox(height: 32),
 
             // Vitals Section
-            const Text('LATEST VITALS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF64748b), letterSpacing: 1.2)),
+            const Text('LATEST VITALS',
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    color: Color(0xFF64748b),
+                    letterSpacing: 1.2)),
             const SizedBox(height: 16),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -54,25 +92,45 @@ class PatientRecordScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 32),
-            const Text('CLINICAL TIMELINE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF64748b), letterSpacing: 1.2)),
+            const Text('CLINICAL TIMELINE',
+                style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    color: Color(0xFF64748b),
+                    letterSpacing: 1.2)),
             const SizedBox(height: 16),
 
             // Timeline Items
-            _buildTimelineItem('OPD Consultation', 'May 12, 2026', 'Dr. Selva', 'Patient complained of mild fever and dry cough. Prescribed Paracetamol and rest.'),
-            _buildTimelineItem('Lab Report', 'May 10, 2026', 'Diagnostic Lab', 'Complete Blood Count (CBC) - All parameters within normal range.'),
-            _buildTimelineItem('Admission', 'Jan 15, 2026', 'Emergency', 'Admitted for acute gastroenteritis. Discharged after 2 days.'),
-
+            _buildTimelineItem('OPD Consultation', 'May 12, 2026', 'Dr. Selva',
+                'Patient complained of mild fever and dry cough. Prescribed Paracetamol and rest.'),
+            _buildTimelineItem('Lab Report', 'May 10, 2026', 'Diagnostic Lab',
+                'Complete Blood Count (CBC) - All parameters within normal range.'),
+            _buildTimelineItem('Admission', 'Jan 15, 2026', 'Emergency',
+                'Admitted for acute gastroenteritis. Discharged after 2 days.'),
           ],
         ),
       ),
       // Floating AI Action
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          _showVoiceNoteDialog(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VoiceNoteScreen(
+                patientName: patientName,
+                patientId: appointment?.patientId,
+                doctorId: appointment?.doctorId ?? fallbackDoctorId,
+                appointmentId: appointment?.id.startsWith('demo-') == true
+                    ? null
+                    : appointment?.id,
+              ),
+            ),
+          );
         },
         backgroundColor: const Color(0xFF0284c7),
         icon: const Icon(Icons.mic, color: Colors.white),
-        label: const Text('AI VOICE NOTE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text('AI VOICE NOTE',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -83,22 +141,30 @@ class PatientRecordScreen extends StatelessWidget {
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
+        color: color.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.1)),
+        border: Border.all(color: color.withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontWeight: FontWeight.bold, fontSize: 11)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1e293b))),
-          Text(unit, style: const TextStyle(fontSize: 10, color: Color(0xFF64748b))),
+          Text(value,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  color: Color(0xFF1e293b))),
+          Text(unit,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF64748b))),
         ],
       ),
     );
   }
 
-  Widget _buildTimelineItem(String title, String date, String author, String note) {
+  Widget _buildTimelineItem(
+      String title, String date, String author, String note) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       child: Row(
@@ -118,61 +184,29 @@ class PatientRecordScreen extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF1e293b))),
-                    Text(date, style: const TextStyle(fontSize: 11, color: Color(0xFF94a3b8))),
+                    Text(title,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: Color(0xFF1e293b))),
+                    Text(date,
+                        style: const TextStyle(
+                            fontSize: 11, color: Color(0xFF94a3b8))),
                   ],
                 ),
-                Text('By $author', style: const TextStyle(fontSize: 12, color: Color(0xFF0284c7), fontWeight: FontWeight.bold)),
+                Text('By $author',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF0284c7),
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text(note, style: const TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.4)),
+                Text(note,
+                    style: const TextStyle(
+                        fontSize: 13, color: Color(0xFF475569), height: 1.4)),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showVoiceNoteDialog(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: 400,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          children: [
-            const Icon(Icons.mic, size: 60, color: Color(0xFF0284c7)),
-            const SizedBox(height: 24),
-            const Text('Listening...', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: const Color(0xFFf8fafc), borderRadius: BorderRadius.circular(16)),
-              child: const Text(
-                'Patient shows improvement in respiratory symptoms. Lung sounds are clear. Continuing current medication for 3 more days...',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Color(0xFF475569), fontStyle: FontStyle.italic),
-              ),
-            ),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0284c7),
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 56),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: const Text('GENERATE CLINICAL NOTE', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
       ),
     );
   }

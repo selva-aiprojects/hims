@@ -1,11 +1,11 @@
 {
-    "name": "hims_mobile",
-    "short_name": "hims_mobile",
+    "name": "Healthezee",
+    "short_name": "Healthezee",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Healthezee mobile clinical suite.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
