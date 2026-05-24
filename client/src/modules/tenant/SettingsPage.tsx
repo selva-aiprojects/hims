@@ -3,21 +3,21 @@ import axios from "axios";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../config/api";
-import { applyTheme as applyThemeUtil } from "../../config/theme";
+import { applyTheme as applyThemeUtil, getNamespacedItem, setNamespacedItem } from "../../config/theme";
 
 export default function SettingsPage() {
-  const [hospitalName, setHospitalName] = useState(localStorage.getItem('tenantName') || 'Healthezee Hospital');
-  const [primaryDark, setPrimaryDark] = useState(localStorage.getItem('theme_primary_dark') || '#0f172a');
-  const [primaryAccent, setPrimaryAccent] = useState(localStorage.getItem('theme_primary_accent') || '#3b82f6');
-  const [appBg, setAppBg] = useState(localStorage.getItem('theme_app_bg') || '#f8fafc');
-  const [textMain, setTextMain] = useState(localStorage.getItem('theme_text_main') || '#1e293b');
-  const [sidebarText, setSidebarText] = useState(localStorage.getItem('theme_sidebar_text') || '#94a3b8');
-  const [fontSize, setFontSize] = useState(localStorage.getItem('theme_font_size') || '14');
-  const [logoUrl, setLogoUrl] = useState(localStorage.getItem('theme_logo_url') || '');
+  const [hospitalName, setHospitalName] = useState(getNamespacedItem('tenantName') || localStorage.getItem('tenantName') || 'Healthezee Hospital');
+  const [primaryDark, setPrimaryDark] = useState(getNamespacedItem('theme_primary_dark') || '#0f172a');
+  const [primaryAccent, setPrimaryAccent] = useState(getNamespacedItem('theme_primary_accent') || '#3b82f6');
+  const [appBg, setAppBg] = useState(getNamespacedItem('theme_app_bg') || '#f8fafc');
+  const [textMain, setTextMain] = useState(getNamespacedItem('theme_text_main') || '#1e293b');
+  const [sidebarText, setSidebarText] = useState(getNamespacedItem('theme_sidebar_text') || '#94a3b8');
+  const [fontSize, setFontSize] = useState(getNamespacedItem('theme_font_size') || '14');
+  const [logoUrl, setLogoUrl] = useState(getNamespacedItem('theme_logo_url') || '');
   
   // Hero Settings
-  const [heroBg, setHeroBg] = useState(localStorage.getItem('theme_hero_bg') || '#ffffff');
-  const [heroText, setHeroText] = useState(localStorage.getItem('theme_hero_text') || '#0f172a');
+  const [heroBg, setHeroBg] = useState(getNamespacedItem('theme_hero_bg') || localStorage.getItem('theme_hero_bg') || '#ffffff');
+  const [heroText, setHeroText] = useState(getNamespacedItem('theme_hero_text') || localStorage.getItem('theme_hero_text') || '#0f172a');
 
   const applyTheme = async () => {
     const tenantId = localStorage.getItem('tenant');
@@ -32,16 +32,16 @@ export default function SettingsPage() {
          console.error("Failed to sync branding to server:", err);
        }
     }
-    localStorage.setItem('tenantName', hospitalName);
-    localStorage.setItem('theme_primary_dark', primaryDark);
-    localStorage.setItem('theme_primary_accent', primaryAccent);
-    localStorage.setItem('theme_app_bg', appBg);
-    localStorage.setItem('theme_text_main', textMain);
-    localStorage.setItem('theme_sidebar_text', sidebarText);
-    localStorage.setItem('theme_font_size', fontSize);
-    localStorage.setItem('theme_logo_url', logoUrl);
-    localStorage.setItem('theme_hero_bg', heroBg);
-    localStorage.setItem('theme_hero_text', heroText);
+    setNamespacedItem('tenantName', hospitalName);
+    setNamespacedItem('theme_primary_dark', primaryDark);
+    setNamespacedItem('theme_primary_accent', primaryAccent);
+    setNamespacedItem('theme_app_bg', appBg);
+    setNamespacedItem('theme_text_main', textMain);
+    setNamespacedItem('theme_sidebar_text', sidebarText);
+    setNamespacedItem('theme_font_size', fontSize);
+    setNamespacedItem('theme_logo_url', logoUrl);
+    setNamespacedItem('theme_hero_bg', heroBg);
+    setNamespacedItem('theme_hero_text', heroText);
     
     // Apply theme globally using utility
     applyThemeUtil();

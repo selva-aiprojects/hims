@@ -432,6 +432,9 @@ router.delete("/tenants/:id", async (req, res, next) => {
 
     const schemaName = tenants[0].db_name;
     await req.prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`);
+    await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.support_tickets WHERE tenant_id = '${id}'`);
+    await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.communication_logs WHERE tenant_id = '${id}'`);
+    await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.utilization_logs WHERE tenant_id = '${id}'`);
     await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.tenant_admin_contacts WHERE tenant_id = '${id}'`);
     await req.prisma.$executeRawUnsafe(`DELETE FROM nexus.tenants WHERE id = '${id}'`);
 

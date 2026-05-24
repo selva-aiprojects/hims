@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import BrandLogo from "../../components/BrandLogo";
 import { API_BASE_URL as API_BASE } from "../../config/api";
-import { applyTheme } from "../../config/theme";
+import { applyTheme, setNamespacedItem } from "../../config/theme";
 
 
 export default function LoginPage() {
@@ -53,17 +53,17 @@ export default function LoginPage() {
       localStorage.setItem("userMenus", JSON.stringify(data.menus || []));
       localStorage.setItem("userPermissions", JSON.stringify(data.permissions || []));
       
-      // Save branding configuration
+      // Save branding configuration (namespaced per-tenant)
       if (data.uiSettings) {
-         if (data.uiSettings.primaryDark) localStorage.setItem('theme_primary_dark', data.uiSettings.primaryDark);
-         if (data.uiSettings.primaryAccent) localStorage.setItem('theme_primary_accent', data.uiSettings.primaryAccent);
-         if (data.uiSettings.appBg) localStorage.setItem('theme_app_bg', data.uiSettings.appBg);
-         if (data.uiSettings.textMain) localStorage.setItem('theme_text_main', data.uiSettings.textMain);
-         if (data.uiSettings.fontSize) localStorage.setItem('theme_font_size', data.uiSettings.fontSize);
-         if (data.uiSettings.logoUrl) localStorage.setItem('theme_logo_url', data.uiSettings.logoUrl);
-         if (data.uiSettings.heroBg) localStorage.setItem('theme_hero_bg', data.uiSettings.heroBg);
-         if (data.uiSettings.heroText) localStorage.setItem('theme_hero_text', data.uiSettings.heroText);
-         if (data.uiSettings.sidebarText) localStorage.setItem('theme_sidebar_text', data.uiSettings.sidebarText);
+        if (data.uiSettings.primaryDark) setNamespacedItem('theme_primary_dark', data.uiSettings.primaryDark);
+        if (data.uiSettings.primaryAccent) setNamespacedItem('theme_primary_accent', data.uiSettings.primaryAccent);
+        if (data.uiSettings.appBg) setNamespacedItem('theme_app_bg', data.uiSettings.appBg);
+        if (data.uiSettings.textMain) setNamespacedItem('theme_text_main', data.uiSettings.textMain);
+        if (data.uiSettings.fontSize) setNamespacedItem('theme_font_size', data.uiSettings.fontSize);
+        if (data.uiSettings.logoUrl) setNamespacedItem('theme_logo_url', data.uiSettings.logoUrl);
+        if (data.uiSettings.heroBg) setNamespacedItem('theme_hero_bg', data.uiSettings.heroBg);
+        if (data.uiSettings.heroText) setNamespacedItem('theme_hero_text', data.uiSettings.heroText);
+        if (data.uiSettings.sidebarText) setNamespacedItem('theme_sidebar_text', data.uiSettings.sidebarText);
       }
 
       // Apply theme immediately after saving to localStorage

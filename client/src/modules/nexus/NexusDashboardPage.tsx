@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import NexusSidebar from "../../components/NexusSidebar";
 import NexusHeader from "../../components/NexusHeader";
+import { API_BASE_URL as API_BASE } from "../../config/api";
 
 const Icons = {
   Tenants: () => (
@@ -47,10 +49,17 @@ const Icons = {
 export default function NexusDashboardPage() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
+  const [tenantCount, setTenantCount] = useState(0);
 
   useEffect(() => {
     if (role !== 'nexus') {
        navigate("/");
+    } else {
+       axios.get(`${API_BASE}/api/nexus/tenants`, {
+         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+       })
+       .then(res => setTenantCount(res.data.length))
+       .catch(err => console.error("Failed to fetch tenants", err));
     }
   }, [role, navigate]);
 
@@ -70,7 +79,7 @@ export default function NexusDashboardPage() {
               <span style={{ color: '#10b981', fontSize: '12px', fontWeight: 700 }}>+4 New</span>
             </div>
             <div>
-              <div className="stat-value" style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>128</div>
+              <div className="stat-value" style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', marginBottom: '4px' }}>{tenantCount}</div>
               <div className="stat-label" style={{ fontSize: '14px', color: '#64748b', fontWeight: 600 }}>Active Hospital Shards</div>
             </div>
           </div>

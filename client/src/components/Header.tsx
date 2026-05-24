@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import BrandLogo from "./BrandLogo";
-import { applyTheme } from "../config/theme";
+import { applyTheme, getNamespacedItem } from "../config/theme";
 
 interface HeaderProps {
   title: string;
@@ -10,7 +10,7 @@ interface HeaderProps {
 export default function Header({ title }: HeaderProps) {
   const navigate = useNavigate();
   const userName = localStorage.getItem("userName") || "User";
-  const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
+  const tenantName = getNamespacedItem('tenantName') || localStorage.getItem("tenantName") || "Healthezee Hospital";
 
   const handleLogout = () => {
     localStorage.clear();

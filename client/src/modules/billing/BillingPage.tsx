@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
+import { getNamespacedItem } from "../../config/theme";
 import { API_BASE_URL as API_BASE } from "../../config/api";
 
 type BillType = 'OPD' | 'LAB' | 'PHARMACY' | 'IPD' | 'DISCHARGE';
@@ -57,11 +58,11 @@ export default function BillingPage() {
   
   // Hospital Settings (live)
   const [hospitalSettings, setHospitalSettings] = useState<any>({
-    name: localStorage.getItem('tenantName') || 'Hospital',
+    name: getNamespacedItem('tenantName') || localStorage.getItem('tenantName') || 'Hospital',
     email: '',
     phone: '',
     address: '',
-    logoUrl: localStorage.getItem('theme_logo_url') || '',
+    logoUrl: getNamespacedItem('theme_logo_url') || localStorage.getItem('theme_logo_url') || '',
     tagline: 'Quality Healthcare Services',
   });
   

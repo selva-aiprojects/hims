@@ -1,4 +1,4 @@
-import { getTenantBrandingConfig } from "../config/theme";
+import { getTenantBrandingConfig, getNamespacedItem } from "../config/theme";
 
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -9,7 +9,7 @@ interface BrandLogoProps {
 export default function BrandLogo({ size = 'md' }: BrandLogoProps) {
   const height = size === 'sm' ? 28 : size === 'md' ? 48 : 72;
   const useTenantBranding = getTenantBrandingConfig();
-  const customLogo = useTenantBranding ? localStorage.getItem('theme_logo_url') : null;
+  const customLogo = useTenantBranding ? getNamespacedItem('theme_logo_url') || null : null;
   
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>

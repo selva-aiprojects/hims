@@ -32,12 +32,29 @@ export default function OPDRegistrationPage() {
 
   // Comprehensive Form State
   const [regData, setRegData] = useState({ 
-    name: '', phone: '', email: '', dob: '', gender: 'Male', 
+    name: '', phone: '', email: '', dob: '', age: '', gender: 'Male', 
     blood_group: '', occupation: '', address: '', 
     guardian_name: '', guardian_phone: '',
     medical_history: '', allergies: '',
     abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
   });
+  
+  const computeAgeFromDob = (dobStr: string) => {
+    if (!dobStr) return '';
+    try {
+      const dob = new Date(dobStr);
+      if (isNaN(dob.getTime())) return '';
+      const today = new Date();
+      let age = today.getFullYear() - dob.getFullYear();
+      const m = today.getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+        age--;
+      }
+      return String(age >= 0 ? age : '');
+    } catch {
+      return '';
+    }
+  };
   const [vitals, setVitals] = useState({ weight: '', bp: '', temp: '', height: '', heartRate: '' });
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [isAbhaMandatory, setIsAbhaMandatory] = useState(false);
@@ -118,6 +135,7 @@ export default function OPDRegistrationPage() {
       phone: p.phone || '',
       email: p.email || '',
       dob: p.dob ? p.dob.split('T')[0] : '',
+      age: p.age || (p.dob ? computeAgeFromDob(p.dob.split('T')[0]) : ''),
       gender: p.gender || 'Male',
       blood_group: p.blood_group || '',
       occupation: p.occupation || '',
@@ -276,7 +294,11 @@ export default function OPDRegistrationPage() {
     }
     setIsProcessing(true);
     try {
-      const pRes = await axios.post(`${API_BASE}/api/patients`, regData, { headers: getHeaders() });
+      // Ensure age is present (derive from DOB if missing)
+      const payload: any = { ...regData };
+      if ((!payload.age || payload.age === '') && payload.dob) payload.age = computeAgeFromDob(payload.dob);
+
+      const pRes = await axios.post(`${API_BASE}/api/patients`, payload, { headers: getHeaders() });
       const patientId = pRes.data?.id || pRes.data?.[0]?.id;
       if (!patientId) {
         throw new Error("Patient registration returned an unexpected response.");
@@ -326,7 +348,7 @@ export default function OPDRegistrationPage() {
     setSelectedPatient(null);
     setSearchTerm("");
     setRegData({ 
-        name: '', phone: '', email: '', dob: '', gender: 'Male', 
+      name: '', phone: '', email: '', dob: '', age: '', gender: 'Male', 
         blood_group: '', occupation: '', address: '', 
         guardian_name: '', guardian_phone: '', medical_history: '', allergies: '',
         abhaId: '', abhaNumber: '', abhaStatus: 'NOT_LINKED', abhaVerified: false
@@ -590,7 +612,10 @@ export default function OPDRegistrationPage() {
                       </div>
                       <div className="input-group">
                          <label className="field-label">Date of Birth</label>
-                         <input type="date" className="input-field" value={regData.dob} onChange={e => setRegData({...regData, dob: e.target.value})} />
+                         <input type="date" className="input-field" value={regData.dob} onChange={e => {
+                           const val = e.target.value;
+                           setRegData({...regData, dob: val, age: computeAgeFromDob(val)});
+                         }} />
                       </div>
                       <div className="input-group">
                          <label className="field-label">Gender</label>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { getTenantBrandingConfig } from "../config/theme";
+import { getTenantBrandingConfig, getNamespacedItem } from "../config/theme";
 import { NavLink, useLocation } from "react-router-dom";
 import { 
   LayoutDashboard, 
@@ -142,9 +142,9 @@ const normalizeLabel = (label: string) => {
 
 export default function Sidebar() {
   const location = useLocation();
-  const tenantName = localStorage.getItem("tenantName") || "Healthezee Hospital";
+  const tenantName = getNamespacedItem('tenantName') || localStorage.getItem("tenantName") || "Healthezee Hospital";
   const plan = (localStorage.getItem("tenantPlan") || "basic").toLowerCase();
-  const sidebarLogoUrl = getTenantBrandingConfig() ? (localStorage.getItem('theme_logo_url') || '/logo.png') : '/logo.png';
+  const sidebarLogoUrl = getTenantBrandingConfig() ? (getNamespacedItem('theme_logo_url') || '/logo.png') : '/logo.png';
   
   const { groups, ungroupped } = useMemo(() => {
     let dm = JSON.parse(localStorage.getItem("userMenus") || "[]");

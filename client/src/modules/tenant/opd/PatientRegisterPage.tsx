@@ -190,6 +190,8 @@ export default function PatientRegisterPage() {
                     <div>
                       <div style={{ fontSize: "11px", fontWeight: 800, color: "#3b82f6", textTransform: "uppercase" }}>{p.mrn || "No MRN"}</div>
                       <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "15px" }}>{p.name}</div>
+                        <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "15px", maxWidth: '260px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                        <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "15px", maxWidth: '260px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                     </div>
                     <button 
                       onClick={() => setSelectedPatient(p)}
@@ -254,6 +256,7 @@ export default function PatientRegisterPage() {
                     <td style={{ padding: "16px 24px" }}>
                       <div style={{ fontWeight: 800, color: "#0f172a" }}>{p.name}</div>
                       {p.age && <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{p.gender || "Gender N/A"}, {p.age} Yrs</div>}
+                        {p.age && Number(p.age) > 0 && <div style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>{p.gender || "Gender N/A"}, {p.age} Yrs</div>}
                     </td>
                     <td style={{ padding: "16px 24px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "#475569", fontSize: "13px" }}>
