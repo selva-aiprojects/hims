@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/api_service.dart';
 import '../widgets/breadcrumb.dart';
 
@@ -183,15 +185,9 @@ Plan:
 
     final patientId = widget.patientId;
     final doctorId = widget.doctorId;
-    if (patientId == null ||
-        patientId.isEmpty ||
-        doctorId == null ||
-        doctorId.isEmpty) {
+    if (patientId == null || patientId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Open voice note from a live queue patient to post consultation.'),
-        ),
+        const SnackBar(content: Text('Patient ID missing for this note')),
       );
       return;
     }
@@ -205,18 +201,31 @@ Plan:
       if (_isListening) await _speech.stop();
       final api = ApiService();
       final note = _generatedNote.trim().isEmpty ? transcript : _generatedNote;
-      await api.createEncounter({
-        'patientId': patientId,
-        'doctorId': doctorId,
-        'diagnosis': '',
-        'notes': note,
-        'vitals': null,
-        'complaints': [transcript],
-        'prescriptions': const <Map<String, dynamic>>[],
-      });
 
-      if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
-        await api.updateAppointmentStatus(widget.appointmentId!, 'Completed');
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      if (token == null || token.isEmpty) {
+        // Public patient submission (no auth) -> use public complaints endpoint
+        await api.postPatientComplaint(patientId, {
+          'complaint': transcript,
+          'notes': note,
+        });
+      } else {
+        // Authenticated flow (doctor / user)
+        await api.createEncounter({
+          'patientId': patientId,
+          'doctorId': doctorId,
+          'diagnosis': '',
+          'notes': note,
+          'vitals': null,
+          'complaints': [transcript],
+          'prescriptions': const <Map<String, dynamic>>[],
+        });
+
+        if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
+          await api.updateAppointmentStatus(widget.appointmentId!, 'Completed');
+        }
       }
 
       if (!mounted) return;

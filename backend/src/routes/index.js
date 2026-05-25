@@ -11,6 +11,7 @@ const insuranceRoutes = require("../modules/insurance");
 const abhaRoutes = require("../modules/abha");
 const { auth } = require("../middleware/auth");
 const { tenant } = require("../middleware/tenant");
+const publicRoutes = require("../modules/public");
 
 const hospitalRoutes = require("../modules/hospital");
 
@@ -28,6 +29,8 @@ router.use("/insurance", auth, tenant, insuranceRoutes);
 router.use("/doctor", auth, tenant, doctorRoutes);
 router.use("/doctors", auth, tenant, doctorRoutes);
 router.use("/abha", auth, tenant, abhaRoutes);
+// Public endpoints that require tenant identification but no user auth
+router.use('/public', tenant, publicRoutes);
 router.get("/health-db", async (req, res) => {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";

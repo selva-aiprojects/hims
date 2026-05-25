@@ -70,6 +70,10 @@ class ApiService {
     );
   }
 
+  Future<Response> createAppointment(Map<String, dynamic> appointmentData) async {
+    return _dio.post('/appointments', data: appointmentData);
+  }
+
   // ABHA / ABDM Methods
   Future<Response> generateAbhaOtp(String aadhaar) async {
     return _dio.post('/abha/generate-otp', data: {'aadhaar': aadhaar});
@@ -99,6 +103,11 @@ class ApiService {
 
   Future<Response> createEncounter(Map<String, dynamic> encounterData) async {
     return _dio.post('/consultations', data: encounterData);
+  }
+
+  // Public: register a lightweight patient complaint when no auth token is present
+  Future<Response> postPatientComplaint(String patientId, Map<String, dynamic> complaintData) async {
+    return _dio.post('/public/patients/$patientId/complaints', data: complaintData);
   }
 
   Future<Response> updateAppointmentStatus(

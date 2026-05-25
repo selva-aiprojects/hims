@@ -81,27 +81,73 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        titleSpacing: 16,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Color(0xFFf1f5f9), // Sleek divider line
+                width: 1,
+              ),
+            ),
+          ),
+        ),
         title: Row(
           children: [
-            Image.asset('assets/logo.png',
-                height: 32,
-                errorBuilder: (c, e, s) => const Icon(Icons.health_and_safety,
-                    color: Color(0xFF0284c7))),
+            Image.asset(
+              'assets/logo.png',
+              height: 32,
+              errorBuilder: (c, e, s) => const Icon(
+                Icons.health_and_safety_rounded,
+                size: 28,
+                color: Color(0xFF0284c7),
+              ),
+            ),
             const SizedBox(width: 12),
-            const Text('Healthezee',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            // Sleek "CLINICAL" role / environment badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFeff6ff),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFbfdbfe), width: 0.5),
+              ),
+              child: const Text(
+                'CLINICAL',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1d4ed8),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
           ],
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF1e293b),
-        elevation: 0.5,
         actions: [
-          IconButton(
-            onPressed: () => _logout(context),
-            icon: const Icon(Icons.logout, color: Color(0xFFef4444)),
-            tooltip: 'Logout',
+          // Action button with premium styling
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFfef2f2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFfee2e2)),
+            ),
+            child: IconButton(
+              onPressed: () => _logout(context),
+              icon: const Icon(
+                Icons.logout_rounded,
+                size: 16,
+                color: Color(0xFFef4444),
+              ),
+              tooltip: 'Logout',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
           ),
-          const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(

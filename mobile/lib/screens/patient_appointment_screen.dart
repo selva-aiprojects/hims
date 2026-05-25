@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../widgets/breadcrumb.dart';
@@ -26,20 +27,63 @@ class _PatientAppointmentScreenState
   String _gender = 'Male';
   bool _isSubmitting = false;
   bool _isLoadingDoctors = true;
+  bool _isLoadingTenants = true;
   List<dynamic> _doctors = [];
+  List<dynamic> _tenants = [];
   String? _selectedDoctorId;
+  String? _selectedTenantId;
   DateTime _appointmentDate = DateTime.now();
   TimeOfDay _appointmentTime = TimeOfDay.now();
 
   @override
   void initState() {
     super.initState();
-    _fetchDoctors();
+    _loadTenants();
+  }
+
+  Future<void> _loadTenants() async {
+    setState(() {
+      _isLoadingTenants = true;
+    });
+    try {
+      final api = ref.read(apiServiceProvider);
+      final prefs = await SharedPreferences.getInstance();
+      final tenantsRes = await api.getPublicTenants();
+      final tenantsData = tenantsRes.data as List<dynamic>;
+      final stored = prefs.getString('tenant_id');
+
+      setState(() {
+        _tenants = tenantsData;
+        _selectedTenantId = stored ?? (tenantsData.isNotEmpty ? tenantsData.first['id'].toString() : null);
+      });
+
+      if (_selectedTenantId != null) {
+        await prefs.setString('tenant_id', _selectedTenantId!);
+        await _fetchDoctors();
+      } else {
+        setState(() => _isLoadingDoctors = false);
+      }
+    } catch (e) {
+      setState(() {
+        _tenants = [];
+        _isLoadingDoctors = false;
+      });
+    } finally {
+      setState(() => _isLoadingTenants = false);
+    }
   }
 
   Future<void> _fetchDoctors() async {
     try {
       final api = ref.read(apiServiceProvider);
+      setState(() => _isLoadingDoctors = true);
+      final prefs = await SharedPreferences.getInstance();
+      final tenantToUse = _selectedTenantId ?? prefs.getString('tenant_id');
+      if (tenantToUse == null) {
+        setState(() => _isLoadingDoctors = false);
+        return;
+      }
+
       final res = await api.getDoctors();
       final data = res.data;
       setState(() {
@@ -92,6 +136,11 @@ class _PatientAppointmentScreenState
       _showMessage('Enter patient name and phone number');
       return;
     }
+    if (_selectedTenantId == null) {
+      _showMessage('Select a facility before booking');
+      return;
+    }
+
     if (_selectedDoctorId == null) {
       _showMessage('Select a doctor for your consultation');
       return;
@@ -275,12 +324,49 @@ class _PatientAppointmentScreenState
               ],
             ),
             const SizedBox(height: 32),
-            _buildSectionTitle(Icons.local_hospital, 'Choose Doctor'),
-            _isLoadingDoctors
+            _buildSectionTitle(Icons.local_hospital, 'Choose Facility / Doctor'),
+            _isLoadingTenants
                 ? const Center(child: CircularProgressIndicator())
                 : Column(
-                    children:
-                        _doctors.map((doc) => _buildDoctorCard(doc)).toList(),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedTenantId,
+                        decoration: InputDecoration(
+                          labelText: 'Select Facility',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          prefixIcon:
+                              const Icon(Icons.business, color: Color(0xFF0284c7)),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        items: _tenants.map((dynamic t) {
+                          return DropdownMenuItem<String>(
+                            value: t['id'].toString(),
+                            child: Text(t['name'].toString()),
+                          );
+                        }).toList(),
+                        onChanged: (v) async {
+                          if (v == null) return;
+                          setState(() {
+                            _selectedTenantId = v;
+                            _isLoadingDoctors = true;
+                          });
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('tenant_id', v);
+                          await _fetchDoctors();
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      _isLoadingDoctors
+                          ? const Center(child: CircularProgressIndicator())
+                          : Column(
+                              children: _doctors
+                                  .map((doc) => _buildDoctorCard(doc))
+                                  .toList(),
+                            ),
+                    ],
                   ),
             const SizedBox(height: 40),
             ElevatedButton(

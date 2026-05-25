@@ -2,6 +2,10 @@ const express = require("express");
 const router = express.Router();
 const aiService = require("../../services/aiService");
 
+function escapeSqlString(value) {
+  return (value || '').toString().replace(/'/g, "''");
+}
+
 /**
  * AI Consultation Advisor
  * Suggests Diagnosis, Lab Tests, and Medicines
@@ -96,10 +100,13 @@ router.post("/", async (req, res, next) => {
   try {
     console.log(`[OPD] Starting consultation sync for Patient: ${patientId}`);
 
+    const safeDiagnosis = escapeSqlString(diagnosis);
+    const safeNotes = escapeSqlString(notes);
+
     // 1. Create Main Encounter
     const encounter = await req.prisma.$queryRawUnsafe(`
       INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, diagnosis, notes, status, type)
-      VALUES ('${patientId}', '${doctorId}', '${diagnosis || ''}', '${notes || ''}', 'Completed', 'OPD')
+      VALUES ('${patientId}', '${doctorId}', '${safeDiagnosis}', '${safeNotes}', 'Completed', 'OPD')
       RETURNING id
     `);
     
@@ -116,9 +123,10 @@ router.post("/", async (req, res, next) => {
     // 3. Save Complaints
     if (Array.isArray(complaints)) {
       for (const msg of complaints) {
+        const safeComplaint = escapeSqlString(msg);
         await req.prisma.$executeRawUnsafe(`
           INSERT INTO "${req.schemaName}".complaints (encounter_id, complaint)
-          VALUES ('${encounterId}', '${msg}')
+          VALUES ('${encounterId}', '${safeComplaint}')
         `);
       }
     }
@@ -128,16 +136,16 @@ router.post("/", async (req, res, next) => {
     if (Array.isArray(prescriptions) && prescriptions.length) {
       // create a prescription header for this encounter
       const presHeader = await req.prisma.$queryRawUnsafe(`
-        INSERT INTO "${req.schemaName}".prescriptions (encounter_id, patient_id, status)
-        VALUES ('${encounterId}', '${patientId || ''}', 'Pending') RETURNING id
+        INSERT INTO "${req.schemaName}".prescriptions (encounter_id, status)
+        VALUES ('${encounterId}', 'Pending') RETURNING id
       `);
       createdPrescriptionId = presHeader[0]?.id;
 
       for (const p of prescriptions) {
-        const drug = (p.drugName || '').replace(/'/g, "''");
-        const dosage = (p.dosage || '').replace(/'/g, "''");
-        const frequency = (p.frequency || '').replace(/'/g, "''");
-        const duration = (p.duration || '').replace(/'/g, "''");
+        const drug = escapeSqlString(p.drugName);
+        const dosage = escapeSqlString(p.dosage);
+        const frequency = escapeSqlString(p.frequency);
+        const duration = escapeSqlString(p.duration);
         await req.prisma.$executeRawUnsafe(`
           INSERT INTO "${req.schemaName}".prescription_items (prescription_id, drug_name, dosage, frequency, duration)
           VALUES ('${createdPrescriptionId}', '${drug}', '${dosage}', '${frequency}', '${duration}')
@@ -147,9 +155,10 @@ router.post("/", async (req, res, next) => {
 
     // 5. Schedule Follow-up
     if (followUpDate) {
+      const safeFollowUpDate = escapeSqlString(followUpDate);
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".follow_ups (patient_id, encounter_id, scheduled_date)
-        VALUES ('${patientId}', '${encounterId}', '${followUpDate}')
+        VALUES ('${patientId}', '${encounterId}', '${safeFollowUpDate}')
       `);
     }
 
@@ -164,9 +173,10 @@ router.post("/", async (req, res, next) => {
     `);
     
     const fee = doctorData[0]?.fee || 500; // Default if not set
+    const billingDesc = escapeSqlString(`Consultation: ${doctorData[0]?.name || 'Doctor'}`);
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, unit_price, is_discountable)
-      VALUES ('${patientId}', '${encounterId}', 'CONSULTATION', '${doctorId}', 'Consultation: ${doctorData[0]?.name || 'Doctor'}', ${fee}, TRUE)
+      VALUES ('${patientId}', '${encounterId}', 'CONSULTATION', '${doctorId}', '${billingDesc}', ${fee}, TRUE)
     `);
 
     // B. Push Prescriptions (Fixed/Non-Discountable) -- use created prescription id if available
@@ -174,9 +184,10 @@ router.post("/", async (req, res, next) => {
       for (const p of prescriptions) {
         const medData = await req.prisma.$queryRawUnsafe(`SELECT unit_price FROM "${req.schemaName}".medicines WHERE name ILIKE '%${(p.drugName||'').replace(/'/g, "''")}%' LIMIT 1`);
         const price = medData[0]?.unit_price || 0;
+        const medicineDesc = escapeSqlString(`Medicine: ${p.drugName || ''}`);
         await req.prisma.$executeRawUnsafe(`
           INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, unit_price, is_discountable)
-          VALUES ('${patientId}', '${encounterId}', 'PHARMACY', ${createdPrescriptionId ? `'${createdPrescriptionId}'` : 'NULL'}, 'Medicine: ${ (p.drugName||'').replace(/'/g, "''") }', ${price}, FALSE)
+          VALUES ('${patientId}', '${encounterId}', 'PHARMACY', ${createdPrescriptionId ? `'${createdPrescriptionId}'` : 'NULL'}, '${medicineDesc}', ${price}, FALSE)
         `);
       }
     }
