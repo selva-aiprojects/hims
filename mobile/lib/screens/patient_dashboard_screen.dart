@@ -1,19 +1,96 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'login_screen.dart';
 import 'abha_card_screen.dart';
+import 'patient_appointment_screen.dart';
 
 class PatientDashboardScreen extends StatelessWidget {
   const PatientDashboardScreen({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (context.mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Patient Portal'),
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        titleSpacing: 16,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: Color(0xFFf1f5f9), // Sleek divider line
+                width: 1,
+              ),
+            ),
+          ),
+        ),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/logo.png',
+              height: 32,
+              errorBuilder: (c, e, s) => const Icon(
+                Icons.health_and_safety_rounded,
+                size: 28,
+                color: Color(0xFF0284c7),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Sleek "PATIENT" environment badge
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFf0fdf4), // Green-50
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFbbf7d0), width: 0.5), // Green-200
+              ),
+              child: const Text(
+                'PATIENT',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF16a34a), // Green-600
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
-          IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.logout, color: Color(0xFF64748b))),
+          // Action button with premium styling
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFfef2f2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFfee2e2)),
+            ),
+            child: IconButton(
+              onPressed: () => _logout(context),
+              icon: const Icon(
+                Icons.logout_rounded,
+                size: 16,
+                color: Color(0xFFef4444),
+              ),
+              tooltip: 'Logout',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            ),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -84,8 +161,21 @@ class PatientDashboardScreen extends StatelessWidget {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               children: [
-                _buildServiceCard(context, Icons.event_available,
-                    'Book Appointment', 'Next: May 20', Colors.blue),
+                _buildServiceCard(
+                  context,
+                  Icons.event_available,
+                  'Book Appointment',
+                  'Self registration, vitals, and consult',
+                  Colors.blue,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PatientAppointmentScreen(),
+                      ),
+                    );
+                  },
+                ),
                 _buildServiceCard(context, Icons.description, 'Lab Reports',
                     '02 New Reports', Colors.green),
                 _buildServiceCard(context, Icons.receipt_long, 'My Bills',
@@ -112,31 +202,36 @@ class PatientDashboardScreen extends StatelessWidget {
   }
 
   Widget _buildServiceCard(BuildContext context, IconData icon, String title,
-      String subtitle, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFe2e8f0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const Spacer(),
-          Text(title,
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          Text(subtitle,
-              style: const TextStyle(fontSize: 11, color: Color(0xFF64748b))),
-        ],
+      String subtitle, Color color,
+      {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFe2e8f0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const Spacer(),
+            Text(title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text(subtitle,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748b))),
+          ],
+        ),
       ),
     );
   }

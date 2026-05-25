@@ -1,0 +1,451 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../services/api_service.dart';
+import '../widgets/breadcrumb.dart';
+import 'patient_record_screen.dart';
+
+class PatientAppointmentScreen extends ConsumerStatefulWidget {
+  const PatientAppointmentScreen({super.key});
+
+  @override
+  ConsumerState<PatientAppointmentScreen> createState() =>
+      _PatientAppointmentScreenState();
+}
+
+class _PatientAppointmentScreenState
+    extends ConsumerState<PatientAppointmentScreen> {
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _abhaIdController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _bpController = TextEditingController();
+  final _tempController = TextEditingController();
+  final _complaintController = TextEditingController();
+
+  String _gender = 'Male';
+  bool _isSubmitting = false;
+  bool _isLoadingDoctors = true;
+  List<dynamic> _doctors = [];
+  String? _selectedDoctorId;
+  DateTime _appointmentDate = DateTime.now();
+  TimeOfDay _appointmentTime = TimeOfDay.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDoctors();
+  }
+
+  Future<void> _fetchDoctors() async {
+    try {
+      final api = ref.read(apiServiceProvider);
+      final res = await api.getDoctors();
+      final data = res.data;
+      setState(() {
+        _doctors = data is List
+            ? data
+            : (data is Map && data['data'] is List)
+                ? data['data']
+                : [];
+        _isLoadingDoctors = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingDoctors = false);
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _appointmentDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+    if (date != null) {
+      setState(() {
+        _appointmentDate = date;
+      });
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _appointmentTime,
+    );
+    if (time != null) {
+      setState(() {
+        _appointmentTime = time;
+      });
+    }
+  }
+
+  Future<void> _submitAppointment() async {
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final bp = _bpController.text.trim();
+    final temp = _tempController.text.trim();
+    final weight = _weightController.text.trim();
+
+    if (name.isEmpty || phone.isEmpty) {
+      _showMessage('Enter patient name and phone number');
+      return;
+    }
+    if (_selectedDoctorId == null) {
+      _showMessage('Select a doctor for your consultation');
+      return;
+    }
+    if (bp.isEmpty || temp.isEmpty || weight.isEmpty) {
+      _showMessage('Enter your vitals before booking the appointment');
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      final patientRes = await api.registerPatient({
+        'name': name,
+        'phone': phone,
+        'gender': _gender,
+        'age': 0,
+        'abhaId': _abhaIdController.text.trim(),
+        'abhaStatus': '',
+        'abhaVerified': false,
+      });
+
+      final patient = patientRes.data;
+      final patientId = patient is Map ? patient['id']?.toString() : null;
+      if (patientId == null || patientId.isEmpty) {
+        throw Exception('Patient registration did not return an ID');
+      }
+
+      final appointmentDateTime = DateTime(
+        _appointmentDate.year,
+        _appointmentDate.month,
+        _appointmentDate.day,
+        _appointmentTime.hour,
+        _appointmentTime.minute,
+      );
+
+      await api.createAppointment({
+        'patient_id': patientId,
+        'doctor_id': _selectedDoctorId,
+        'appointment_time': appointmentDateTime.toIso8601String(),
+        'status': 'Scheduled',
+      });
+
+      await api.createEncounter({
+        'patientId': patientId,
+        'doctorId': _selectedDoctorId,
+        'diagnosis': '',
+        'notes': 'Patient self-registered and booked appointment via mobile.',
+        'vitals': {
+          'bp': bp,
+          'pulse': 0,
+          'temp': double.tryParse(temp) ?? 0,
+          'weight': double.tryParse(weight) ?? 0,
+        },
+        'complaints': _complaintController.text.trim().isEmpty
+            ? <String>[]
+            : [_complaintController.text.trim()],
+        'prescriptions': const <Map<String, dynamic>>[],
+      });
+
+      if (!mounted) return;
+
+      _showMessage('Appointment booked successfully', success: true);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PatientRecordScreen(patientName: name),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Booking failed: $e');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  void _showMessage(String message, {bool success = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? Colors.green : null,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _abhaIdController.dispose();
+    _weightController.dispose();
+    _bpController.dispose();
+    _tempController.dispose();
+    _complaintController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFf8fafc),
+      appBar: AppBar(
+        title: const Text('Self Appointment & Consultation'),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1e293b),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Breadcrumb(paths: [
+              'Patient',
+              'Self-Service',
+              'Appointment & Consultation'
+            ]),
+            const SizedBox(height: 20),
+            _buildSectionTitle(Icons.person_add, 'Patient Details'),
+            _buildTextField(_nameController, 'Full Name', Icons.person),
+            const SizedBox(height: 16),
+            _buildTextField(
+                _phoneController, 'Phone Number', Icons.phone,
+                keyboardType: TextInputType.phone),
+            const SizedBox(height: 16),
+            const Text('Gender',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: Color(0xFF64748b))),
+            const SizedBox(height: 8),
+            Row(
+              children: ['Male', 'Female', 'Other']
+                  .map((g) => _buildGenderChip(g))
+                  .toList(),
+            ),
+            const SizedBox(height: 32),
+            _buildSectionTitle(Icons.monitor_heart, 'Vitals (By Patient)'),
+            Row(
+              children: [
+                Expanded(
+                    child: _buildTextField(
+                        _weightController, 'Weight (kg)', Icons.scale,
+                        keyboardType: TextInputType.number)),
+                const SizedBox(width: 16),
+                Expanded(
+                    child: _buildTextField(
+                        _bpController, 'BP (Sys/Dia)', Icons.speed,
+                        keyboardType: TextInputType.text)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                    child: _buildTextField(
+                        _tempController, 'Temperature', Icons.thermostat,
+                        keyboardType: TextInputType.number)),
+                const SizedBox(width: 16),
+                Expanded(
+                    child: _buildTextField(
+                        _complaintController, 'Primary Complaint',
+                        Icons.note,
+                        keyboardType: TextInputType.text)),
+              ],
+            ),
+            const SizedBox(height: 32),
+            _buildSectionTitle(Icons.calendar_today, 'Appointment Slot'),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildPickerButton('Date',
+                      '${_appointmentDate.day.toString().padLeft(2, '0')}/${_appointmentDate.month.toString().padLeft(2, '0')}/${_appointmentDate.year}',
+                      _pickDate),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildPickerButton(
+                      'Time', _appointmentTime.format(context), _pickTime),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            _buildSectionTitle(Icons.local_hospital, 'Choose Doctor'),
+            _isLoadingDoctors
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                    children:
+                        _doctors.map((doc) => _buildDoctorCard(doc)).toList(),
+                  ),
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: _isSubmitting ? null : _submitAppointment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0f172a),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 64),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                elevation: 8,
+                shadowColor:
+                    const Color(0xFF0f172a).withValues(alpha: 0.3),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.event_available),
+                        SizedBox(width: 12),
+                        Text('BOOK APPOINTMENT & REQUEST CONSULTATION',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14)),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(IconData icon, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF0284c7)),
+          const SizedBox(width: 8),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF64748b),
+                  letterSpacing: 1.1)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label,
+      IconData icon,
+      {TextInputType keyboardType = TextInputType.text}) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: const Color(0xFF94a3b8), size: 20),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFe2e8f0))),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFe2e8f0))),
+      ),
+    );
+  }
+
+  Widget _buildPickerButton(String label, String value, VoidCallback onTap) {
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0f172a),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFFe2e8f0)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF64748b))),
+          const SizedBox(height: 6),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF111827))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGenderChip(String label) {
+    final isSelected = _gender == label;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (v) => setState(() => _gender = label),
+      ),
+    );
+  }
+
+  Widget _buildDoctorCard(dynamic doc) {
+    final isSelected = _selectedDoctorId == doc['id']?.toString();
+    return InkWell(
+      onTap: () => setState(() => _selectedDoctorId = doc['id']?.toString()),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFe0f2fe) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF0284c7)
+                : const Color(0xFFe2e8f0),
+          ),
+        ),
+        child: Row(
+          children: [
+            const CircleAvatar(
+              radius: 24,
+              backgroundColor: Color(0xFFeff6ff),
+              child: Icon(Icons.person, color: Color(0xFF0284c7)),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(doc['name']?.toString() ?? 'Doctor',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 4),
+                  Text(doc['specialization']?.toString() ?? 'General',
+                      style: const TextStyle(
+                          fontSize: 12, color: Color(0xFF64748b))),
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle, color: Color(0xFF0284c7)),
+          ],
+        ),
+      ),
+    );
+  }
+}
