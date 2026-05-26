@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/api_service.dart';
 import '../widgets/breadcrumb.dart';
+import '../models/appointment.dart';
 import 'patient_record_screen.dart';
 
 class PatientAppointmentScreen extends ConsumerStatefulWidget {
@@ -233,12 +234,15 @@ class _PatientAppointmentScreenState
         _appointmentTime.minute,
       );
 
-      await api.createAppointment({
+      final apptRes = await api.createAppointment({
         'patient_id': patientId,
         'doctor_id': _selectedDoctorId,
         'appointment_time': appointmentDateTime.toIso8601String(),
         'status': 'Scheduled',
       });
+
+      final apptData = apptRes.data;
+      final apptId = apptData is Map ? apptData['id']?.toString() : '';
 
       await api.createEncounter({
         'patientId': patientId,
@@ -260,10 +264,25 @@ class _PatientAppointmentScreenState
       if (!mounted) return;
 
       _showMessage('Appointment booked successfully', success: true);
+
+      final appointment = Appointment(
+        id: apptId ?? '',
+        patientId: patientId,
+        doctorId: _selectedDoctorId,
+        patientName: name,
+        time: _appointmentTime.format(context),
+        type: 'OPD',
+        status: 'Scheduled',
+        symptoms: _complaintController.text.trim(),
+      );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => PatientRecordScreen(patientName: name),
+          builder: (context) => PatientRecordScreen(
+            appointment: appointment,
+            fallbackDoctorId: _selectedDoctorId,
+          ),
         ),
       );
     } catch (e) {

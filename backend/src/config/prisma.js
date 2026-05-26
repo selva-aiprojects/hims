@@ -18,7 +18,8 @@ function getPrisma() {
       connectionString: rawUrl,
       ssl: {
         rejectUnauthorized: false, 
-      }
+      },
+      max: 3
     });
     
     const adapter = new PrismaPg(pool);

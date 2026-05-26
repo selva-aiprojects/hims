@@ -1,7 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
-
-const TENANT = 'Millenium Hospitals Group of Companies Ltd';
+import { TEST_TENANT as TENANT } from '../utils/tenant_config';
 
 async function loginAndGo(page: Page, path: string) {
   const auth = new AuthHelper(page);

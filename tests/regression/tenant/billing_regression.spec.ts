@@ -1,12 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
+import { TEST_TENANT } from '../utils/tenant_config';
 
 test.describe('Billing Module Regression - Invoicing & Payments', () => {
   let auth: AuthHelper;
 
   test.beforeEach(async ({ page }) => {
     auth = new AuthHelper(page);
-    await auth.loginTenant('Millenium Hospitals Group of Companies Ltd');
+    await auth.loginTenant(TEST_TENANT);
   });
 
   test('Generate Patient Invoice', async ({ page }) => {

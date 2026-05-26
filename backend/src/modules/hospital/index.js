@@ -14,8 +14,9 @@ const jsonValue = (val) => `'${s(JSON.stringify(val || {}))}'::jsonb`;
 
 async function getCurrentUserId(req) {
   if (!req.user) return null;
+  const email = typeof req.user === 'object' ? req.user.user : req.user;
   try {
-    const users = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${req.schemaName}".users WHERE LOWER(email) = LOWER('${s(req.user)}') LIMIT 1`);
+    const users = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${req.schemaName}".users WHERE LOWER(email) = LOWER('${s(email)}') LIMIT 1`);
     return users[0]?.id || null;
   } catch {
     return null;
@@ -1632,12 +1633,13 @@ router.post("/pharmacy/dispense", async (req, res, next) => {
       let qtyNeeded = parseInt(item.quantity) || 0;
       
       const batches = await req.prisma.$queryRawUnsafe(`
-        SELECT id, current_stock 
+        SELECT id, current_stock, batch_number, expiry_date 
         FROM "${req.schemaName}".pharmacy_inwards 
         WHERE medicine_id = '${item.drugId}' AND current_stock > 0 AND is_blocked = FALSE
         ORDER BY expiry_date ASC
       `);
 
+      const consumedBatches = [];
       for (const batch of batches) {
         if (qtyNeeded <= 0) break;
         const consume = Math.min(qtyNeeded, batch.current_stock);
@@ -1646,7 +1648,28 @@ router.post("/pharmacy/dispense", async (req, res, next) => {
           SET current_stock = current_stock - ${consume} 
           WHERE id = '${batch.id}'
         `);
+        
+        let expiryStr = 'N/A';
+        if (batch.expiry_date) {
+          const d = new Date(batch.expiry_date);
+          expiryStr = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
+        }
+        
+        consumedBatches.push({
+          batchNumber: batch.batch_number || 'N/A',
+          expiry: expiryStr,
+          quantity: consume
+        });
+        
         qtyNeeded -= consume;
+      }
+
+      if (qtyNeeded > 0) {
+        consumedBatches.push({
+          batchNumber: 'Default',
+          expiry: 'N/A',
+          quantity: qtyNeeded
+        });
       }
 
       await req.prisma.$executeRawUnsafe(`
@@ -1673,10 +1696,12 @@ router.post("/pharmacy/dispense", async (req, res, next) => {
       }
 
       if (patientId) {
-        await req.prisma.$executeRawUnsafe(`
-          INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price)
-          VALUES ('${patientId}', ${encounterId && encounterId !== 'undefined' ? `'${encounterId}'` : 'NULL'}, 'PHARMACY', '${prescriptionId || crypto.randomUUID()}', 'Medicine: ${s(item.drugName)}', ${item.quantity}, ${item.unitPrice})
-        `);
+        for (const cb of consumedBatches) {
+          await req.prisma.$executeRawUnsafe(`
+            INSERT INTO "${req.schemaName}".billing_queue (patient_id, encounter_id, source_module, source_id, description, quantity, unit_price)
+            VALUES ('${patientId}', ${encounterId && encounterId !== 'undefined' ? `'${encounterId}'` : 'NULL'}, 'PHARMACY', '${prescriptionId || crypto.randomUUID()}', 'Medicine: ${s(item.drugName)} (Batch: ${s(cb.batchNumber)}, Exp: ${s(cb.expiry)})', ${cb.quantity}, ${item.unitPrice})
+          `);
+        }
       }
     }
 

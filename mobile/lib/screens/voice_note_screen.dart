@@ -224,10 +224,10 @@ Plan:
           'prescriptions': const <Map<String, dynamic>>[],
         });
         _currentEncounterId = response.data['encounterId']?.toString();
+      }
 
-        if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
-          await api.updateAppointmentStatus(widget.appointmentId!, 'Completed');
-        }
+      if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
+        await api.updateAppointmentStatus(widget.appointmentId!, 'Completed');
       }
 
       if (!mounted) return;

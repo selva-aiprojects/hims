@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
+import { TEST_TENANT as tenantName } from '../utils/tenant_config';
 
-const tenantName = 'Apollo Hospitals - Professional Ltd';
 const apiBase = 'http://localhost:4000';
 
 function localDateKey(date: Date) {

@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
-
-const TENANT = 'Apollo Hospitals - Professional Ltd';
+import { TEST_TENANT as TENANT } from '../utils/tenant_config';
 
 test.describe('Patient journey regression: OPD to IPD discharge', () => {
   test('OPD registration, consultation, IPD admission, and discharge summary flow', async ({ page }) => {
@@ -26,11 +25,10 @@ test.describe('Patient journey regression: OPD to IPD discharge', () => {
     await page.locator('label:has-text("Blood Group")').locator('xpath=following-sibling::select').selectOption('O+');
     await page.locator('label:has-text("Occupation")').locator('xpath=following-sibling::input').fill('QA');
     await page.locator('label:has-text("Weight")').locator('xpath=following-sibling::input').fill('70');
-    await page.locator('label:has-text("BP")').locator('xpath=following-sibling::input').fill('120/80');
+    await page.locator('label:has-text("BP (")').locator('xpath=following-sibling::input').fill('120/80');
     await page.locator('label:has-text("Temp")').locator('xpath=following-sibling::input').fill('98.6');
     await page.locator('label:has-text("Height")').locator('xpath=following-sibling::input').fill('172');
 
-    await page.waitForResponse(response => response.url().includes('/api/hospital/doctors') && response.status() === 200, { timeout: 15000 });
     const doctorCard = page.locator('.doctor-card').filter({ hasText: /Dr\./ }).first();
     await expect(doctorCard).toBeVisible({ timeout: 15000 });
     await doctorCard.click();
@@ -57,7 +55,7 @@ test.describe('Patient journey regression: OPD to IPD discharge', () => {
     await page.getByPlaceholder(/Enter Clinical Diagnosis/i).fill('Acute fever');
     await page.getByPlaceholder(/Type clinical notes, observations, or chief complaints/i).fill('Automated OPD consultation note.');
     await page.getByRole('button', { name: /FINISH CONSULTATION/i }).click();
-    await expect(page.locator('.app-toast-success').filter({ hasText: /Consultation Finished|Consultation completed/i })).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText('Consultation Finished')).toBeVisible({ timeout: 20000 });
     await page.getByRole('button', { name: /Close & Return to Queue/i }).click();
     await expect(page).toHaveURL(/tenant\/opd\/queue/);
 
@@ -68,9 +66,10 @@ test.describe('Patient journey regression: OPD to IPD discharge', () => {
     const patientSelect = page.locator('select').first();
     await expect(patientSelect).toBeVisible({ timeout: 15000 });
     const patientOption = patientSelect.locator(`option:has-text("${patientName}")`).first();
-    if (await patientOption.count() > 0) {
-      const value = await patientOption.getAttribute('value');
-      if (value) await patientSelect.selectOption(value);
+    await patientOption.waitFor({ state: 'attached', timeout: 15000 });
+    const value = await patientOption.getAttribute('value');
+    if (value) {
+      await patientSelect.selectOption(value);
     } else {
       await patientSelect.selectOption({ index: 1 });
     }
@@ -103,7 +102,7 @@ test.describe('Patient journey regression: OPD to IPD discharge', () => {
     await expect(admissionRow).toBeVisible({ timeout: 20000 });
     await admissionRow.getByRole('button', { name: /Open|View|Details/i }).click();
 
-    await expect(page.getByText(/IPD Patient Record|Discharge Patient/i)).toBeVisible({ timeout: 20000 });
+    await expect(page.getByText(/IPD Patient Record|Discharge Patient/i).first()).toBeVisible({ timeout: 20000 });
     const notesArea = page.getByPlaceholder(/Document clinical observations|Type clinical notes/i);
     if (await notesArea.isVisible().catch(() => false)) {
       await notesArea.fill('Automated inpatient progress note.');

@@ -56,9 +56,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      String? fallbackPatientId;
+      try {
+        final api = ref.read(apiServiceProvider);
+        final patientsRes = await api.getPatients();
+        if (patientsRes.statusCode == 200 && patientsRes.data is List && (patientsRes.data as List).isNotEmpty) {
+          fallbackPatientId = patientsRes.data[0]['id']?.toString();
+        }
+      } catch (_) {}
+
       setState(() {
-        _doctorId = null;
-        _appointments = _demoAppointments();
+        _doctorId = userId;
+        _appointments = _demoAppointments(
+          fallbackPatientId: fallbackPatientId,
+          fallbackDoctorId: userId,
+        );
         _queueError = 'Live queue unavailable. Showing sample queue.';
         _isLoadingQueue = false;
       });
@@ -391,10 +405,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  List<Appointment> _demoAppointments() {
+  List<Appointment> _demoAppointments({String? fallbackPatientId, String? fallbackDoctorId}) {
     return [
       Appointment(
         id: 'demo-1',
+        patientId: fallbackPatientId ?? '71820db3-f8f1-4294-8c11-1dc66ab1056e',
+        doctorId: fallbackDoctorId,
         patientName: 'Selvakumar Balakrishnan',
         time: '10:30 AM',
         type: 'OPD',
@@ -403,6 +419,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
       Appointment(
         id: 'demo-2',
+        patientId: fallbackPatientId ?? '71820db3-f8f1-4294-8c11-1dc66ab1056e',
+        doctorId: fallbackDoctorId,
         patientName: 'Rahul Sharma',
         time: '11:15 AM',
         type: 'Follow-up',

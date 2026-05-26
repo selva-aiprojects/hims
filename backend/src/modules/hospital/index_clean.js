@@ -12,8 +12,9 @@ const jsonValue = (val) => `'${s(JSON.stringify(val || {}))}'::jsonb`;
 
 async function getCurrentUserId(req) {
   if (!req.user) return null;
+  const email = typeof req.user === 'object' ? req.user.user : req.user;
   try {
-    const users = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${req.schemaName}".users WHERE LOWER(email) = LOWER('${s(req.user)}') LIMIT 1`);
+    const users = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${req.schemaName}".users WHERE LOWER(email) = LOWER('${s(email)}') LIMIT 1`);
     return users[0]?.id || null;
   } catch {
     return null;

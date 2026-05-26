@@ -105,20 +105,15 @@ router.post("/", async (req, res, next) => {
 
     // 1. Create Main Encounter
     const encounter = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, diagnosis, notes, status, type)
-      VALUES ('${patientId}', '${doctorId}', '${safeDiagnosis}', '${safeNotes}', 'Completed', 'OPD')
+      INSERT INTO "${req.schemaName}".encounters (patient_id, doctor_id, diagnosis, notes, status, type, vitals)
+      VALUES ('${patientId}', '${doctorId}', '${safeDiagnosis}', '${safeNotes}', 'Completed', 'OPD', ${vitals ? `'${escapeSqlString(JSON.stringify(vitals))}'::jsonb` : 'NULL'})
       RETURNING id
     `);
     
     const encounterId = encounter[0].id;
 
     // 2. Save Vitals (if provided)
-    if (vitals) {
-      await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".vitals (encounter_id, bp, pulse, temperature)
-        VALUES ('${encounterId}', '${vitals.bp || ''}', ${parseInt(vitals.pulse) || 0}, ${parseFloat(vitals.temp) || 0})
-      `);
-    }
+    // Saved directly in encounters table as JSONB above.
 
     // 3. Save Complaints
     if (Array.isArray(complaints)) {

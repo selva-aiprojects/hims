@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
+import { TEST_TENANT } from '../utils/tenant_config';
 
 test.describe('Patient Register & Archives Regression Tests', () => {
   let auth: AuthHelper;
@@ -7,7 +8,7 @@ test.describe('Patient Register & Archives Regression Tests', () => {
   test.beforeEach(async ({ page }) => {
     auth = new AuthHelper(page);
     // Logging into a known tenant shard
-    await auth.loginTenant('Millenium Hospitals Group of Companies Ltd');
+    await auth.loginTenant(TEST_TENANT);
   });
 
   test('Navigate to Patient Register and Search', async ({ page }) => {

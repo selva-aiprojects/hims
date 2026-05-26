@@ -72,7 +72,7 @@ router.get("/stats", async (req, res, next) => {
       runQuery(`SELECT COUNT(*)::int FROM "${schema}".encounters WHERE created_at::date = CURRENT_DATE`, 0),
       runQuery(`SELECT COUNT(*)::int FROM "${schema}".invoices WHERE status ILIKE 'unpaid' OR status ILIKE 'pending' OR status ILIKE 'partial'`, 0),
       runQuery(`SELECT COALESCE(SUM(total), 0)::float FROM "${schema}".invoices WHERE (status ILIKE 'paid' OR status ILIKE 'settled') AND created_at::date = CURRENT_DATE`, 0.0),
-      runQuery(`SELECT COUNT(DISTINCT COALESCE(prescription_id, encounter_id))::int FROM "${schema}".prescription_items WHERE created_at::date = CURRENT_DATE`, 0),
+      runQuery(`SELECT COUNT(DISTINCT prescription_id)::int FROM "${schema}".prescription_items WHERE created_at::date = CURRENT_DATE`, 0),
       runQuery(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE admitted_at::date = CURRENT_DATE`, 0),
       runQuery(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Discharged' AND discharged_at::date = CURRENT_DATE`, 0),
       runQuery(`SELECT COUNT(*)::int FROM "${schema}".ipd_admissions WHERE status = 'Admitted' OR status = 'Active'`, 0),

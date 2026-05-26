@@ -19,7 +19,10 @@ export default function IPDAdmissionsList() {
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/hospital/ipd/admissions`, { headers })
-      .then(r => setAdmissions(r.data))
+      .then(r => {
+        const data = Array.isArray(r.data) ? r.data : (r.data?.data || []);
+        setAdmissions(data);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

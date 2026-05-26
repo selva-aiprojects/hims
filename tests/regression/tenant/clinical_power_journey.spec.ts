@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
-
-const tenantName = 'Apollo Hospitals - Professional Ltd';
+import { TEST_TENANT as tenantName } from '../utils/tenant_config';
 
 test.describe('HIMS Clinical Power Journeys', () => {
   let auth: AuthHelper;

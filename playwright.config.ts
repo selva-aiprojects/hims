@@ -11,7 +11,7 @@ export default defineConfig({
   webServer: {
     command: 'node ./tests/regression/utils/start-servers.js',
     url: 'http://localhost:4173',
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     gracefulShutdown: { signal: 'SIGINT', timeout: 1000 },
     timeout: 120000,
   },

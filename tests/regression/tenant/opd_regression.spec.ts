@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
+import { TEST_TENANT } from '../utils/tenant_config';
 
 test.describe('OPD Module Regression - Field Level Validation', () => {
   let auth: AuthHelper;
@@ -7,7 +8,7 @@ test.describe('OPD Module Regression - Field Level Validation', () => {
   test.beforeEach(async ({ page }) => {
     auth = new AuthHelper(page);
     // Logging into a known tenant shard
-    await auth.loginTenant('Millenium Hospitals Group of Companies Ltd');
+    await auth.loginTenant(TEST_TENANT);
   });
 
   test('Full OPD Registration and Vitals Capture Flow', async ({ page }) => {

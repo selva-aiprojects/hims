@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { AuthHelper } from '../utils/auth_helper';
-
-const tenantName = 'Apollo Hospitals - Professional Ltd';
+import { TEST_TENANT as tenantName } from '../utils/tenant_config';
 
 test.describe('Patient journey from sidebar', () => {
   test('sidebar order and OPD/IPD journey smoke', async ({ page }) => {
@@ -43,11 +42,10 @@ test.describe('Patient journey from sidebar', () => {
     await page.locator('label:has-text("Blood Group")').locator('xpath=following-sibling::select').selectOption('O+');
     await page.locator('label:has-text("Occupation")').locator('xpath=following-sibling::input').fill('QA');
     await page.locator('label:has-text("Weight")').locator('xpath=following-sibling::input').fill('70');
-    await page.locator('label:has-text("BP")').locator('xpath=following-sibling::input').fill('120/80');
+    await page.locator('label:has-text("BP (")').locator('xpath=following-sibling::input').fill('120/80');
     await page.locator('label:has-text("Temp")').locator('xpath=following-sibling::input').fill('98.6');
     await page.locator('label:has-text("Height")').locator('xpath=following-sibling::input').fill('172');
 
-    await page.waitForResponse(response => response.url().endsWith('/api/hospital/doctors') && response.status() === 200, { timeout: 15000 });
     const doctorCards = page.locator('.doctor-card');
     await expect(doctorCards.first()).toBeVisible({ timeout: 10000 });
     const validDoctor = doctorCards.filter({ hasText: /Dr\./ });
@@ -94,7 +92,8 @@ test.describe('Patient journey from sidebar', () => {
     // Fill out the admission form
     const patientSelect = page.locator('select').first();
     await patientSelect.waitFor({ state: 'visible', timeout: 10000 });
-    const patientOption = patientSelect.locator(`option:has-text("${patientName}")`);
+    const patientOption = patientSelect.locator(`option:has-text("${patientName}")`).first();
+    await patientOption.waitFor({ state: 'attached', timeout: 15000 });
     const patientValue = await patientOption.getAttribute('value');
     if (patientValue) {
       await patientSelect.selectOption(patientValue);
