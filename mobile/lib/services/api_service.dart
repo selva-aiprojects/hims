@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:flutter/foundation.dart';
+import 'dart:io' show Platform;
 
 class ApiService {
   final Dio _dio = Dio();
@@ -17,7 +18,12 @@ class ApiService {
           ? "http://localhost:4000/api"
           : "https://hims-kappa.vercel.app/api";
     }
-    return "http://10.0.2.2:4000/api"; // Android Emulator fallback
+    // Desktop (Windows / Linux / macOS) — backend runs on the same machine
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      return "http://localhost:4000/api";
+    }
+    // Android Emulator: 10.0.2.2 maps to host localhost
+    return "http://10.0.2.2:4000/api";
   }
 
   final String baseUrl = _baseUrl;
@@ -60,6 +66,14 @@ class ApiService {
   // Patient Methods
   Future<Response> getPatients() async {
     return _dio.get('/patients');
+  }
+
+  Future<Response> getPatientDetails(String patientId) async {
+    return _dio.get('/patients/$patientId');
+  }
+
+  Future<Response> getPatientTimeline(String patientId) async {
+    return _dio.get('/patients/$patientId/timeline');
   }
 
   Future<Response> getAppointments({String? doctorId}) async {

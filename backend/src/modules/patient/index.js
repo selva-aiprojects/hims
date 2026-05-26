@@ -132,6 +132,130 @@ router.get("/:id", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/:id/timeline", async (req, res, next) => {
+  const patientId = req.params.id;
+  try {
+    let encounters = [];
+    try {
+      encounters = await req.prisma.$queryRawUnsafe(`
+        SELECT e.*, u.name as doctor_name
+        FROM "${req.schemaName}".encounters e
+        LEFT JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+        WHERE e.patient_id = '${patientId}'
+        ORDER BY e.created_at DESC
+      `);
+    } catch (e) {
+      console.warn("Timeline encounters query failed (possibly unprovisioned):", e.message);
+    }
+
+    let labOrders = [];
+    try {
+      labOrders = await req.prisma.$queryRawUnsafe(`
+        SELECT l.*, u.name as doctor_name
+        FROM "${req.schemaName}".lab_orders l
+        LEFT JOIN "${req.schemaName}".users u ON l.doctor_id = u.id
+        WHERE l.patient_id = '${patientId}'
+        ORDER BY l.created_at DESC
+      `);
+    } catch (e) {
+      console.warn("Timeline lab_orders query failed (possibly unprovisioned):", e.message);
+    }
+
+    let admissions = [];
+    try {
+      admissions = await req.prisma.$queryRawUnsafe(`
+        SELECT a.*, u.name as doctor_name, w.name as ward_name, b.bed_number
+        FROM "${req.schemaName}".ipd_admissions a
+        LEFT JOIN "${req.schemaName}".users u ON a.admitting_doctor_id = u.id
+        LEFT JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
+        LEFT JOIN "${req.schemaName}".beds b ON a.bed_id = b.id
+        WHERE a.patient_id = '${patientId}'
+        ORDER BY a.admitted_at DESC
+      `);
+    } catch (e) {
+      console.warn("Timeline ipd_admissions query failed (possibly unprovisioned):", e.message);
+    }
+
+    const timeline = [];
+
+    encounters.forEach(e => {
+      timeline.push({
+        id: e.id,
+        type: 'OPD Consultation',
+        date: e.created_at,
+        author: e.doctor_name || 'Dr. Practitioner',
+        note: e.notes || `OPD consultation recorded. Diagnosis: ${e.diagnosis || 'None specified'}.`,
+        details: {
+          diagnosis: e.diagnosis,
+          vitals: e.vitals,
+          notes: e.notes
+        }
+      });
+    });
+
+    labOrders.forEach(l => {
+      let resultsSummary = '';
+      if (l.results) {
+        try {
+          const resObj = typeof l.results === 'string' ? JSON.parse(l.results) : l.results;
+          if (Array.isArray(resObj)) {
+            resultsSummary = resObj.map(r => `${r.name || r.parameter}: ${r.value} ${r.unit || ''} (${r.status || 'Normal'})`).join(', ');
+          } else if (typeof resObj === 'object') {
+            resultsSummary = Object.entries(resObj).map(([k, v]) => `${k}: ${v}`).join(', ');
+          }
+        } catch (_) {}
+      }
+      timeline.push({
+        id: l.id,
+        type: 'Lab Report',
+        date: l.created_at,
+        author: l.doctor_name || 'Diagnostic Lab',
+        note: `Ordered Test: ${l.test_name}. Status: ${l.status || 'Pending'}. priority: ${l.priority}.` + 
+              (resultsSummary ? ` Results: ${resultsSummary}` : '') + 
+              (l.technician_notes ? ` Notes: ${l.technician_notes}` : ''),
+        details: {
+          testName: l.test_name,
+          priority: l.priority,
+          status: l.status,
+          results: l.results,
+          technicianNotes: l.technician_notes
+        }
+      });
+    });
+
+    admissions.forEach(a => {
+      const location = [a.ward_name, a.bed_number].filter(Boolean).join(' - ');
+      timeline.push({
+        id: a.id,
+        type: 'Admission',
+        date: a.admitted_at,
+        author: a.doctor_name || 'Admitting Office',
+        note: `Admitted to ${location || 'Ward'}. Reason: ${a.admission_reason || 'Not specified'}. Status: ${a.status}.` +
+              (a.discharged_at ? ` Discharged at: ${new Date(a.discharged_at).toLocaleDateString()}` : ''),
+        details: {
+          wardName: a.ward_name,
+          bedNumber: a.bed_number,
+          reason: a.admission_reason,
+          status: a.status,
+          admittedAt: a.admitted_at,
+          dischargedAt: a.discharged_at
+        }
+      });
+    });
+
+    // Sort descending by date
+    timeline.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    res.json(timeline);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/", upload.array('history_files', 5), async (req, res, next) => {
   console.log(`[PATIENT] Incoming registration request for schema: ${req.schemaName}`);
   try {
