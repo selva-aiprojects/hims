@@ -7,8 +7,14 @@ import 'package:flutter/foundation.dart';
 class ApiService {
   final Dio _dio = Dio();
 
-  // Smart Base URL: Pointing to your live HIMS-KAPPA backend
+  // Smart Base URL: Configurable for local development
   static String get _baseUrl {
+    // Use environment variable or default to localhost for development
+    const String? envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl != null && envUrl.isNotEmpty) {
+      return envUrl;
+    }
+    
     if (kReleaseMode) {
       return "https://hims-kappa.vercel.app/api";
     }
@@ -24,8 +30,18 @@ class ApiService {
 
   ApiService() {
     _dio.options.baseUrl = baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 10);
-    _dio.options.receiveTimeout = const Duration(seconds: 10);
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
+    
+    // Enable logging for debugging
+    _dio.interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: true,
+      error: true,
+      logPrint: (obj) {
+        if (kDebugMode) print(obj);
+      },
+    ));
 
     // Global Interceptor for Headers (Multi-tenancy & Auth)
     _dio.interceptors.add(InterceptorsWrapper(
@@ -42,6 +58,13 @@ class ApiService {
         }
 
         return handler.next(options);
+      },
+      onError: (error, handler) {
+        if (kDebugMode) {
+          print('API Error: ${error.error}');
+          print('Request URL: ${error.requestOptions.uri}');
+        }
+        return handler.next(error);
       },
     ));
   }

@@ -1,9 +1,16 @@
-node_modules
-# Keep environment variables out of version control
+```
+# Dependencies
+.dart_tool/
+.build/
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+# Environment
 .env
-
-/generated/prisma
-
-# Test artifacts
-playwright-report/
-test-results/
+.env.local
+.env.*
+# Editors
+.vscode/
+.idea/
+```
