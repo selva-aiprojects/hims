@@ -373,6 +373,59 @@ async function ensureIPDMasters(req) {
   } catch (e) {
     console.warn("[SEED] Could not seed diagnostics:", e.message);
   }
+    // --- SEED WARDS & BEDS IF MISSING (ensure IPD has provisioned wards) ---
+    try {
+      const wardCount = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*)::int as count FROM "${req.schemaName}".wards`);
+      if (wardCount && wardCount[0] && Number(wardCount[0].count) === 0) {
+        const wards = [
+          { name: 'General Ward - A', type: 'Regular Care', capacity: 20, charge: 1500 },
+          { name: 'Semi-Private Ward', type: 'Special Care', capacity: 15, charge: 3500 },
+          { name: 'Private Suite', type: 'ICU', capacity: 14, charge: 7500 }
+        ];
+        for (const w of wards) {
+          const wardId = crypto.randomUUID();
+          await req.prisma.$executeRawUnsafe(`INSERT INTO "${req.schemaName}".wards (id, name, type, capacity, base_charge) VALUES ('${wardId}', '${w.name}', '${w.type}', ${w.capacity}, ${w.charge})`);
+          const prefix = w.name.split(' ').slice(0,3).join('-').toUpperCase() || 'BED';
+          for (let i = 1; i <= w.capacity; i++) {
+            await req.prisma.$executeRawUnsafe(`INSERT INTO "${req.schemaName}".beds (ward_id, bed_number, status) VALUES ('${wardId}', '${prefix}-${String(i).padStart(2,'0')}', 'Vacant')`);
+          }
+        }
+        console.log(`[SEED] Provisioned ${wards.length} wards and beds for shard: ${req.schemaName}`);
+      }
+    } catch (e) {
+      console.warn('[SEED] Ward provisioning failed:', e.message);
+    }
+    // Idempotent inserts as a fallback in case COUNT check failed
+    try {
+      const fallbackWards = [
+        { name: 'General Ward - A', type: 'Regular Care', capacity: 20, charge: 1500 },
+        { name: 'Semi-Private Ward', type: 'Special Care', capacity: 15, charge: 3500 },
+        { name: 'Private Suite', type: 'ICU', capacity: 14, charge: 7500 }
+      ];
+      for (const w of fallbackWards) {
+        await req.prisma.$executeRawUnsafe(`
+          INSERT INTO "${req.schemaName}".wards (id, name, type, capacity, base_charge)
+          SELECT gen_random_uuid(), '${w.name}', '${w.type}', ${w.capacity}, ${w.charge}
+          WHERE NOT EXISTS (SELECT 1 FROM "${req.schemaName}".wards WHERE name = '${w.name}')
+        `);
+        // Provision beds for any newly created ward
+        const wardRow = await req.prisma.$queryRawUnsafe(`SELECT id, capacity FROM "${req.schemaName}".wards WHERE name = '${w.name}' LIMIT 1`);
+        const wardId = wardRow && wardRow[0] && wardRow[0].id;
+        const cap = wardRow && wardRow[0] && (wardRow[0].capacity || w.capacity);
+        if (wardId) {
+          for (let i = 1; i <= (cap || w.capacity); i++) {
+            const prefix = w.name.split(' ').slice(0,3).join('-').toUpperCase() || 'BED';
+            await req.prisma.$executeRawUnsafe(`
+              INSERT INTO "${req.schemaName}".beds (ward_id, bed_number, status)
+              SELECT '${wardId}', '${prefix}-${String(i).padStart(2,'0')}', 'Vacant'
+              WHERE NOT EXISTS (SELECT 1 FROM "${req.schemaName}".beds WHERE ward_id = '${wardId}' AND bed_number = '${prefix}-${String(i).padStart(2,'0')}')
+            `);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[SEED] Fallback ward provisioning error:', e.message);
+    }
   ipdMastersSynced.add(schema);
 }
 
@@ -514,7 +567,18 @@ router.get("/heal-all-masters", async (req, res, next) => {
     await ensureBillingQueue(req);
     await ensureSuppliersTable(req);
     await ensureInsuranceInfrastructure(req);
-    res.json({ success: true, message: "Clinical environment provisioned." });
+    // Return counts to help debugging provisioning
+    let wardCount = 0, bedCount = 0;
+    try {
+      const w = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*) as c FROM "${req.schemaName}".wards`);
+      wardCount = parseInt(w && w[0] && (w[0].c || w[0].count || 0)) || 0;
+    } catch (e) { /* ignore */ }
+    try {
+      const b = await req.prisma.$queryRawUnsafe(`SELECT COUNT(*) as c FROM "${req.schemaName}".beds`);
+      bedCount = parseInt(b && b[0] && (b[0].c || b[0].count || 0)) || 0;
+    } catch (e) { /* ignore */ }
+
+    res.json({ success: true, message: "Clinical environment provisioned.", wardCount, bedCount });
   } catch (error) { next(error); }
 });
 
@@ -934,21 +998,47 @@ router.post("/ipd/admissions", async (req, res, next) => {
   try {
     await ensureIPDAdmissionsTable(req);
     await ensureBillingQueue(req);
-    const { patientId, bedId, wardId, admittingDoctorId, admissionReason, dailyCharge } = req.body;
+    let { patientId, bedId, wardId, admittingDoctorId, admissionReason, dailyCharge } = req.body;
     
     if (!patientId) return res.status(400).json({ error: "Patient is required." });
-    if (!bedId || !wardId) return res.status(400).json({ error: "Bed and ward are required." });
+
+    // If bedId not provided, attempt to auto-assign a vacant bed (optionally within provided ward)
+    let selectedBedId = bedId || null;
+    let selectedWardId = wardId || null;
+    try {
+      if (!selectedBedId) {
+        const bedQuery = selectedWardId
+          ? `SELECT id, ward_id FROM "${req.schemaName}".beds WHERE ward_id = '${selectedWardId}' AND status = 'Vacant' LIMIT 1`
+          : `SELECT id, ward_id FROM "${req.schemaName}".beds WHERE status = 'Vacant' LIMIT 1`;
+        const bedRows = await req.prisma.$queryRawUnsafe(bedQuery);
+        if (bedRows && bedRows.length > 0) {
+          selectedBedId = bedRows[0].id;
+          selectedWardId = selectedWardId || bedRows[0].ward_id;
+        }
+      }
+    } catch (e) {
+      console.warn('[ADMISSION] Bed auto-assign check failed:', e.message);
+    }
+
+    if (!selectedBedId || !selectedWardId) return res.status(400).json({ error: "No vacant bed available or ward not specified." });
+
+    // Resolve admitting doctor if missing
+    if (!admittingDoctorId) {
+      try {
+        admittingDoctorId = await getCurrentUserId(req);
+      } catch (e) { admittingDoctorId = null; }
+    }
     if (!admittingDoctorId) return res.status(400).json({ error: "Admitting doctor is required." });
 
     // 1. Create Admission Record
     const admId = crypto.randomUUID();
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".ipd_admissions (id, patient_id, bed_id, ward_id, admitting_doctor_id, admission_reason, daily_charge, status)
-      VALUES ('${admId}', '${patientId}', '${bedId}', '${wardId}', '${admittingDoctorId}', '${s(admissionReason)}', ${dailyCharge}, 'Admitted')
+      VALUES ('${admId}', '${patientId}', '${selectedBedId}', '${selectedWardId}', '${admittingDoctorId}', '${s(admissionReason)}', ${dailyCharge}, 'Admitted')
     `);
 
     // 2. Update Bed Status
-    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Occupied' WHERE id = '${bedId}'`);
+    await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Occupied' WHERE id = '${selectedBedId}'`);
 
     // 3. Push Admission Fee to Billing Queue
     await req.prisma.$executeRawUnsafe(`

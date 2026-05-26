@@ -215,6 +215,30 @@ router.post("/", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get("/validate", async (req, res, next) => {
+  try {
+    const { doctorId, appointmentTime } = req.query;
+    if (!doctorId || !appointmentTime) {
+      return res.status(400).json({ error: 'doctorId and appointmentTime are required' });
+    }
+
+    const validation = await validateDoctorAvailability(
+      req.prisma,
+      req.schemaName,
+      String(doctorId),
+      String(appointmentTime)
+    );
+
+    if (!validation.isValid) {
+      return res.status(200).json({ isValid: false, error: validation.error });
+    }
+
+    return res.status(200).json({ isValid: true, message: 'Selected slot is available' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.patch("/:id", async (req, res, next) => {
   try {
     const { appointment_time, status } = req.body;

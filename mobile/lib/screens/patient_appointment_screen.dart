@@ -32,6 +32,9 @@ class _PatientAppointmentScreenState
   List<dynamic> _tenants = [];
   String? _selectedDoctorId;
   String? _selectedTenantId;
+  bool _isValidatingSlot = false;
+  bool _slotAvailable = false;
+  String? _slotValidationMessage;
   DateTime _appointmentDate = DateTime.now();
   TimeOfDay _appointmentTime = TimeOfDay.now();
 
@@ -94,8 +97,54 @@ class _PatientAppointmentScreenState
                 : [];
         _isLoadingDoctors = false;
       });
+      await _validateSlot();
     } catch (e) {
       setState(() => _isLoadingDoctors = false);
+    }
+  }
+
+  Future<void> _validateSlot() async {
+    if (_selectedDoctorId == null) {
+      setState(() {
+        _slotAvailable = false;
+        _slotValidationMessage = 'Select a doctor to see availability';
+      });
+      return;
+    }
+
+    setState(() {
+      _isValidatingSlot = true;
+      _slotValidationMessage = null;
+    });
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      final appointmentDateTime = DateTime(
+        _appointmentDate.year,
+        _appointmentDate.month,
+        _appointmentDate.day,
+        _appointmentTime.hour,
+        _appointmentTime.minute,
+      );
+      final res = await api.validateAppointmentSlot(
+        _selectedDoctorId!,
+        appointmentDateTime.toIso8601String(),
+      );
+      final data = res.data;
+
+      setState(() {
+        _slotAvailable = data is Map && data['isValid'] == true;
+        _slotValidationMessage = data is Map
+            ? (data['error'] ?? data['message'] ?? 'Availability check complete')
+            : 'Unable to validate slot';
+      });
+    } catch (e) {
+      setState(() {
+        _slotAvailable = false;
+        _slotValidationMessage = 'Unable to validate slot. Please try again.';
+      });
+    } finally {
+      setState(() => _isValidatingSlot = false);
     }
   }
 
@@ -110,6 +159,7 @@ class _PatientAppointmentScreenState
       setState(() {
         _appointmentDate = date;
       });
+        await _validateSlot();
     }
   }
 
@@ -122,6 +172,7 @@ class _PatientAppointmentScreenState
       setState(() {
         _appointmentTime = time;
       });
+        await _validateSlot();
     }
   }
 
@@ -143,6 +194,10 @@ class _PatientAppointmentScreenState
 
     if (_selectedDoctorId == null) {
       _showMessage('Select a doctor for your consultation');
+      return;
+    }
+    if (!_slotAvailable) {
+      _showMessage(_slotValidationMessage ?? 'Selected slot is not available');
       return;
     }
     if (bp.isEmpty || temp.isEmpty || weight.isEmpty) {
@@ -352,6 +407,9 @@ class _PatientAppointmentScreenState
                           setState(() {
                             _selectedTenantId = v;
                             _isLoadingDoctors = true;
+                            _selectedDoctorId = null;
+                            _slotAvailable = false;
+                            _slotValidationMessage = null;
                           });
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setString('tenant_id', v);
@@ -366,6 +424,27 @@ class _PatientAppointmentScreenState
                                   .map((doc) => _buildDoctorCard(doc))
                                   .toList(),
                             ),
+                      const SizedBox(height: 12),
+                      if (_isValidatingSlot)
+                        const Row(
+                          children: [
+                            SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 10),
+                            Text('Checking doctor availability...'),
+                          ],
+                        )
+                      else if (_slotValidationMessage != null)
+                        Text(
+                          _slotValidationMessage!,
+                          style: TextStyle(
+                            color: _slotAvailable ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                     ],
                   ),
             const SizedBox(height: 40),
@@ -491,7 +570,16 @@ class _PatientAppointmentScreenState
   Widget _buildDoctorCard(dynamic doc) {
     final isSelected = _selectedDoctorId == doc['id']?.toString();
     return InkWell(
-      onTap: () => setState(() => _selectedDoctorId = doc['id']?.toString()),
+      onTap: () async {
+        final doctorId = doc['id']?.toString();
+        if (doctorId == null) return;
+        setState(() {
+          _selectedDoctorId = doctorId;
+          _slotAvailable = false;
+          _slotValidationMessage = null;
+        });
+        await _validateSlot();
+      },
       borderRadius: BorderRadius.circular(20),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),

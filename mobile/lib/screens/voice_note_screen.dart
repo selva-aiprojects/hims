@@ -35,6 +35,7 @@ class _VoiceNoteScreenState extends State<VoiceNoteScreen> {
   bool _isPosting = false;
   String? _statusMessage;
   String _generatedNote = '';
+  String? _currentEncounterId;
 
   @override
   void initState() {
@@ -213,7 +214,7 @@ Plan:
         });
       } else {
         // Authenticated flow (doctor / user)
-        await api.createEncounter({
+        final response = await api.createEncounter({
           'patientId': patientId,
           'doctorId': doctorId,
           'diagnosis': '',
@@ -222,6 +223,7 @@ Plan:
           'complaints': [transcript],
           'prescriptions': const <Map<String, dynamic>>[],
         });
+        _currentEncounterId = response.data['encounterId']?.toString();
 
         if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {
           await api.updateAppointmentStatus(widget.appointmentId!, 'Completed');
@@ -235,7 +237,6 @@ Plan:
           backgroundColor: Colors.green,
         ),
       );
-      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -243,6 +244,240 @@ Plan:
       );
     } finally {
       if (mounted) setState(() => _isPosting = false);
+    }
+  }
+
+  Future<void> _showPrescribeDialog() async {
+    final medController = TextEditingController();
+    final doseController = TextEditingController();
+    final qtyController = TextEditingController();
+
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Prescribe Medicine'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: medController, decoration: const InputDecoration(labelText: 'Medicine name')),
+            TextField(controller: doseController, decoration: const InputDecoration(labelText: 'Dosage')),
+            TextField(controller: qtyController, decoration: const InputDecoration(labelText: 'Duration')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Send')),
+        ],
+      ),
+    );
+
+    if (res != true) return;
+    final api = ApiService();
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (token == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Doctor must be authenticated to prescribe')));
+      return;
+    }
+    final encounterId = _currentEncounterId;
+    if (encounterId == null || encounterId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create an encounter first by posting this consultation')));
+      return;
+    }
+    try {
+      final items = [
+        { 'name': medController.text.trim(), 'dosage': doseController.text.trim(), 'duration': qtyController.text.trim(), 'frequency': '' }
+      ];
+      await api.createPrescription(encounterId, items);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Prescription created')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create prescription: $e')));
+    }
+  }
+
+  Future<void> _showOrderLabDialog() async {
+    final testController = TextEditingController();
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Order Lab Test'),
+        content: TextField(controller: testController, decoration: const InputDecoration(labelText: 'Test name (e.g. CBC)')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Order')),
+        ],
+      ),
+    );
+    if (res != true) return;
+    final api = ApiService();
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    if (token == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Doctor must be authenticated to order labs')));
+      return;
+    }
+    final encounterId = _currentEncounterId;
+    if (encounterId == null || encounterId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create an encounter first by posting this consultation')));
+      return;
+    }
+    try {
+      await api.createLabOrders(encounterId, [testController.text.trim()]);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lab order created')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create lab order: $e')));
+    }
+  }
+
+  Future<void> _showAdmitDialog() async {
+    if (widget.doctorId == null || widget.doctorId!.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Doctor context is required to admit a patient')));
+      return;
+    }
+    if (widget.patientId == null || widget.patientId!.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Patient ID missing for admission')));
+      return;
+    }
+
+    final api = ApiService();
+    List<dynamic> wards = [];
+    try {
+      final bedMapRes = await api.getBedMap();
+      if (bedMapRes.statusCode == 200) {
+        wards = List<dynamic>.from(bedMapRes.data ?? []);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Unable to load ward map: $e')));
+      return;
+    }
+
+    String? selectedWardId;
+    String? selectedBedId;
+    final reasonController = TextEditingController();
+    String? dialogError;
+    List<dynamic> wardBeds = [];
+
+    if (!mounted) return;
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setState) {
+          return AlertDialog(
+            title: const Text('Create Admission'),
+            content: SizedBox(
+              width: 340,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (wards.isEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text('No wards found. Admission will auto-assign a bed if available.'),
+                  ] else ...[
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedWardId,
+                      hint: const Text('Select ward (optional)'),
+                      items: wards.map((ward) {
+                        final name = ward['name'] ?? ward['label'] ?? 'Ward';
+                        return DropdownMenuItem<String>(
+                          value: ward['id']?.toString(),
+                          child: Text(name.toString()),
+                        );
+                      }).toList(),
+                      onChanged: (value) async {
+                        setState(() {
+                          selectedWardId = value;
+                          selectedBedId = null;
+                          wardBeds = [];
+                          dialogError = null;
+                        });
+                        if (value != null) {
+                          try {
+                            final bedsRes = await api.getWardBeds(value);
+                            if (bedsRes.statusCode == 200) {
+                              setState(() {
+                                wardBeds = List<dynamic>.from(bedsRes.data ?? []);
+                              });
+                            }
+                          } catch (e) {
+                            setState(() {
+                              dialogError = 'Unable to load beds for this ward';
+                            });
+                          }
+                        }
+                      },
+                    ),
+                    if (wardBeds.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedBedId,
+                        hint: const Text('Select bed (optional)'),
+                        items: wardBeds.map((bed) {
+                          final label = bed['bed_number'] ?? bed['number'] ?? 'Bed';
+                          final status = bed['status'] ?? 'Unknown';
+                          return DropdownMenuItem<String>(
+                            value: bed['id']?.toString(),
+                            child: Text('$label (${status.toString().toLowerCase()})'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedBedId = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ],
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(labelText: 'Admission reason'),
+                    minLines: 1,
+                    maxLines: 3,
+                  ),
+                  if (dialogError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(dialogError!, style: const TextStyle(color: Colors.red)),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
+              ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Admit')),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (res != true) return;
+
+    try {
+      final data = {
+        'patientId': widget.patientId,
+        'wardId': selectedWardId,
+        'bedId': selectedBedId,
+        'admittingDoctorId': widget.doctorId,
+        'admissionReason': reasonController.text.trim(),
+        'dailyCharge': 1500,
+      };
+      await api.createAdmission(data);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Admission created')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create admission: $e')));
     }
   }
 
@@ -438,6 +673,71 @@ Plan:
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
+            ),
+            if (_currentEncounterId != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF7DD3FC)),
+                ),
+                child: Text(
+                  'Encounter created: $_currentEncounterId',
+                  style: const TextStyle(
+                    color: Color(0xFF0369A1),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _showPrescribeDialog,
+                  icon: const Icon(Icons.medical_services),
+                  label: const Text('Prescribe'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0f172a),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showOrderLabDialog,
+                  icon: const Icon(Icons.biotech),
+                  label: const Text('Order Lab'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563eb),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAdmitDialog,
+                  icon: const Icon(Icons.bed),
+                  label: const Text('Admit'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF047857),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ],
             ),
             if (widget.patientId == null || widget.doctorId == null) ...[
               const SizedBox(height: 8),

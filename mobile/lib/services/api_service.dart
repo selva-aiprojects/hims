@@ -92,6 +92,15 @@ class ApiService {
     return _dio.get('/hospital/doctors');
   }
 
+  Future<Response> validateAppointmentSlot(
+      String doctorId, String appointmentTime) async {
+    return _dio.get('/appointments/validate',
+        queryParameters: {
+          'doctorId': doctorId,
+          'appointmentTime': appointmentTime,
+        });
+  }
+
   Future<Response> searchPatients(String query) async {
     return _dio.get('/patients', queryParameters: {'search': query});
   }
@@ -103,6 +112,26 @@ class ApiService {
 
   Future<Response> createEncounter(Map<String, dynamic> encounterData) async {
     return _dio.post('/consultations', data: encounterData);
+  }
+
+  Future<Response> createPrescription(String encounterId, List<Map<String, dynamic>> items) async {
+    return _dio.post('/hospital/encounters/$encounterId/prescriptions', data: { 'items': items });
+  }
+
+  Future<Response> createLabOrders(String encounterId, List<String> diagnosticIds, {String priority = 'Normal'}) async {
+    return _dio.post('/hospital/encounters/$encounterId/lab-orders', data: { 'diagnosticIds': diagnosticIds, 'priority': priority });
+  }
+
+  Future<Response> createAdmission(Map<String, dynamic> admissionData) async {
+    return _dio.post('/hospital/ipd/admissions', data: admissionData);
+  }
+
+  Future<Response> getBedMap() async {
+    return _dio.get('/hospital/ipd/bedmap');
+  }
+
+  Future<Response> getWardBeds(String wardId) async {
+    return _dio.get('/hospital/ipd/wards/$wardId/beds');
   }
 
   // Public: register a lightweight patient complaint when no auth token is present
