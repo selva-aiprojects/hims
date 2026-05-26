@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../widgets/breadcrumb.dart';
 import 'patient_record_screen.dart';
+import 'patient_appointment_confirmation_screen.dart';
 
 class PatientAppointmentScreen extends ConsumerStatefulWidget {
   const PatientAppointmentScreen({super.key});
@@ -240,30 +241,22 @@ class _PatientAppointmentScreenState
         'status': 'Scheduled',
       });
 
-      await api.createEncounter({
-        'patientId': patientId,
-        'doctorId': _selectedDoctorId,
-        'diagnosis': '',
-        'notes': 'Patient self-registered and booked appointment via mobile.',
-        'vitals': {
-          'bp': bp,
-          'pulse': 0,
-          'temp': double.tryParse(temp) ?? 0,
-          'weight': double.tryParse(weight) ?? 0,
-        },
-        'complaints': _complaintController.text.trim().isEmpty
-            ? <String>[]
-            : [_complaintController.text.trim()],
-        'prescriptions': const <Map<String, dynamic>>[],
-      });
+      // Note: Encounter creation is now handled by doctor during consultation
+      // Patient flow stops here after successful appointment booking
 
       if (!mounted) return;
 
-      _showMessage('Appointment booked successfully', success: true);
+      _showMessage('Appointment booked successfully! Please wait for doctor consultation.', success: true);
+      
+      // Navigate to patient's appointment confirmation screen (read-only view)
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => PatientRecordScreen(patientName: name),
+          builder: (context) => PatientAppointmentConfirmationScreen(
+            patientName: name,
+            doctorId: _selectedDoctorId,
+            appointmentTime: appointmentDateTime,
+          ),
         ),
       );
     } catch (e) {

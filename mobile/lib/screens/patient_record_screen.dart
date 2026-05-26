@@ -1,14 +1,23 @@
 import 'package:flutter/material.dart';
 
 import '../models/appointment.dart';
-import 'telehealth_screen.dart';
-import 'voice_note_screen.dart';
 
+/// Patient Record Screen - READ ONLY VIEW FOR PATIENTS
+/// 
+/// This screen shows patient information in a READ-ONLY format.
+/// Patients can view their vitals and history but CANNOT:
+/// - Start telehealth consultations
+/// - Create voice notes (doctor only)
+/// - Prescribe medicines (doctor only)
+/// - Order lab tests (doctor only)
+/// - Admit patients (doctor only)
+/// 
+/// All clinical actions are reserved for the DOCTOR flow.
 class PatientRecordScreen extends StatelessWidget {
   final Appointment? appointment;
   final String patientName;
   final String? fallbackDoctorId;
-
+  
   PatientRecordScreen({
     super.key,
     this.appointment,
@@ -21,23 +30,7 @@ class PatientRecordScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patient Record'),
-        actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => TelehealthScreen(
-                    patientName: patientName,
-                    appointmentId: appointment?.id,
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.video_call, color: Color(0xFF0284c7)),
-            tooltip: 'Start tele-health',
-          ),
-        ],
+        // Telehealth button removed - only available in doctor flow
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -68,6 +61,34 @@ class PatientRecordScreen extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+            const SizedBox(height: 32),
+
+            // Important Notice for Patients
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFeff6ff),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFbfdbfe)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Color(0xFF0284c7), size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This is a read-only view. Clinical actions (prescription, lab orders, admission) are available only after doctor consultation.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: const Color(0xFF0369a1),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 32),
 
@@ -110,28 +131,7 @@ class PatientRecordScreen extends StatelessWidget {
           ],
         ),
       ),
-      // Floating AI Action
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => VoiceNoteScreen(
-                patientName: patientName,
-                patientId: appointment?.patientId,
-                doctorId: appointment?.doctorId ?? fallbackDoctorId,
-                appointmentId: appointment?.id.startsWith('demo-') == true
-                    ? null
-                    : appointment?.id,
-              ),
-            ),
-          );
-        },
-        backgroundColor: const Color(0xFF0284c7),
-        icon: const Icon(Icons.mic, color: Colors.white),
-        label: const Text('AI VOICE NOTE',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-      ),
+      // Floating AI Action button REMOVED - Doctor feature only
     );
   }
 
