@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
-import 'dashboard_screen.dart';
+import 'role_dashboard_router.dart';
 import 'patient_dashboard_screen.dart';
 
 // Provider to fetch tenants from the database
@@ -59,7 +59,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const DashboardScreen()),
+            MaterialPageRoute(builder: (context) => const RoleDashboardRouter()),
           );
         }
       }
@@ -212,7 +212,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         width: 20,
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2))
-                    : const Text('SIGN IN AS DOCTOR',
+                    : const Text('STAFF SIGN IN',
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 16)),
               ),

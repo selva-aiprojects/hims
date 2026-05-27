@@ -162,6 +162,74 @@ class ApiService {
   Future<Response> getPublicTenants() async {
     return _dio.get('/nexus/tenants/public');
   }
+
+  // === Pharmacist Endpoints ===
+  Future<Response> getPrescriptions() async {
+    return _dio.get('/hospital/pharmacy/prescriptions');
+  }
+
+  Future<Response> getPrescriptionItems(String prescriptionId) async {
+    return _dio.get('/hospital/pharmacy/prescriptions/$prescriptionId/items');
+  }
+
+  Future<Response> dispensePrescription(Map<String, dynamic> data) async {
+    return _dio.post('/hospital/pharmacy/dispense', data: data);
+  }
+
+  Future<Response> getPharmacyInventory() async {
+    return _dio.get('/hospital/pharmacy/inventory');
+  }
+
+  // === Lab Assistant Endpoints ===
+  Future<Response> getLabOrders() async {
+    return _dio.get('/hospital/lab/orders');
+  }
+
+  Future<Response> updateLabOrderStatus(String orderId, String status) async {
+    return _dio.put('/hospital/lab/orders/$orderId/status', data: {'status': status});
+  }
+
+  Future<Response> submitLabResults(String orderId, Map<String, dynamic> results, String technicianNote) async {
+    return _dio.post('/hospital/lab/orders/$orderId/results', data: {
+      'results': results,
+      'technicianNote': technicianNote,
+    });
+  }
+
+  Future<Response> publishLabResults(String orderId) async {
+    return _dio.post('/hospital/lab/orders/$orderId/publish');
+  }
+
+  // === Admin & Billing Endpoints ===
+  Future<Response> getBillingQueue(String patientId) async {
+    return _dio.get('/billing/queue/$patientId');
+  }
+
+  Future<Response> finalizeInvoice(Map<String, dynamic> invoiceData) async {
+    return _dio.post('/billing', data: invoiceData);
+  }
+
+  Future<Response> getBillingHistory() async {
+    return _dio.get('/billing/history');
+  }
+
+  // === IPD Admissions Endpoints ===
+  Future<Response> getIpdAdmissions() async {
+    return _dio.get('/hospital/ipd/admissions');
+  }
+
+  Future<Response> getIpdAdmissionDetails(String admissionId) async {
+    return _dio.get('/hospital/ipd/admissions/$admissionId');
+  }
+
+  Future<Response> postIpdServiceCharges(String admissionId, Map<String, dynamic> data) async {
+    return _dio.post('/hospital/ipd/admissions/$admissionId/service-charges', data: data);
+  }
+
+  Future<Response> dischargeIpdPatient(String admissionId, Map<String, dynamic> data) async {
+    return _dio.post('/hospital/ipd/admissions/$admissionId/discharge', data: data);
+  }
 }
 
 final apiServiceProvider = Provider((ref) => ApiService());
+

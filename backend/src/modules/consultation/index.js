@@ -141,9 +141,14 @@ router.post("/", async (req, res, next) => {
         const dosage = escapeSqlString(p.dosage);
         const frequency = escapeSqlString(p.frequency);
         const duration = escapeSqlString(p.duration);
+
+        // Resolve medicine_id from medicines table
+        const med = await req.prisma.$queryRawUnsafe(`SELECT id FROM "${req.schemaName}".medicines WHERE name ILIKE '%${drug}%' LIMIT 1`);
+        const medicineId = med[0]?.id || null;
+
         await req.prisma.$executeRawUnsafe(`
-          INSERT INTO "${req.schemaName}".prescription_items (prescription_id, drug_name, dosage, frequency, duration)
-          VALUES ('${createdPrescriptionId}', '${drug}', '${dosage}', '${frequency}', '${duration}')
+          INSERT INTO "${req.schemaName}".prescription_items (prescription_id, medicine_id, drug_name, dosage, frequency, duration)
+          VALUES ('${createdPrescriptionId}', ${medicineId ? `'${medicineId}'` : 'NULL'}, '${drug}', '${dosage}', '${frequency}', '${duration}')
         `);
       }
     }
