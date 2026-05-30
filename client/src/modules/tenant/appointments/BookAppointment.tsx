@@ -67,9 +67,10 @@ export default function BookAppointment() {
         if (!foundPatient) {
           foundPatient = await fetchPatientById(preselectedPatientId);
           if (foundPatient) {
+            const newPat = foundPatient;
             setPatients((prev) => {
-              if (prev.some((p) => p.id === foundPatient.id)) return prev;
-              return [...prev, foundPatient];
+              if (prev.some((p) => p.id === newPat.id)) return prev;
+              return [...prev, newPat];
             });
           }
         }

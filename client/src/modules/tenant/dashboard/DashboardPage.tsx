@@ -71,7 +71,6 @@ export default function DashboardPage() {
     const [count, setCount] = useState(0);
     useEffect(() => {
       if (target === 0) { setCount(0); return; }
-      let start = 0;
       const startTime = performance.now();
       let animationFrameId: number;
       const step = (timestamp: number) => {

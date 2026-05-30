@@ -52,6 +52,13 @@ export default function LabManagementPage() {
     try {
       const res = await axios.get(`${API_BASE}/api/hospital/lab/orders`, { headers });
       setOrders(res.data);
+      // Auto-update activeOrder details if open
+      if (activeOrder) {
+        const freshOrder = res.data.find((o: any) => o.id === activeOrder.id);
+        if (freshOrder) {
+          setActiveOrder(freshOrder);
+        }
+      }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -182,7 +189,7 @@ export default function LabManagementPage() {
       <div className="dashboard-layout print-document">
         <style>{`
           @media print {
-            .no-print, sidebar, header, nav, button, .wizard-back-btn, .dashboard-layout > div:first-child {
+            .no-print, .wizard-step-content, .flex-responsive, sidebar, header, nav, button, .wizard-back-btn, .dashboard-layout > div:first-child {
               display: none !important;
             }
             .print-only {
@@ -266,12 +273,79 @@ export default function LabManagementPage() {
           {/* Wizard Content */}
           <div style={{ maxWidth: '900px', margin: '0 auto' }}>
             
-            {/* Print Only Header */}
-            <div className="print-only" style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #000', paddingBottom: '15px' }}>
-              <h1 style={{ margin: '0 0 5px 0', fontSize: '28px' }}>LABORATORY REPORT</h1>
-              <p style={{ margin: '0', fontSize: '14px' }}>Date: {new Date().toLocaleDateString()}</p>
-              <p style={{ margin: '5px 0 0 0', fontWeight: 'bold' }}>Patient: {activeOrder.patient_name} (MRN: {activeOrder.mrn || 'N/A'})</p>
-              <p style={{ margin: '2px 0 0 0' }}>Investigation: {activeOrder.test_name}</p>
+            {/* Print Only Lab Report */}
+            <div className="print-only" style={{ fontFamily: 'Inter, sans-serif', padding: '20px', color: '#000' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #0f172a', paddingBottom: '15px', marginBottom: '25px' }}>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800 }}>HEALTHEZEE DIAGNOSTICS</h1>
+                  <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#475569' }}>Standard Clinical Laboratories & Research Center</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#3b82f6' }}>DIAGNOSTIC REPORT</h2>
+                  <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#475569' }}>Order ID: #{activeOrder?.id?.substring(0,8).toUpperCase()}</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px', background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '10px', color: '#64748b', fontWeight: 800 }}>PATIENT INFORMATION</p>
+                  <p style={{ margin: 0, fontSize: '15px', fontWeight: 800 }}>{activeOrder?.patient_name}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#334155' }}>MRN: {activeOrder?.mrn || 'N/A'} | {activeOrder?.gender} | {activeOrder?.age} Years</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: '0 0 4px', fontSize: '10px', color: '#64748b', fontWeight: 800 }}>ORDER DETAILS</p>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700 }}>Prescribed By: Dr. {activeOrder?.doctor_name || 'System'}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#334155' }}>Ordered Date: {activeOrder?.created_at ? new Date(activeOrder.created_at).toLocaleDateString() : 'N/A'}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', fontWeight: 800, color: activeOrder?.is_paid ? '#16a34a' : '#d97706' }}>
+                    Payment Status: {activeOrder?.is_paid ? 'PAID' : 'PAYMENT PENDING'}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+                  Investigation: {activeOrder?.test_name}
+                </h3>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '25px' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                    <th style={{ padding: '10px', textAlign: 'left', fontSize: '11px', fontWeight: 800 }}>TEST PARAMETER</th>
+                    <th style={{ padding: '10px', textAlign: 'right', fontSize: '11px', fontWeight: 800 }}>OBSERVED VALUE</th>
+                    <th style={{ padding: '10px', textAlign: 'right', fontSize: '11px', fontWeight: 800 }}>NORMAL RANGE</th>
+                    <th style={{ padding: '10px', textAlign: 'right', fontSize: '11px', fontWeight: 800 }}>UNIT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {testResults?.map((r, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px', fontSize: '12px', fontWeight: 700 }}>{r.param || 'N/A'}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>{r.value || 'N/A'}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontSize: '12px', color: '#475569' }}>{r.normalRange || 'N/A'}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', fontSize: '12px', color: '#64748b' }}>{r.unit || 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {technicianNote && (
+                <div style={{ marginBottom: '30px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <p style={{ margin: '0 0 4px', fontSize: '10px', fontWeight: 800, color: '#64748b' }}>TECHNICIAN REMARKS</p>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#334155', fontStyle: 'italic' }}>{technicianNote}</p>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '50px', paddingTop: '15px', borderTop: '1px dashed #cbd5e1' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: 700 }}>Prepared By</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>Lab Technician</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: 700 }}>Authorized Signatory</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '10px', color: '#64748b' }}>Pathologist</p>
+                </div>
+              </div>
             </div>
 
             <div className="printable-content" style={{ background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.05)' }}>
@@ -305,10 +379,11 @@ export default function LabManagementPage() {
                   </div>
 
                   <div style={{ marginTop: '32px', display: 'flex', justifyContent: 'center' }}>
-                     {!activeOrder.is_paid ? (
+                      {!activeOrder.is_paid ? (
                         <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '16px', border: '1px solid #fef3c7', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
                            <AlertCircle size={20} color="#f59e0b" />
                            <div style={{ fontSize: '13px', fontWeight: 700, color: '#92400e' }}>Awaiting Payment Collection.</div>
+                           <button onClick={fetchOrders} style={{ padding: '8px 16px', background: 'white', border: '1px solid #d97706', borderRadius: '12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#d97706' }}>Check Status</button>
                            {((localStorage.getItem("role") || "").toLowerCase() !== "doctor") && (
                               <button onClick={() => navigate('/billing', { state: { labOrderId: activeOrder.id } })} className="button-primary" style={{ background: '#f59e0b', padding: '8px 16px' }}>Go to Billing</button>
                            )}

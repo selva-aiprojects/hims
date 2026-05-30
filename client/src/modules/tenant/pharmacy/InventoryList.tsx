@@ -9,6 +9,10 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
   const [inventory, setInventory] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [newItem, setNewItem] = useState({ name: '', category: 'Antibiotic', quantity: '', price: '', expiryDate: '', uom: 'Tablet', batchNumber: '' });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     fetchInventory();
@@ -49,6 +53,62 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
       alert("Failed to add stock item");
     }
   };
+
+  const handleEditStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+    const headers = { 
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      "x-tenant-id": localStorage.getItem("tenant") || ""
+    };
+    try {
+      const data = {
+        name: editingItem.name,
+        category: editingItem.category,
+        stock_quantity: parseInt(editingItem.stock_quantity),
+        unit_price: parseFloat(editingItem.unit_price),
+        expiry_date: editingItem.expiry_date ? editingItem.expiry_date.split('T')[0] : null,
+        uom: editingItem.uom,
+        batch_number: editingItem.batch_number
+      };
+      await axios.put(`${API_BASE}/api/hospital/masters/medicines/${editingItem.id}`, data, { headers });
+      setShowEditModal(false);
+      setEditingItem(null);
+      fetchInventory();
+      alert("Medicine updated successfully!");
+    } catch (err) {
+      alert("Failed to update stock item");
+    }
+  };
+
+  // Filter inventory
+  const filteredInventory = inventory.filter(item => {
+    const name = (item.name || item.drug_name || "").toLowerCase();
+    const query = searchTerm.toLowerCase();
+    const matchesSearch = name.includes(query);
+
+    if (selectedCategory === "All Categories") return matchesSearch;
+
+    const uom = (item.uom || "").toLowerCase();
+    const category = (item.category || "").toLowerCase();
+
+    if (selectedCategory === "Tablets") {
+      const tabletTerms = ['tablet', 'strip', 'capsule'];
+      const matchesCategory = tabletTerms.some(term => uom.includes(term) || category.includes(term));
+      return matchesSearch && matchesCategory;
+    }
+    if (selectedCategory === "Syrups") {
+      const syrupTerms = ['syrup', 'bottle'];
+      const matchesCategory = syrupTerms.some(term => uom.includes(term) || category.includes(term));
+      return matchesSearch && matchesCategory;
+    }
+    if (selectedCategory === "Injectables") {
+      const injectionTerms = ['vial', 'injection', 'injectable'];
+      const matchesCategory = injectionTerms.some(term => uom.includes(term) || category.includes(term));
+      return matchesSearch && matchesCategory;
+    }
+    return matchesSearch;
+  });
 
   return (
     <div className={embedded ? "" : "dashboard-layout"} style={{ display: 'flex', minHeight: embedded ? 'auto' : '100vh', background: '#f8fafc' }}>
@@ -193,14 +253,74 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
           </div>
         )}
 
+        {showEditModal && editingItem && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '450px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+              <h2 style={{ margin: '0 0 24px', fontWeight: 900, color: '#0f172a' }}>Edit Medicine Details</h2>
+              <form onSubmit={handleEditStock} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Medicine Name</label>
+                  <input required value={editingItem.name || editingItem.drug_name || ""} placeholder="e.g. Amoxicillin 500mg" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, name: e.target.value})} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Category</label>
+                    <select value={editingItem.category || "Antibiotic"} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, category: e.target.value})}>
+                      <option value="Antibiotic">Antibiotic</option>
+                      <option value="Analgesic">Analgesic</option>
+                      <option value="Antidiabetic">Antidiabetic</option>
+                      <option value="Antihypertensive">Antihypertensive</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Stock Quantity</label>
+                    <input required type="number" value={editingItem.stock_quantity || 0} placeholder="100" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, stock_quantity: e.target.value})} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>UOM</label>
+                    <select value={editingItem.uom || "Tablet"} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, uom: e.target.value})}>
+                      <option value="Tablet">Tablet</option>
+                      <option value="Capsule">Capsule</option>
+                      <option value="Strip">Strip</option>
+                      <option value="Vial">Vial</option>
+                      <option value="Bottle">Bottle</option>
+                      <option value="Syrup">Syrup</option>
+                      <option value="Ointment">Ointment</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Batch Number</label>
+                    <input required value={editingItem.batch_number || ""} placeholder="BCH-001" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, batch_number: e.target.value})} />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Price / Unit (₹)</label>
+                    <input required type="number" step="0.01" value={editingItem.unit_price || 0} placeholder="0.00" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, unit_price: e.target.value})} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 700, color: '#64748b' }}>Expiry Date</label>
+                    <input required type="date" value={editingItem.expiry_date ? editingItem.expiry_date.split('T')[0] : ""} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setEditingItem({...editingItem, expiry_date: e.target.value})} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+                  <button type="button" onClick={() => { setShowEditModal(false); setEditingItem(null); }} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                  <button type="submit" style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         <div style={{ background: 'white', borderRadius: '28px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
           <div style={{ padding: '24px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '16px' }}>
-             <input placeholder="Search medicine..." style={{ flex: 1, padding: '12px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }} />
-             <select style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}>
-                <option>All Categories</option>
-                <option>Tablets</option>
-                <option>Syrups</option>
-                <option>Injectables</option>
+             <input placeholder="Search medicine..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ flex: 1, padding: '12px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }} />
+             <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '14px' }}>
+                <option value="All Categories">All Categories</option>
+                <option value="Tablets">Tablets</option>
+                <option value="Syrups">Syrups</option>
+                <option value="Injectables">Injectables</option>
              </select>
           </div>
           
@@ -218,7 +338,7 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
               </tr>
             </thead>
             <tbody>
-              {inventory.map((item, i) => (
+              {filteredInventory.map((item, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }}>
                   <td style={{ padding: '20px 24px' }}>
                     <div style={{ fontWeight: 800, color: '#0f172a' }}>{item.name || item.drug_name}</div>
@@ -246,7 +366,15 @@ export default function InventoryList({ embedded = false }: { embedded?: boolean
                   <td style={{ padding: '20px 24px', fontWeight: 800 }}>₹{Number(item.unit_price).toFixed(2)}</td>
                   <td style={{ padding: '20px 24px', color: '#64748b', fontSize: '13px' }}>{new Date(item.expiry_date).toLocaleDateString()}</td>
                   <td style={{ padding: '20px 24px', textAlign: 'right' }}>
-                     <button style={{ padding: '8px 16px', background: 'none', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}>Edit</button>
+                     <button 
+                       onClick={() => {
+                         setEditingItem(item);
+                         setShowEditModal(true);
+                       }}
+                       style={{ padding: '8px 16px', background: 'none', border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, color: '#64748b', cursor: 'pointer' }}
+                     >
+                       Edit
+                     </button>
                   </td>
                 </tr>
               ))}

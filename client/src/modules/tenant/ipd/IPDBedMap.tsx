@@ -73,7 +73,7 @@ export default function IPDBedMap() {
     setSelectedBed(bed);
     setAdmitForm(f => ({ 
       ...f, 
-      bedId: bed.bed_id, 
+      bedId: bed.id, 
       wardId: activeWard.id,
       dailyCharge: String(activeWard.base_charge || "0")
     }));

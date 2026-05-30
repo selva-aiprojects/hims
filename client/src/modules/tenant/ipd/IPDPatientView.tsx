@@ -133,7 +133,7 @@ export default function IPDPatientView() {
       showToast("Lab orders placed successfully.", "success");
       setShowLabModal(false);
       setSelectedTests([]);
-    } catch (err) {
+    } catch (err: any) {
       const message = err?.response?.data?.error || err?.message || "Failed to place lab order.";
       showToast(message, "error");
     } finally { setIsOrdering(false); }

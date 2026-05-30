@@ -203,17 +203,7 @@ export default function DoctorAvailabilityPage() {
 
 
 
-  const getWeekDates = () => {
-    const dates = [];
-    const start = new Date(currentDate);
-    start.setDate(start.getDate() - start.getDay());
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      dates.push(d);
-    }
-    return dates;
-  };
+  // getWeekDates unused helper removed
 
   const weekDates = useMemo(() => {
     const dates: Date[] = [];
@@ -487,7 +477,7 @@ export default function DoctorAvailabilityPage() {
                                                    window.location.href = `/tenant/appointments/book?doctorId=${selectedDoctor.id}&date=${dateStr}&time=${slotRow.time}`;
                                                  } else {
                                                    setSelectedDate(date);
-                                                   setSelectedTime(time);
+                                                   setSelectedTime(slotRow.time);
                                                    setSelectedSlotState(state);
                                                    setShowActionDrawer(true);
                                                  }
@@ -791,7 +781,7 @@ const SlotActionDrawer = ({ open, onClose, date, time, state, doctor, onSuccess,
                         <button 
                           onClick={() => {
                             const dateStr = toLocalDateKey(date);
-                            window.location.href = `/tenant/appointments/book?doctorId=${doctor.id}&date=${dateStr}&time=${slotRow.time}`;
+                            window.location.href = `/tenant/appointments/book?doctorId=${doctor.id}&date=${dateStr}&time=${time}`;
                           }}
                           style={{
                             ...primaryBtnStyle,

@@ -302,6 +302,7 @@ class _AdminBillingDashboardScreenState extends ConsumerState<AdminBillingDashbo
                 : patientList.isEmpty
                     ? const Center(child: Text('No matching patients found', style: TextStyle(color: Color(0xFF64748B))))
                     : ListView.builder(
+                        padding: EdgeInsets.only(bottom: 80 + MediaQuery.of(context).padding.bottom),
                         itemCount: patientList.length,
                         itemBuilder: (context, index) {
                           final p = patientList[index];
@@ -478,6 +479,7 @@ class _AdminBillingDashboardScreenState extends ConsumerState<AdminBillingDashbo
             }),
             const SizedBox(height: 16),
             _buildConsolidatedCheckoutPanel(),
+            SizedBox(height: 80 + MediaQuery.of(context).padding.bottom),
           ]
         ],
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/appointment.dart';
 import '../services/api_service.dart';
@@ -10,12 +11,14 @@ class PatientRecordScreen extends ConsumerStatefulWidget {
   final Appointment? appointment;
   final String patientName;
   final String? fallbackDoctorId;
+  final bool? isPatientView;
 
   PatientRecordScreen({
     super.key,
     this.appointment,
     String? patientName,
     this.fallbackDoctorId,
+    this.isPatientView,
   }) : patientName = patientName ?? appointment?.patientName ?? 'Patient';
 
   @override
@@ -27,6 +30,8 @@ class _PatientRecordScreenState extends ConsumerState<PatientRecordScreen> {
   String? _error;
   dynamic _patientDetails;
   List<dynamic> _timeline = [];
+  bool _isPatient = false;
+  String? _activeEncounterId;
 
   // Vitals State
   String _bp = '120/80';
@@ -38,7 +43,22 @@ class _PatientRecordScreenState extends ConsumerState<PatientRecordScreen> {
   @override
   void initState() {
     super.initState();
-    _loadPatientData();
+    _checkRoleAndData();
+  }
+
+  Future<void> _checkRoleAndData() async {
+    if (widget.isPatientView != null) {
+      _isPatient = widget.isPatientView!;
+    } else {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final role = prefs.getString('user_role')?.toLowerCase();
+        _isPatient = role == null || role.contains('patient');
+      } catch (e) {
+        _isPatient = true;
+      }
+    }
+    await _loadPatientData();
   }
 
   Future<void> _loadPatientData() async {
@@ -105,11 +125,15 @@ class _PatientRecordScreenState extends ConsumerState<PatientRecordScreen> {
   }
 
   void _extractLatestVitals(List<dynamic> timelineItems) {
+    _activeEncounterId = null;
     for (final item in timelineItems) {
       if (item['type'] == 'OPD Consultation' && item['details'] != null) {
         final details = item['details'];
+        if (details['status'] == 'Active' && _activeEncounterId == null) {
+          _activeEncounterId = item['id']?.toString();
+        }
         final vitals = details['vitals'];
-        if (vitals != null && vitals is Map) {
+        if (vitals != null && vitals is Map && !_hasCustomVitals) {
           setState(() {
             _bp = vitals['bp']?.toString() ?? '120/80';
             final tempVal = vitals['temp'] ?? vitals['temperature'];
@@ -119,7 +143,6 @@ class _PatientRecordScreenState extends ConsumerState<PatientRecordScreen> {
             _spo2 = vitals['spo2']?.toString() ?? '98';
             _hasCustomVitals = true;
           });
-          break; // Stop at the most recent one
         }
       }
     }
@@ -467,29 +490,32 @@ class _PatientRecordScreenState extends ConsumerState<PatientRecordScreen> {
               ),
             ),
       // Floating AI Action
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => VoiceNoteScreen(
-                patientName: pName,
-                patientId: widget.appointment?.patientId ?? _patientDetails?['id']?.toString(),
-                doctorId: widget.appointment?.doctorId ?? widget.fallbackDoctorId,
-                appointmentId: widget.appointment?.id.startsWith('demo-') == true
-                    ? null
-                    : widget.appointment?.id,
+      floatingActionButton: _isPatient
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => VoiceNoteScreen(
+                      patientName: pName,
+                      patientId: widget.appointment?.patientId ?? _patientDetails?['id']?.toString(),
+                      doctorId: widget.appointment?.doctorId ?? widget.fallbackDoctorId,
+                      appointmentId: widget.appointment?.id.startsWith('demo-') == true
+                          ? null
+                          : widget.appointment?.id,
+                      encounterId: _activeEncounterId,
+                    ),
+                  ),
+                );
+              },
+              backgroundColor: const Color(0xFF0284c7),
+              icon: const Icon(Icons.mic, color: Colors.white),
+              label: const Text(
+                'AI VOICE NOTE',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
-          );
-        },
-        backgroundColor: const Color(0xFF0284c7),
-        icon: const Icon(Icons.mic, color: Colors.white),
-        label: const Text(
-          'AI VOICE NOTE',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
     );
   }
 

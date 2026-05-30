@@ -77,7 +77,7 @@ class _RoleDashboardRouterState extends State<RoleDashboardRouter> {
           dashboardBody,
           // Floating Role Switcher button for developer testing convenience
           Positioned(
-            bottom: 16,
+            bottom: 16 + MediaQuery.of(context).padding.bottom,
             right: 16,
             child: Material(
               elevation: 6,

@@ -742,6 +742,66 @@ masterTables.forEach(({ path, table }) => {
       res.status(201).json(results);
     } catch (error) { next(error); }
   });
+
+  router.put(`/masters/${path}/:id`, async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      await ensureTableColumns(req, table);
+      
+      const tableFields = {
+        departments: ['name', 'description', 'hod', 'specialty', 'status'],
+        specialities: ['name', 'description', 'base_consultation_fee'],
+        consultation_modes: ['name', 'surcharge_percent', 'is_virtual'],
+        diseases: ['name', 'category', 'icd_code', 'severity_level'],
+        treatments: ['name', 'category', 'price', 'description', 'cpt_code', 'estimated_duration'],
+        diagnostics: ['name', 'price', 'category'],
+        medicines: ['name', 'category', 'composition', 'dosage_adult', 'dosage_pediatric', 'instructions', 'unit_price', 'stock_quantity', 'uom', 'batch_number', 'expiry_date'],
+        services: ['name', 'category', 'service_code', 'price', 'tax_percent'],
+        wards: ['name', 'type', 'capacity', 'floor', 'base_charge'],
+        suppliers: ['name', 'contact_person', 'email', 'phone', 'address']
+      };
+
+      const allowed = tableFields[table] || ['name', 'description', 'category', 'price'];
+      const fields = Object.keys(req.body).filter(f => allowed.includes(f) || (f === 'fee' && allowed.includes('base_consultation_fee')));
+
+      if (fields.length === 0) return res.status(400).json({ error: "No valid fields provided for this master type." });
+
+      const updates = fields.map(f => {
+        const dbField = f === 'fee' ? 'base_consultation_fee' : f;
+        let val = req.body[f];
+        
+        // Date normalization
+        if (dbField.includes('date') && typeof val === 'string' && val) {
+          if (val.includes('-') && val.split('-')[0].length === 2) {
+            const parts = val.split('-');
+            val = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          } else if (val.includes('/') && val.split('/')[0].length === 2) {
+            const parts = val.split('/');
+            val = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          }
+        }
+
+        if (val === undefined || val === null || val === '') {
+          return `"${dbField}" = NULL`;
+        }
+        if (typeof val === 'number') {
+          if (isNaN(val)) return `"${dbField}" = 0`;
+          return `"${dbField}" = ${val}`;
+        }
+        return `"${dbField}" = '${val.toString().replace(/'/g, "''")}'`;
+      });
+
+      const query = `UPDATE "${req.schemaName}"."${table}" SET ${updates.join(', ')} WHERE id = '${id.replace(/'/g, "''")}' RETURNING *`;
+      const result = await req.prisma.$queryRawUnsafe(query);
+      if (result.length === 0) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      res.json(result[0]);
+    } catch (error) {
+      console.error(`[MASTERS_PUT_ERROR] ${table}:`, error.message);
+      next(error);
+    }
+  });
 });
 
 router.get("/staff", async (req, res, next) => {

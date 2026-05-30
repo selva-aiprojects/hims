@@ -128,6 +128,14 @@ class ApiService {
     return _dio.post('/consultations', data: encounterData);
   }
 
+  Future<Response> createActiveEncounter(Map<String, dynamic> encounterData) async {
+    return _dio.post('/hospital/encounters', data: encounterData);
+  }
+
+  Future<Response> updateEncounter(String encounterId, Map<String, dynamic> encounterData) async {
+    return _dio.put('/hospital/encounters/$encounterId', data: encounterData);
+  }
+
   Future<Response> createPrescription(String encounterId, List<Map<String, dynamic>> items) async {
     return _dio.post('/hospital/encounters/$encounterId/prescriptions', data: { 'items': items });
   }

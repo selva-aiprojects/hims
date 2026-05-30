@@ -83,9 +83,8 @@ class AdmissionValidator {
         if (ward.gender_restriction !== 'Any' && ward.gender_restriction !== patient.gender) {
           return false;
         }
-      }
-      
-      return true;
+        
+        return true;
       })
       .sort((a, b) => {
         // Priority order: ICU > Special Care > Regular > Emergency > Daycare

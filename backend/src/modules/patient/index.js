@@ -188,7 +188,8 @@ router.get("/:id/timeline", async (req, res, next) => {
         details: {
           diagnosis: e.diagnosis,
           vitals: e.vitals,
-          notes: e.notes
+          notes: e.notes,
+          status: e.status
         }
       });
     });

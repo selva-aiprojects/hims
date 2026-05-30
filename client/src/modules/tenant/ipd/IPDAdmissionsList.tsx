@@ -28,7 +28,10 @@ export default function IPDAdmissionsList() {
   }, []);
 
   const daysSince = (date: string) => {
-    return Math.floor((Date.now() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+    if (!date) return 1;
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 1;
+    return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
   };
 
   return (
@@ -77,7 +80,7 @@ export default function IPDAdmissionsList() {
                 </tr>
               ) : admissions.map((a, i) => {
                 const los = daysSince(a.admitted_at) || 1;
-                const accrued = los * Number(a.daily_charge);
+                const accrued = los * Number(a.daily_charge || 0);
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '20px 24px' }}>
@@ -89,7 +92,10 @@ export default function IPDAdmissionsList() {
                       <div style={{ fontSize: '12px', color: '#64748b' }}>Bed: <strong>{a.bed_number}</strong></div>
                     </td>
                     <td style={{ padding: '20px 24px', fontSize: '13px', color: '#64748b' }}>
-                      {new Date(a.admitted_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {a.admitted_at ? (() => {
+                        const d = new Date(a.admitted_at);
+                        return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                      })() : 'N/A'}
                     </td>
                     <td style={{ padding: '20px 24px' }}>
                       <span style={{ fontWeight: 900, color: los > 7 ? '#ef4444' : '#f59e0b', background: los > 7 ? '#fee2e2' : '#fffbeb', padding: '4px 10px', borderRadius: '8px', fontSize: '13px' }}>

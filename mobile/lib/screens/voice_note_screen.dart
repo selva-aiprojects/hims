@@ -13,6 +13,7 @@ class VoiceNoteScreen extends StatefulWidget {
   final String? patientId;
   final String? doctorId;
   final String? appointmentId;
+  final String? encounterId;
 
   const VoiceNoteScreen({
     super.key,
@@ -20,6 +21,7 @@ class VoiceNoteScreen extends StatefulWidget {
     this.patientId,
     this.doctorId,
     this.appointmentId,
+    this.encounterId,
   });
 
   @override
@@ -41,6 +43,7 @@ class _VoiceNoteScreenState extends State<VoiceNoteScreen> {
   void initState() {
     super.initState();
     _initializeSpeech();
+    _currentEncounterId = widget.encounterId;
   }
 
   @override
@@ -214,16 +217,24 @@ Plan:
         });
       } else {
         // Authenticated flow (doctor / user)
-        final response = await api.createEncounter({
-          'patientId': patientId,
-          'doctorId': doctorId,
-          'diagnosis': '',
-          'notes': note,
-          'vitals': null,
-          'complaints': [transcript],
-          'prescriptions': const <Map<String, dynamic>>[],
-        });
-        _currentEncounterId = response.data['encounterId']?.toString();
+        if (_currentEncounterId != null) {
+          await api.updateEncounter(_currentEncounterId!, {
+            'status': 'Completed',
+            'notes': note,
+            'diagnosis': 'Clinical review completed',
+          });
+        } else {
+          final response = await api.createEncounter({
+            'patientId': patientId,
+            'doctorId': doctorId,
+            'diagnosis': '',
+            'notes': note,
+            'vitals': null,
+            'complaints': [transcript],
+            'prescriptions': const <Map<String, dynamic>>[],
+          });
+          _currentEncounterId = response.data['encounterId']?.toString();
+        }
       }
 
       if (widget.appointmentId != null && widget.appointmentId!.isNotEmpty) {

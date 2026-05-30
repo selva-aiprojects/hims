@@ -244,21 +244,25 @@ class _PatientAppointmentScreenState
       final apptData = apptRes.data;
       final apptId = apptData is Map ? apptData['id']?.toString() : '';
 
-      await api.createEncounter({
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('patient_id', patientId);
+      await prefs.setString('patient_name', name);
+      await prefs.setString('patient_phone', phone);
+
+      await api.createActiveEncounter({
         'patientId': patientId,
         'doctorId': _selectedDoctorId,
-        'diagnosis': '',
-        'notes': 'Patient self-registered and booked appointment via mobile.',
+        'type': 'OPD',
         'vitals': {
           'bp': bp,
-          'pulse': 0,
-          'temp': double.tryParse(temp) ?? 0,
-          'weight': double.tryParse(weight) ?? 0,
+          'pulse': 72,
+          'heartRate': 72,
+          'temp': double.tryParse(temp) ?? 98.6,
+          'weight': double.tryParse(weight) ?? 70.0,
         },
         'complaints': _complaintController.text.trim().isEmpty
-            ? <String>[]
-            : [_complaintController.text.trim()],
-        'prescriptions': const <Map<String, dynamic>>[],
+            ? 'Urgent consultation request'
+            : _complaintController.text.trim(),
       });
 
       if (!mounted) return;
