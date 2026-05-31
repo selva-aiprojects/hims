@@ -52,6 +52,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         await prefs.setString('tenant_id', data['tenantId']);
         await prefs.setString('user_role', data['role'] ?? 'doctor');
         await prefs.setString('user_name', data['userName'] ?? 'User');
+        await prefs.setBool('is_manager', data['isManager'] == true);
         if (data['userId'] != null) {
           await prefs.setString('user_id', data['userId'].toString());
         }

@@ -173,7 +173,8 @@ app.get("/api/nexus/fix-system-menus", async (req, res) => {
         { label: 'Ticketing Management System', path: '/tenant/support', icon: 'Receipt', sort: 16, plan: 'basic' },
         { label: 'AI Lab Assistant', path: '/tenant/lab/ai', icon: 'Lab', sort: 9, plan: 'professional' },
         { label: 'Consultation Desk', path: '/tenant/opd/consultation', icon: 'Doctor', sort: 5, plan: 'basic' },
-        { label: 'Staff & RBAC', path: '/tenant/staff', icon: 'Settings', sort: 20, plan: 'basic' }
+        { label: 'Staff & RBAC', path: '/tenant/staff', icon: 'Settings', sort: 20, plan: 'basic' },
+        { label: 'Recruitment Hub', path: '/tenant/recruitment', icon: 'Users', sort: 21, plan: 'basic' }
       ];
 
       for (const menu of menusToAdd) {

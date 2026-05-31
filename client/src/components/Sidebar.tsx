@@ -39,7 +39,8 @@ const Icons: Record<string, any> = {
   Calendar: Calendar,
   "Clinical Intelligence": TrendingUp,
   "Patient Register": ClipboardList,
-  "Branding Settings": Palette
+  "Branding Settings": Palette,
+  "Recruitment Hub": Users
 };
 
 const normalizePath = (label: string, originalPath: string) => {
@@ -73,7 +74,9 @@ const normalizePath = (label: string, originalPath: string) => {
     "support & tickets": "/tenant/support",
     "ticketing management system": "/tenant/support/tickets",
     "branding settings": "/tenant/settings",
-    "branding & ui settings": "/tenant/settings"
+    "branding & ui settings": "/tenant/settings",
+    "recruitment": "/tenant/recruitment",
+    "recruitment hub": "/tenant/recruitment"
   };
   return overrides[l] || originalPath;
 };
@@ -135,7 +138,8 @@ const normalizeLabel = (label: string) => {
     "mail management": "Mail & Communications",
     "ticketing management system": "Support & Tickets",
     "help & support": "Support & Tickets",
-    "patient register": "Patient Register"
+    "patient register": "Patient Register",
+    "recruitment hub": "Recruitment Hub"
   };
   return labelMap[l] || label;
 };
@@ -210,7 +214,7 @@ export default function Sidebar() {
       "Insurance & TPA", "Insurance Management"
     ];
     const adminFlow = [
-      "Staff & Access", "Branding Settings", "Hospital Settings", 
+      "Staff & Access", "Recruitment Hub", "Branding Settings", "Hospital Settings", 
       "Message Board", "Mail & Communications", "Support & Tickets"
     ];
 

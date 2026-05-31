@@ -24,6 +24,17 @@ CREATE TABLE tenant_settings (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+DROP TABLE IF EXISTS contractor_vendors CASCADE;
+CREATE TABLE contractor_vendors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  contact_person VARCHAR(255),
+  email VARCHAR(255),
+  phone VARCHAR(50),
+  address TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -41,6 +52,9 @@ CREATE TABLE users (
   specialization VARCHAR(100), -- For doctors (Department)
   department VARCHAR(100), -- For other staff
   is_active BOOLEAN DEFAULT TRUE,
+  employment_type VARCHAR(50) DEFAULT 'Permanent',
+  vendor_id UUID REFERENCES contractor_vendors(id),
+  is_manager BOOLEAN DEFAULT FALSE,
   -- HIPAA Compliance Fields
   privacy_level VARCHAR(20) DEFAULT 'LIMITED', -- FULL | CLINICAL | LIMITED | ADMIN_VIEW
   last_login TIMESTAMP,
@@ -1041,3 +1055,66 @@ CREATE INDEX IF NOT EXISTS idx_patient_insurance_patient ON patient_insurance (p
 
 -- doctor schedules
 CREATE INDEX IF NOT EXISTS idx_doctor_schedules_doctor  ON doctor_schedules (doctor_id);
+
+-- Recruitment & Leave Workflow Tables
+DROP TABLE IF EXISTS resource_requisitions CASCADE;
+CREATE TABLE resource_requisitions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  department VARCHAR(100),
+  number_of_positions INTEGER DEFAULT 1,
+  job_description TEXT,
+  experience_required VARCHAR(100),
+  qualifications_required VARCHAR(100),
+  status VARCHAR(50) DEFAULT 'Pending',
+  requested_by UUID REFERENCES users(id),
+  approved_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS candidates CASCADE;
+CREATE TABLE candidates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE,
+  phone VARCHAR(50),
+  experience_years INTEGER DEFAULT 0,
+  skills TEXT,
+  education TEXT,
+  resume_text TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS requisition_matches CASCADE;
+CREATE TABLE requisition_matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requisition_id UUID NOT NULL REFERENCES resource_requisitions(id) ON DELETE CASCADE,
+  candidate_id UUID NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+  match_score NUMERIC DEFAULT 0,
+  match_analysis TEXT,
+  status VARCHAR(50) DEFAULT 'Matched',
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(requisition_id, candidate_id)
+);
+
+DROP TABLE IF EXISTS employee_leaves CASCADE;
+CREATE TABLE employee_leaves (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  leave_type VARCHAR(50) DEFAULT 'CASUAL',
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  reason TEXT,
+  status VARCHAR(50) DEFAULT 'Pending',
+  approved_by UUID REFERENCES users(id),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Recruitment & Leave Indexes
+CREATE INDEX IF NOT EXISTS idx_requisitions_status ON resource_requisitions(status);
+CREATE INDEX IF NOT EXISTS idx_requisition_matches_score ON requisition_matches(match_score DESC);
+CREATE INDEX IF NOT EXISTS idx_employee_leaves_emp ON employee_leaves(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_leaves_status ON employee_leaves(status);
+

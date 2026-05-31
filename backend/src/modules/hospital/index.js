@@ -146,7 +146,20 @@ async function ensureStaffColumns(req, force = false) {
   if (staffSyncedSchemas.has(schema) && !force) return;
   
   try {
-    // 1. Column Healing (Consolidated)
+    // 1. Create contractor_vendors Table
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".contractor_vendors (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        contact_person VARCHAR(255),
+        email VARCHAR(255),
+        phone VARCHAR(50),
+        address TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 2. Column Healing for users table (including employment_type, vendor_id, and is_manager)
     await req.prisma.$executeRawUnsafe(`
       ALTER TABLE "${req.schemaName}".users 
       ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
@@ -157,7 +170,73 @@ async function ensureStaffColumns(req, force = false) {
       ADD COLUMN IF NOT EXISTS specialization VARCHAR(100),
       ADD COLUMN IF NOT EXISTS department VARCHAR(100),
       ADD COLUMN IF NOT EXISTS experience_years INTEGER DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS qualifications TEXT
+      ADD COLUMN IF NOT EXISTS qualifications TEXT,
+      ADD COLUMN IF NOT EXISTS employment_type VARCHAR(50) DEFAULT 'Permanent',
+      ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES "${req.schemaName}".contractor_vendors(id),
+      ADD COLUMN IF NOT EXISTS is_manager BOOLEAN DEFAULT false
+    `);
+
+    // 3. Create Resource Requisitions Table
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".resource_requisitions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title VARCHAR(255) NOT NULL,
+        department VARCHAR(100),
+        number_of_positions INTEGER DEFAULT 1,
+        job_description TEXT,
+        experience_required VARCHAR(100),
+        qualifications_required VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'Pending',
+        requested_by UUID REFERENCES "${req.schemaName}".users(id),
+        approved_by UUID REFERENCES "${req.schemaName}".users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 4. Create Candidates Table
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".candidates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE,
+        phone VARCHAR(50),
+        experience_years INTEGER DEFAULT 0,
+        skills TEXT,
+        education TEXT,
+        resume_text TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 5. Create Requisition Matches Table
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".requisition_matches (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        requisition_id UUID NOT NULL REFERENCES "${req.schemaName}".resource_requisitions(id) ON DELETE CASCADE,
+        candidate_id UUID NOT NULL REFERENCES "${req.schemaName}".candidates(id) ON DELETE CASCADE,
+        match_score NUMERIC DEFAULT 0,
+        match_analysis TEXT,
+        status VARCHAR(50) DEFAULT 'Matched',
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(requisition_id, candidate_id)
+      );
+    `);
+
+    // 6. Create Employee Leaves Table
+    await req.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "${req.schemaName}".employee_leaves (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        employee_id UUID NOT NULL REFERENCES "${req.schemaName}".users(id) ON DELETE CASCADE,
+        leave_type VARCHAR(50) DEFAULT 'CASUAL',
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        reason TEXT,
+        status VARCHAR(50) DEFAULT 'Pending',
+        approved_by UUID REFERENCES "${req.schemaName}".users(id),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
     `);
 
     // 2. Dynamic, Isolated Seeding
@@ -806,27 +885,35 @@ masterTables.forEach(({ path, table }) => {
 
 router.get("/staff", async (req, res, next) => {
   try {
-    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".users ORDER BY created_at DESC`);
+    await ensureStaffColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT u.*, v.name as vendor_name 
+      FROM "${req.schemaName}".users u 
+      LEFT JOIN "${req.schemaName}".contractor_vendors v ON u.vendor_id = v.id 
+      ORDER BY u.created_at DESC
+    `);
     res.json(data);
   } catch (error) { next(error); }
 });
 
 router.post("/staff", async (req, res, next) => {
   try {
-    const { name, email, password, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications } = req.body;
+    const { name, email, password, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications, employment_type, vendor_id, is_manager } = req.body;
     const id = crypto.randomUUID();
     const pwd = await bcrypt.hash(password || 'password123', 10);
     
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".users (
         id, name, email, password_hash, role, specialization, department, 
-        gender, dob, doj, license_number, experience_years, qualifications, is_active
+        gender, dob, doj, license_number, experience_years, qualifications, is_active,
+        employment_type, vendor_id, is_manager
       )
       VALUES (
         '${id}', '${s(name)}', '${s(email)}', '${pwd}', '${s(role)}', 
         ${sqlValue(specialization)}, ${sqlValue(department)}, 
         ${sqlValue(gender)}, ${sqlValue(dob)}, ${sqlValue(doj)},
-        ${sqlValue(license_number)}, ${experience_years || 0}, ${sqlValue(qualifications)}, true
+        ${sqlValue(license_number)}, ${experience_years || 0}, ${sqlValue(qualifications)}, true,
+        ${sqlValue(employment_type || 'Permanent')}, ${sqlValue(vendor_id)}, ${is_manager === true || is_manager === 'true' || false}
       )
     `);
     if (String(role || '').toLowerCase() === 'doctor') {
@@ -839,7 +926,7 @@ router.post("/staff", async (req, res, next) => {
 router.put("/staff/:id", async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, email, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications } = req.body;
+    const { name, email, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications, employment_type, vendor_id, is_manager } = req.body;
     
     await req.prisma.$executeRawUnsafe(`
       UPDATE "${req.schemaName}".users 
@@ -853,7 +940,10 @@ router.put("/staff/:id", async (req, res, next) => {
           doj = ${sqlValue(doj)},
           license_number = ${sqlValue(license_number)},
           experience_years = ${experience_years || 0},
-          qualifications = ${sqlValue(qualifications)}
+          qualifications = ${sqlValue(qualifications)},
+          employment_type = ${sqlValue(employment_type)},
+          vendor_id = ${sqlValue(vendor_id)},
+          is_manager = ${is_manager === true || is_manager === 'true' || false}
       WHERE id = '${id}'
     `);
     res.json({ success: true });
@@ -1884,6 +1974,87 @@ router.patch("/pharmacy/inwards/:id/block", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// --- PHARMACY ORDER MANAGEMENT (Replenishment) ---
+const pharmacyOrdersTableSynced = new Set();
+async function ensurePharmacyOrdersTable(req) {
+  const schema = req.schemaName;
+  if (!schema || pharmacyOrdersTableSynced.has(schema)) return;
+  await req.prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "${schema}".pharmacy_orders (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      medicine_id UUID,
+      medicine_name VARCHAR(255),
+      supplier_id UUID,
+      supplier_name VARCHAR(255),
+      quantity INTEGER NOT NULL DEFAULT 1,
+      unit_price NUMERIC(12,2) DEFAULT 0,
+      status VARCHAR(30) DEFAULT 'Ordered',
+      notes TEXT,
+      ordered_by VARCHAR(150),
+      ordered_at TIMESTAMP DEFAULT NOW(),
+      received_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  pharmacyOrdersTableSynced.add(schema);
+}
+
+router.get("/pharmacy/orders", async (req, res, next) => {
+  try {
+    await ensurePharmacyOrdersTable(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT po.*,
+             m.stock_quantity as current_stock,
+             m.composition
+      FROM "${req.schemaName}".pharmacy_orders po
+      LEFT JOIN "${req.schemaName}".medicines m ON m.id = po.medicine_id
+      ORDER BY po.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/pharmacy/orders", async (req, res, next) => {
+  try {
+    await ensurePharmacyOrdersTable(req);
+    const { medicine_id, medicine_name, supplier_id, supplier_name, quantity, unit_price, notes, ordered_by } = req.body;
+    if (!medicine_name || !quantity) return res.status(400).json({ error: 'medicine_name and quantity are required' });
+    const safeQty = parseInt(quantity) || 1;
+    const safePrice = parseFloat(unit_price) || 0;
+    const safeName = (medicine_name || '').replace(/'/g, "''");
+    const safeSupplier = (supplier_name || '').replace(/'/g, "''");
+    const safeNotes = (notes || '').replace(/'/g, "''");
+    const safeOrderedBy = (ordered_by || '').replace(/'/g, "''");
+    const midClause = medicine_id ? `'${medicine_id}'` : 'NULL';
+    const sidClause = supplier_id ? `'${supplier_id}'` : 'NULL';
+    const result = await req.prisma.$queryRawUnsafe(`
+      INSERT INTO "${req.schemaName}".pharmacy_orders
+        (medicine_id, medicine_name, supplier_id, supplier_name, quantity, unit_price, notes, ordered_by)
+      VALUES (${midClause}, '${safeName}', ${sidClause}, '${safeSupplier}', ${safeQty}, ${safePrice}, '${safeNotes}', '${safeOrderedBy}')
+      RETURNING *
+    `);
+    res.status(201).json(result[0]);
+  } catch (error) { next(error); }
+});
+
+router.patch("/pharmacy/orders/:id", async (req, res, next) => {
+  try {
+    await ensurePharmacyOrdersTable(req);
+    const { id } = req.params;
+    const { status, received_at } = req.body;
+    const allowedStatuses = ['Ordered', 'Received', 'Cancelled'];
+    if (status && !allowedStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+    const statusClause = status ? `status = '${status}'` : '';
+    const receivedClause = received_at ? `, received_at = NOW()` : '';
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".pharmacy_orders
+      SET ${statusClause}${receivedClause}
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true, message: `Order ${status || 'updated'} successfully.` });
+  } catch (error) { next(error); }
+});
+
 // --- INSURANCE & TPA MANAGEMENT ---
 router.get("/insurance/providers", async (req, res, next) => {
   try {
@@ -2008,4 +2179,361 @@ router.post("/ai/chat", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// --- CONTRACT VENDOR MANAGEMENT ---
+router.get("/staff/vendors", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".contractor_vendors ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/staff/vendors", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { name, contact_person, email, phone, address } = req.body;
+    const id = crypto.randomUUID();
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".contractor_vendors (id, name, contact_person, email, phone, address)
+      VALUES ('${id}', '${s(name)}', ${sqlValue(contact_person)}, ${sqlValue(email)}, ${sqlValue(phone)}, ${sqlValue(address)})
+    `);
+    res.status(201).json({ id, name });
+  } catch (error) { next(error); }
+});
+
+router.put("/staff/vendors/:id", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    const { name, contact_person, email, phone, address } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".contractor_vendors 
+      SET name = '${s(name)}', 
+          contact_person = ${sqlValue(contact_person)}, 
+          email = ${sqlValue(email)}, 
+          phone = ${sqlValue(phone)}, 
+          address = ${sqlValue(address)}
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.delete("/staff/vendors/:id", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    await req.prisma.$executeRawUnsafe(`DELETE FROM "${req.schemaName}".contractor_vendors WHERE id = '${id}'`);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+// --- RESOURCE REQUISITION WORKFLOW & APPROVALS ---
+router.get("/recruitment/requisitions", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT r.*, u.name as requester_name, ap.name as approver_name
+      FROM "${req.schemaName}".resource_requisitions r
+      LEFT JOIN "${req.schemaName}".users u ON r.requested_by = u.id
+      LEFT JOIN "${req.schemaName}".users ap ON r.approved_by = ap.id
+      ORDER BY r.created_at DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/recruitment/requisitions", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { title, department, number_of_positions, job_description, experience_required, qualifications_required } = req.body;
+    const userId = await getCurrentUserId(req);
+    const id = crypto.randomUUID();
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".resource_requisitions (
+        id, title, department, number_of_positions, job_description, 
+        experience_required, qualifications_required, status, requested_by
+      )
+      VALUES (
+        '${id}', '${s(title)}', ${sqlValue(department)}, ${parseInt(number_of_positions) || 1}, 
+        ${sqlValue(job_description)}, ${sqlValue(experience_required)}, 
+        ${sqlValue(qualifications_required)}, 'Pending', ${sqlValue(userId)}
+      )
+    `);
+    res.status(201).json({ id, title, status: 'Pending' });
+  } catch (error) { next(error); }
+});
+
+router.put("/recruitment/requisitions/:id", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    const { title, department, number_of_positions, job_description, experience_required, qualifications_required } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".resource_requisitions 
+      SET title = '${s(title)}', 
+          department = ${sqlValue(department)}, 
+          number_of_positions = ${parseInt(number_of_positions) || 1}, 
+          job_description = ${sqlValue(job_description)}, 
+          experience_required = ${sqlValue(experience_required)}, 
+          qualifications_required = ${sqlValue(qualifications_required)},
+          updated_at = NOW()
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+router.put("/recruitment/requisitions/:id/approve", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    const { status } = req.body; // 'Approved' or 'Rejected'
+    const userId = await getCurrentUserId(req);
+    
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".resource_requisitions 
+      SET status = '${s(status)}', 
+          approved_by = ${sqlValue(userId)},
+          updated_at = NOW()
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+// --- CANDIDATE MANAGEMENT & JD MATCHER ---
+router.get("/recruitment/candidates", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".candidates ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/recruitment/candidates", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { name, email, phone, experience_years, skills, education, resume_text } = req.body;
+    const id = crypto.randomUUID();
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".candidates (id, name, email, phone, experience_years, skills, education, resume_text)
+      VALUES ('${id}', '${s(name)}', ${sqlValue(email)}, ${sqlValue(phone)}, ${parseInt(experience_years) || 0}, ${sqlValue(skills)}, ${sqlValue(education)}, ${sqlValue(resume_text)})
+    `);
+    res.status(201).json({ id, name, email });
+  } catch (error) { next(error); }
+});
+
+router.get("/recruitment/matches/:requisitionId", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { requisitionId } = req.params;
+    const data = await req.prisma.$queryRawUnsafe(`
+      SELECT m.*, c.name as candidate_name, c.email as candidate_email, c.experience_years as candidate_experience
+      FROM "${req.schemaName}".requisition_matches m
+      JOIN "${req.schemaName}".candidates c ON m.candidate_id = c.id
+      WHERE m.requisition_id = '${requisitionId}'
+      ORDER BY m.match_score DESC
+    `);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/recruitment/matches/recalculate", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { requisitionId } = req.body;
+    
+    // 1. Fetch the requisition
+    const reqs = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".resource_requisitions WHERE id = '${requisitionId}'`);
+    if (!reqs.length) return res.status(404).json({ error: "Requisition not found" });
+    const requisition = reqs[0];
+
+    // 2. Fetch all candidates
+    const candidates = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".candidates`);
+    
+    const results = [];
+    const aiService = require('../../services/aiService');
+
+    for (const candidate of candidates) {
+      // Run the smart JD matcher
+      const match = await aiService.predictJDMatch(requisition, candidate);
+      
+      // Upsert into requisition_matches
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".requisition_matches (requisition_id, candidate_id, match_score, match_analysis)
+        VALUES ('${requisitionId}', '${candidate.id}', ${match.matchScore}, '${match.matchAnalysis.replace(/'/g, "''")}')
+        ON CONFLICT (requisition_id, candidate_id) DO UPDATE SET
+          match_score = EXCLUDED.match_score,
+          match_analysis = EXCLUDED.match_analysis
+      `);
+      
+      results.push({
+        candidateId: candidate.id,
+        candidateName: candidate.name,
+        score: match.matchScore
+      });
+    }
+
+    res.json({ success: true, matches: results });
+  } catch (error) { 
+    console.error("[MATCH_RECALCULATE] Error:", error.message);
+    res.status(500).json({ error: error.message }); 
+  }
+});
+
+// --- EMPLOYEE LEAVE REQUESTS ---
+router.get("/staff/leaves", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const userId = await getCurrentUserId(req);
+    
+    // Check if the user is a manager or admin
+    const userRows = await req.prisma.$queryRawUnsafe(`SELECT is_manager, role FROM "${req.schemaName}".users WHERE id = '${userId}'`);
+    const user = userRows[0];
+    const isManagerOrAdmin = user && (user.is_manager || String(user.role).toLowerCase() === 'admin');
+
+    let data;
+    if (isManagerOrAdmin) {
+      // Manager/Admin sees all leaves
+      data = await req.prisma.$queryRawUnsafe(`
+        SELECT l.*, u.name as employee_name, u.department as employee_department, ap.name as approver_name
+        FROM "${req.schemaName}".employee_leaves l
+        JOIN "${req.schemaName}".users u ON l.employee_id = u.id
+        LEFT JOIN "${req.schemaName}".users ap ON l.approved_by = ap.id
+        ORDER BY l.created_at DESC
+      `);
+    } else {
+      // Normal employee sees only their own leaves
+      data = await req.prisma.$queryRawUnsafe(`
+        SELECT l.*, u.name as employee_name, u.department as employee_department, ap.name as approver_name
+        FROM "${req.schemaName}".employee_leaves l
+        JOIN "${req.schemaName}".users u ON l.employee_id = u.id
+        LEFT JOIN "${req.schemaName}".users ap ON l.approved_by = ap.id
+        WHERE l.employee_id = '${userId}'
+        ORDER BY l.created_at DESC
+      `);
+    }
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/staff/leaves", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const userId = await getCurrentUserId(req);
+    const { leave_type, start_date, end_date, reason } = req.body;
+    const id = crypto.randomUUID();
+    
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".employee_leaves (id, employee_id, leave_type, start_date, end_date, reason, status)
+      VALUES ('${id}', '${userId}', '${s(leave_type || 'CASUAL')}', '${s(start_date)}', '${s(end_date)}', ${sqlValue(reason)}, 'Pending')
+    `);
+    res.status(201).json({ id, status: 'Pending' });
+  } catch (error) { next(error); }
+});
+
+router.put("/staff/leaves/:id/approve", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    const { status } = req.body; // 'Approved' or 'Rejected'
+    const userId = await getCurrentUserId(req);
+
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".employee_leaves
+      SET status = '${s(status)}',
+          approved_by = '${userId}',
+          updated_at = NOW()
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+
+// ─── Employee Leaves (REST API for Flutter + Web) ──────────────────────────
+// GET /hospital/leaves/mine  — current user's own leave requests
+router.get("/leaves/mine", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const userId = await getCurrentUserId(req);
+    if (!userId) return res.json([]);
+
+    const leaves = await req.prisma.$queryRawUnsafe(`
+      SELECT el.id, el.leave_type, el.start_date AS from_date, el.end_date AS to_date,
+             el.reason, el.status, el.created_at,
+             u.name AS approved_by_name
+      FROM "${req.schemaName}".employee_leaves el
+      LEFT JOIN "${req.schemaName}".users u ON el.approved_by = u.id
+      WHERE el.employee_id = '${userId}'
+      ORDER BY el.created_at DESC
+    `);
+    res.json(leaves);
+  } catch (error) { next(error); }
+});
+
+// GET /hospital/leaves/team  — pending + recent leaves for employees under this manager
+router.get("/leaves/team", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const userId = await getCurrentUserId(req);
+    if (!userId) return res.json([]);
+
+    const leaves = await req.prisma.$queryRawUnsafe(`
+      SELECT el.id, el.leave_type, el.start_date AS from_date, el.end_date AS to_date,
+             el.reason, el.status, el.created_at,
+             emp.name AS employee_name
+      FROM "${req.schemaName}".employee_leaves el
+      JOIN "${req.schemaName}".users emp ON el.employee_id = emp.id
+      ORDER BY el.status ASC, el.created_at DESC
+      LIMIT 100
+    `);
+    res.json(leaves);
+  } catch (error) { next(error); }
+});
+
+// POST /hospital/leaves  — submit a new leave request
+router.post("/leaves", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const userId = await getCurrentUserId(req);
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+    const { leave_type, from_date, to_date, reason } = req.body;
+    if (!from_date || !to_date) return res.status(400).json({ error: "from_date and to_date are required" });
+
+    const id = crypto.randomUUID();
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".employee_leaves
+        (id, employee_id, leave_type, start_date, end_date, reason, status)
+      VALUES
+        ('${id}', '${userId}', '${s(leave_type || 'Casual Leave')}', '${s(from_date)}', '${s(to_date)}', ${sqlValue(reason)}, 'pending')
+    `);
+    res.status(201).json({ id, status: 'pending' });
+  } catch (error) { next(error); }
+});
+
+// PUT /hospital/leaves/:id  — manager approves/rejects a leave
+router.put("/leaves/:id", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    const { status } = req.body;
+    const allowedStatuses = ['pending', 'approved', 'rejected'];
+    if (!allowedStatuses.includes(status)) return res.status(400).json({ error: "Invalid status" });
+
+    const userId = await getCurrentUserId(req);
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".employee_leaves
+      SET status = '${s(status)}',
+          approved_by = ${userId ? `'${userId}'` : 'NULL'},
+          updated_at = NOW()
+      WHERE id = '${s(id)}'
+    `);
+    res.json({ success: true, status });
+  } catch (error) { next(error); }
+});
+
 module.exports = router;
+

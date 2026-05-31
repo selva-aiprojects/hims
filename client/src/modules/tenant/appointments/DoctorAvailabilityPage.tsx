@@ -241,7 +241,7 @@ export default function DoctorAvailabilityPage() {
   return (
     <div className="dashboard-layout">
       <Sidebar />
-      <main className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 32px 32px' }}>
+      <main className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '0 20px 24px' }}>
         <Header title="Clinical Scheduling Command" />
 
         {reschedulingAppt && (
@@ -281,10 +281,10 @@ export default function DoctorAvailabilityPage() {
           <p style={{ margin: 0, color: '#64748b', fontSize: '13px', fontWeight: 500, maxWidth: '600px' }}>Unified command center for physician availability, appointment scheduling, and clinical resource optimization.</p>
         </div>
         
-        <div style={{ flex: 1, display: 'flex', padding: '24px', gap: '24px', overflow: 'hidden' }}>
+        <div className="avail-layout" style={{ flex: 1, display: 'flex', padding: '16px 8px', gap: '20px', overflow: 'hidden' }}>
           
           {/* LEFT: DOCTOR INFO & QUICK ACTIONS */}
-          <div style={{ width: '320px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div className="avail-left-panel" style={{ width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
             <div style={{ ...cardStyle, background: 'linear-gradient(135deg, #1e293b, #0f172a)', border: 'none', color: 'white' }}>
                <div style={{ fontSize: '10px', fontWeight: 800, color: '#94a3b8', marginBottom: '4px' }}>ACTIVE CONTEXT</div>
                <div style={{ fontSize: '14px', fontWeight: 900 }}>{localStorage.getItem("tenantName") || 'Healthezee Hospital'}</div>
@@ -367,13 +367,13 @@ export default function DoctorAvailabilityPage() {
           </div>
 
           {/* RIGHT: MAIN CALENDAR / TABS */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', overflow: 'hidden' }}>
-             <div style={{ ...cardStyle, padding: '12px 24px', display: 'flex', gap: '32px', marginBottom: '-4px' }}>
+          <div className="avail-right-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', overflow: 'hidden', minWidth: 0 }}>
+             <div className="avail-tab-bar" style={{ ...cardStyle, padding: '8px 16px', display: 'flex', gap: '24px', marginBottom: '-4px', overflowX: 'auto' }}>
                 {['Operational Calendar', 'Weekly Rules', 'Leave Master', 'Overrides', 'Analytics'].map(tab => (
                    <button 
                      key={tab} 
                      onClick={() => setActiveTab(tab)}
-                     style={tabBtnStyle(activeTab === tab)}
+                     style={{ ...tabBtnStyle(activeTab === tab), whiteSpace: 'nowrap' }}
                    >
                       {tab}
                    </button>
@@ -431,7 +431,7 @@ export default function DoctorAvailabilityPage() {
                           </div>
                        </div>
 
-                      <div style={gridScrollStyle}>
+                      <div className="calendar-scroll-container" style={gridScrollStyle}>
                          <div style={calendarGridStyle}>
                             <div style={{ padding: '20px', borderRight: '1px solid #f1f5f9', background: '#fcfdfe' }}></div>
                              {weekDates.map((date, i) => {

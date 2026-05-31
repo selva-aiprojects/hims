@@ -28,6 +28,7 @@ import PharmacyDashboard from './modules/tenant/pharmacy/PharmacyDashboard';
 import InventoryList from './modules/tenant/pharmacy/InventoryList';
 import PrescriptionQueue from './modules/tenant/pharmacy/PrescriptionQueue';
 import StaffManagementPage from './modules/tenant/staff/StaffManagementPage';
+import RecruitmentHubPage from './modules/tenant/staff/RecruitmentHubPage';
 import BillingPage from './modules/billing/BillingPage';
 import RoleGuard from './components/RoleGuard';
 import AppointmentsPage from './modules/appointments/AppointmentsPage';
@@ -107,6 +108,7 @@ function App() {
         <Route path="/tenant/pharmacy/inventory" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Stock Inventory"><InventoryList /></RoleGuard>} />
         <Route path="/tenant/pharmacy/queue" element={<RoleGuard allowedRoles={['admin', 'pharmacist']} moduleName="Prescription Queue"><PrescriptionQueue /></RoleGuard>} />
         <Route path="/tenant/staff" element={<StaffManagementPage />} />
+        <Route path="/tenant/recruitment" element={<RecruitmentHubPage />} />
         <Route path="/tenant/settings" element={<SettingsPage />} />
         <Route path="/tenant/settings/secure" element={<SecureConfigsPage />} />
         <Route path="/tenant/support" element={<SupportTicketsPage />} />

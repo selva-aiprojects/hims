@@ -315,11 +315,152 @@ async function predictConsultationMetrics(patientData, complaints, doctorInfo = 
   }
 }
 
+/**
+ * Predict recruitment matching compatibility between a Requisition and a Candidate
+ */
+async function predictJDMatch(requisition, candidate) {
+  if (!ai) {
+    // Smart heuristic matching logic to avoid 100% bug and provide variance
+    const reqExpStr = requisition.experience_required || '0';
+    const reqExp = parseInt(reqExpStr.replace(/[^0-9]/g, '')) || 0;
+    const candExp = Number(candidate.experience_years) || 0;
+
+    let score = 50; // base score
+    const strengths = [];
+    const gaps = [];
+
+    // Experience matching
+    if (candExp >= reqExp) {
+      score += 15;
+      strengths.push(`Experience of ${candExp} years meets or exceeds the required ${reqExp} years.`);
+    } else {
+      score -= (reqExp - candExp) * 8;
+      gaps.push(`Experience (${candExp} years) is less than the required ${reqExp} years.`);
+    }
+
+    // Skills matching
+    const reqSkills = (requisition.job_description || '').toLowerCase();
+    const candSkills = ((candidate.skills || '') + ' ' + (candidate.resume_text || '')).toLowerCase();
+    
+    // Core clinical keywords
+    const keywords = ['nurse', 'icu', 'cardiology', 'surgery', 'pediatric', 'opd', 'clinical', 'patient', 'doctor', 'physician', 'mbbs', 'md', 'emergency', 'triage', 'pharmacist', 'prescription', 'lab', 'diagnostics'];
+    let matchedKeywords = 0;
+    let totalKeywords = 0;
+    keywords.forEach(kw => {
+      if (reqSkills.includes(kw)) {
+        totalKeywords++;
+        if (candSkills.includes(kw)) {
+          matchedKeywords++;
+        }
+      }
+    });
+
+    if (totalKeywords > 0) {
+      const overlap = matchedKeywords / totalKeywords;
+      score += Math.round(overlap * 30);
+      if (overlap > 0.5) {
+        strengths.push(`Strong overlap of clinical skills in relevant domain.`);
+      } else {
+        gaps.push(`Missing key domain-specific clinical competencies requested in the JD.`);
+      }
+    } else {
+      score += 15; // default if no keywords
+    }
+
+    // Title / Role match
+    const reqTitle = (requisition.title || '').toLowerCase();
+    const candSkillsFull = candSkills + ' ' + (candidate.education || '').toLowerCase();
+    if (reqTitle.split(' ').some(word => word.length > 3 && candSkillsFull.includes(word))) {
+      score += 10;
+      strengths.push(`Candidate background aligns with the title of ${requisition.title}.`);
+    } else {
+      score -= 10;
+      gaps.push(`Candidate background does not explicitly list previous roles matching ${requisition.title}.`);
+    }
+
+    // Bound the score
+    score = Math.min(95, Math.max(15, score));
+
+    let recommendation = 'Rejected';
+    if (score >= 80) recommendation = 'Shortlist';
+    else if (score >= 60) recommendation = 'Interview';
+
+    return {
+      matchScore: score,
+      matchAnalysis: JSON.stringify({
+        strengths: strengths.length ? strengths : ['General application submitted.'],
+        gaps: gaps.length ? gaps : ['No critical gaps identified.'],
+        recommendation: recommendation
+      })
+    };
+  }
+
+  try {
+    const model = ai.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+
+    const prompt = `
+    You are an expert HR Recruitment AI. Analyze the matching compatibility between the following Job Description (Requisition) and Candidate Profile (Resume).
+    
+    JOB DESCRIPTION (REQUISITION):
+    - Title: \`\${requisition.title}\`
+    - Department: \`\${requisition.department}\`
+    - Experience Required: \`\${requisition.experience_required}\`
+    - Qualifications Required: \`\${requisition.qualifications_required}\`
+    - Detailed JD: \`\${requisition.job_description}\`
+    
+    CANDIDATE PROFILE:
+    - Name: \`\${candidate.name}\`
+    - Experience (Years): \`\${candidate.experience_years}\`
+    - Skills: \`\${candidate.skills}\`
+    - Education: \`\${candidate.education}\`
+    - Resume Details: \`\${candidate.resume_text}\`
+    
+    Evaluate the match on experience, education, skills, and overall compatibility.
+    Be highly objective. If there are mismatches, reflect them in a lower matchScore. Do not give 100% unless it is an absolutely flawless match.
+    
+    Return a JSON object with:
+    1. matchScore: A realistic percentage matching score between 0 and 100 (integer).
+    2. strengths: A list of 2-4 key reasons why the candidate is a match (array of strings).
+    3. gaps: A list of 1-4 gaps or mismatches (array of strings).
+    4. recommendation: One of 'Shortlist', 'Interview', or 'Rejected' (string).
+    
+    Return ONLY valid JSON. Do not include markdown code block formatting or anything other than pure JSON.
+    `;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const data = JSON.parse(cleanJson);
+    return {
+      matchScore: Number(data.matchScore) || 50,
+      matchAnalysis: JSON.stringify({
+        strengths: data.strengths || [],
+        gaps: data.gaps || [],
+        recommendation: data.recommendation || 'Interview'
+      })
+    };
+  } catch (error) {
+    console.error("[AI] JD Matcher Error:", error.message);
+    return {
+      matchScore: 50,
+      matchAnalysis: JSON.stringify({
+        strengths: ["Background review completed."],
+        gaps: ["AI parsing error occurred during detailed evaluation."],
+        recommendation: "Interview"
+      })
+    };
+  }
+}
+
 module.exports = {
   generatePatientHistorySummary,
   generateDischargeSummary,
   generateClinicalAdvice,
   parseExternalLabReport,
   hospitalChat,
-  predictConsultationMetrics
+  predictConsultationMetrics,
+  predictJDMatch
 };

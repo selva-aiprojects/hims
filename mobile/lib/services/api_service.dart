@@ -237,6 +237,38 @@ class ApiService {
   Future<Response> dischargeIpdPatient(String admissionId, Map<String, dynamic> data) async {
     return _dio.post('/hospital/ipd/admissions/$admissionId/discharge', data: data);
   }
+
+  // === Employee Leave Endpoints ===
+  Future<Response> getMyLeaves(String token) async {
+    return _dio.get('/hospital/leaves/mine');
+  }
+
+  Future<Response> getTeamLeaveRequests(String token) async {
+    return _dio.get('/hospital/leaves/team');
+  }
+
+  Future<Response> applyLeave({
+    required String token,
+    required String leaveType,
+    required String fromDate,
+    required String toDate,
+    String reason = '',
+  }) async {
+    return _dio.post('/hospital/leaves', data: {
+      'leave_type': leaveType,
+      'from_date': fromDate,
+      'to_date': toDate,
+      'reason': reason,
+    });
+  }
+
+  Future<Response> updateLeaveStatus({
+    required String token,
+    required int leaveId,
+    required String status,
+  }) async {
+    return _dio.put('/hospital/leaves/$leaveId', data: {'status': status});
+  }
 }
 
 final apiServiceProvider = Provider((ref) => ApiService());

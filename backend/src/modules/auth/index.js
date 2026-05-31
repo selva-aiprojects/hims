@@ -175,7 +175,8 @@ router.post("/login", async (req, res) => {
                 ('Invoicing & Billing', '/billing', 'Billing', 'basic', 17),
                 ('Insurance Management', '/tenant/billing/insurance', 'Receipt', 'professional', 18),
                 ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 'professional', 19),
-                ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 'professional', 20)
+                ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 'professional', 20),
+                ('Recruitment Hub', '/tenant/recruitment', 'Users', 'basic', 21)
                 ON CONFLICT (label) DO NOTHING;
 
                 -- Link All Menus to ADMIN
@@ -286,7 +287,8 @@ router.post("/login", async (req, res) => {
                     ('IPD Bed Map', '/tenant/ipd/beds', 'Bed', 8, 'professional'),
                     ('IPD Admission Desk', '/tenant/ipd/admission-desk', 'Clipboard', 9, 'professional'),
                     ('IPD Census & Daycare', '/tenant/ipd/admissions', 'Clipboard', 14, 'professional'),
-                    ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional')
+                    ('Discharge Summaries', '/tenant/ipd/discharge', 'Receipt', 15, 'professional'),
+                    ('Recruitment Hub', '/tenant/recruitment', 'Users', 'basic', 21)
                     ON CONFLICT (label) DO NOTHING
                   `);
 
@@ -374,6 +376,7 @@ router.post("/login", async (req, res) => {
               role: normalizedRole, 
               userName: user.name,
               userId: user.id,
+              isManager: user.is_manager || false,
               menus: authorizedMenus,
               permissions: permissions,
               uiSettings: tenants[0].ui_settings || {}
