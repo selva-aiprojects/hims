@@ -41,3 +41,5 @@ jobs:
 
       - name: Build Application
         run: npm run build
+        env:
+          VITE_API_BASE_URL: https://healthezee-prod-client-git-main-whitekraaft-apps.vercel.app/
