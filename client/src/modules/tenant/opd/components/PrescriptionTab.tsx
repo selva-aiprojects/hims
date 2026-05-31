@@ -64,7 +64,7 @@ export default function PrescriptionTab({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
       {/* ── Header + Search ─────────────────────────────── */}
-      <div style={{ background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <div style={{ background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Pill size={20} color="#3b82f6" />
