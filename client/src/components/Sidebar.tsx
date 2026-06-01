@@ -322,9 +322,16 @@ export default function Sidebar() {
         </nav>
 
         <div style={{ padding: '10px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
             <span>Powered by</span>
-            <span style={{ fontWeight: 600, color: 'white' }}>Healthezee</span>
+            <span style={{ 
+              fontWeight: 800, 
+              fontFamily: "'Outfit', sans-serif",
+              background: 'linear-gradient(135deg, #38bdf8 0%, #0da58e 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              letterSpacing: '0.5px'
+            }}>Healthezee</span>
           </div>
         </div>
         <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.18)' }}>
