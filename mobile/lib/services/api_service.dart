@@ -30,8 +30,8 @@ class ApiService {
 
   ApiService() {
     _dio.options.baseUrl = baseUrl;
-    _dio.options.connectTimeout = const Duration(seconds: 10);
-    _dio.options.receiveTimeout = const Duration(seconds: 10);
+    _dio.options.connectTimeout = const Duration(seconds: 30);
+    _dio.options.receiveTimeout = const Duration(seconds: 30);
 
     // Global Interceptor for Headers (Multi-tenancy & Auth)
     _dio.interceptors.add(InterceptorsWrapper(

@@ -173,27 +173,69 @@ router.post("/", async (req, res, next) => {
     
     const invId = invHeader[0].id;
 
-    // C. Insert Items and Close Queue
-    for (const item of normalizedItems) {
-      // 1. Save line item with discount tracking
+    // C. Batch Insert Line Items
+    if (normalizedItems.length > 0) {
+      const values = normalizedItems.map(item => {
+        const desc = item.description ? item.description.replace(/'/g, "''") : '';
+        const sourceQueueId = item.id ? `'${item.id}'` : 'NULL';
+        return `('${invId}', '${desc}', ${item.quantity}, ${item.unit_price}, ${item.tax_percent || 0}, ${item.amount}, ${item.discount_amount || 0}, ${sourceQueueId})`;
+      }).join(',');
+      
       await req.prisma.$executeRawUnsafe(`
         INSERT INTO "${req.schemaName}".invoice_items (invoice_id, description, quantity, unit_price, tax_percent, amount, discount_amount, source_queue_id)
-        VALUES ('${invId}', '${item.description.replace(/'/g, "''")}', ${item.quantity}, ${item.unit_price}, ${item.tax_percent || 0}, ${item.amount}, ${item.discount_amount || 0}, ${item.id ? `'${item.id}'` : 'NULL'})
+        VALUES ${values}
+      `);
+    }
+
+    // D. Fetch queue details & perform batch status/source updates
+    const itemIds = normalizedItems.map(it => it.id).filter(Boolean);
+    if (itemIds.length > 0) {
+      const idList = itemIds.map(id => `'${id}'`).join(',');
+      
+      // 1. Fetch queue items to determine source modules/IDs
+      const queueDetails = await req.prisma.$queryRawUnsafe(`
+        SELECT id, source_module, source_id 
+        FROM "${req.schemaName}".billing_queue 
+        WHERE id IN (${idList})
       `);
 
-      // 2. Mark queue item as BILLED and sync with source modules
-      if (item.id) {
-        await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".billing_queue SET status = 'BILLED' WHERE id = '${item.id}'`);
-        
-        const qItems = await req.prisma.$queryRawUnsafe(`SELECT source_module, source_id FROM "${req.schemaName}".billing_queue WHERE id = '${item.id}'`);
-        if (qItems.length > 0) {
-          const { source_module, source_id } = qItems[0];
-          if (source_module === 'LAB') {
-            await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".lab_orders SET is_paid = true WHERE diagnostic_id = '${source_id}' OR id = '${source_id}'`);
-          } else if (source_module === 'PHARMACY') {
-            await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".prescriptions SET is_paid = true WHERE id = '${source_id}'`);
+      // 2. Mark queue items as BILLED in batch
+      await req.prisma.$executeRawUnsafe(`
+        UPDATE "${req.schemaName}".billing_queue 
+        SET status = 'BILLED' 
+        WHERE id IN (${idList})
+      `);
+
+      // 3. Collect source IDs for LAB and PHARMACY batch updates
+      const labIdsToUpdate = [];
+      const prescriptionIdsToUpdate = [];
+      
+      for (const item of queueDetails) {
+        if (item.source_id) {
+          if (item.source_module === 'LAB') {
+            labIdsToUpdate.push(item.source_id);
+          } else if (item.source_module === 'PHARMACY') {
+            prescriptionIdsToUpdate.push(item.source_id);
           }
         }
+      }
+
+      if (labIdsToUpdate.length > 0) {
+        const labIdList = labIdsToUpdate.map(id => `'${id}'`).join(',');
+        await req.prisma.$executeRawUnsafe(`
+          UPDATE "${req.schemaName}".lab_orders 
+          SET is_paid = true 
+          WHERE diagnostic_id IN (${labIdList}) OR id IN (${labIdList})
+        `);
+      }
+
+      if (prescriptionIdsToUpdate.length > 0) {
+        const rxIdList = prescriptionIdsToUpdate.map(id => `'${id}'`).join(',');
+        await req.prisma.$executeRawUnsafe(`
+          UPDATE "${req.schemaName}".prescriptions 
+          SET is_paid = true 
+          WHERE id IN (${rxIdList})
+        `);
       }
     }
 
