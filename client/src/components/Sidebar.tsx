@@ -321,10 +321,10 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        <div style={{ padding: '18px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '6px' }}>
-            <span style={{ fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#94a3b8' }}>Powered by</span>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Healthezee</span>
+        <div style={{ padding: '10px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '11px', color: '#94a3b8' }}>
+            <span>Powered by</span>
+            <span style={{ fontWeight: 600, color: 'white' }}>Healthezee</span>
           </div>
         </div>
         <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.18)' }}>
