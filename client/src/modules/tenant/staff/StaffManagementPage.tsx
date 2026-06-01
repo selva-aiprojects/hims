@@ -5,6 +5,27 @@ import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
+const SPECIALIZATIONS = [
+  'General Medicine',
+  'Internal Medicine',
+  'Cardiology',
+  'Dermatology',
+  'ENT',
+  'Gastroenterology',
+  'Gynecology',
+  'Nephrology',
+  'Neurology',
+  'Oncology',
+  'Ophthalmology',
+  'Orthopedics',
+  'Pediatrics',
+  'Psychiatry',
+  'Radiology',
+  'General Surgery',
+  'Urology',
+  'Emergency Medicine'
+];
+
 export default function StaffManagementPage() {
   const navigate = useNavigate();
   const [staff, setStaff] = useState<any[]>([]);
@@ -66,8 +87,16 @@ export default function StaffManagementPage() {
   // ─── Staff CRUD ──────────────────────────────────────────────────────────
   const fetchStaff = async (search: string = "") => {
     try {
-      const res = await axios.get(`${API_BASE}/api/hospital/staff?search=${search}`, { headers: getHeaders() });
-      setStaff(res.data);
+      const res = await axios.get(`${API_BASE}/api/hospital/staff?search=${encodeURIComponent(search)}`, { headers: getHeaders() });
+      const rows = Array.isArray(res.data) ? res.data : [];
+      const term = search.trim().toLowerCase();
+      setStaff(term
+        ? rows.filter((member: any) =>
+            [member.name, member.email, member.role, member.department, member.specialization]
+              .some(value => String(value || '').toLowerCase().includes(term))
+          )
+        : rows
+      );
       setLoading(false);
     } catch (err) {
       console.error(err);
@@ -78,10 +107,11 @@ export default function StaffManagementPage() {
   // ─── Vendor CRUD ─────────────────────────────────────────────────────────
   const fetchVendors = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/hospital/vendors`, { headers: getHeaders() });
-      setVendors(res.data);
+      const res = await axios.get(`${API_BASE}/api/hospital/staff/vendors`, { headers: getHeaders() });
+      setVendors(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
+      setVendors([]);
     }
   };
 
@@ -209,10 +239,10 @@ export default function StaffManagementPage() {
     e.preventDefault();
     try {
       if (isEditingVendor && editVendorId) {
-        await axios.put(`${API_BASE}/api/hospital/vendors/${editVendorId}`, vendorFormData, { headers: getHeaders() });
+        await axios.put(`${API_BASE}/api/hospital/staff/vendors/${editVendorId}`, vendorFormData, { headers: getHeaders() });
         alert("Vendor updated successfully!");
       } else {
-        await axios.post(`${API_BASE}/api/hospital/vendors`, vendorFormData, { headers: getHeaders() });
+        await axios.post(`${API_BASE}/api/hospital/staff/vendors`, vendorFormData, { headers: getHeaders() });
         alert("Vendor added successfully!");
       }
       setShowVendorModal(false);
@@ -225,7 +255,7 @@ export default function StaffManagementPage() {
   const handleDeleteVendor = async (id: string) => {
     if (!window.confirm("Delete this vendor? Contractor employees linked to them will lose the vendor reference.")) return;
     try {
-      await axios.delete(`${API_BASE}/api/hospital/vendors/${id}`, { headers: getHeaders() });
+      await axios.delete(`${API_BASE}/api/hospital/staff/vendors/${id}`, { headers: getHeaders() });
       fetchVendors();
     } catch {
       alert("Failed to delete vendor");

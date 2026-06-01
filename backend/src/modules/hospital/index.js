@@ -97,6 +97,7 @@ async function ensureOrderColumns(req) {
   `);
 
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Pending'`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS patient_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS instructions TEXT`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".prescriptions ADD COLUMN IF NOT EXISTS is_paid BOOLEAN DEFAULT false`);
@@ -898,6 +899,7 @@ router.get("/staff", async (req, res, next) => {
 
 router.post("/staff", async (req, res, next) => {
   try {
+    await ensureStaffColumns(req);
     const { name, email, password, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications, employment_type, vendor_id, is_manager } = req.body;
     const id = crypto.randomUUID();
     const pwd = await bcrypt.hash(password || 'password123', 10);
@@ -925,6 +927,7 @@ router.post("/staff", async (req, res, next) => {
 
 router.put("/staff/:id", async (req, res, next) => {
   try {
+    await ensureStaffColumns(req);
     const { id } = req.params;
     const { name, email, role, specialization, department, gender, dob, doj, license_number, experience_years, qualifications, employment_type, vendor_id, is_manager } = req.body;
     
@@ -1028,6 +1031,7 @@ router.get("/encounters", async (req, res, next) => {
     const query = `
       SELECT 
         e.id, e.patient_id, e.doctor_id, e.status, e.type, e.created_at, e.vitals,
+        e.complaints, e.diagnosis, e.notes,
         p.name as patient_name, p.mrn, p.age, p.gender,
         u.name as doctor_name,
         cp.predicted_time_mins,
@@ -1051,6 +1055,46 @@ router.get("/encounters", async (req, res, next) => {
     `;
 
     const encounters = await req.prisma.$queryRawUnsafe(query);
+
+    if (patientId && status === 'Completed' && encounters.length > 0) {
+      await ensureOrderColumns(req);
+      const encounterIds = encounters.map(enc => `'${s(enc.id)}'`).join(',');
+      const prescriptionRows = await req.prisma.$queryRawUnsafe(`
+        SELECT
+          p.encounter_id,
+          p.id as prescription_id,
+          p.status as prescription_status,
+          p.created_at as prescription_created_at,
+          pi.drug_name,
+          pi.dosage,
+          pi.frequency,
+          pi.duration,
+          pi.instructions
+        FROM "${req.schemaName}".prescriptions p
+        LEFT JOIN "${req.schemaName}".prescription_items pi ON pi.prescription_id = p.id
+        WHERE p.encounter_id IN (${encounterIds})
+        ORDER BY p.created_at DESC, pi.created_at ASC
+      `);
+      const byEncounter = prescriptionRows.reduce((acc, row) => {
+        if (!acc[row.encounter_id]) acc[row.encounter_id] = [];
+        if (row.drug_name) {
+          acc[row.encounter_id].push({
+            prescription_id: row.prescription_id,
+            status: row.prescription_status,
+            created_at: row.prescription_created_at,
+            name: row.drug_name,
+            dosage: row.dosage,
+            frequency: row.frequency,
+            duration: row.duration,
+            instructions: row.instructions
+          });
+        }
+        return acc;
+      }, {});
+      encounters.forEach(enc => {
+        enc.prescriptions = byEncounter[enc.id] || [];
+      });
+    }
 
     // --- QUEUE WAIT TIME ENGINE (on paged data) ---
     const doctorQueues = {};
@@ -1385,8 +1429,8 @@ router.post("/encounters/:id/prescriptions", async (req, res, next) => {
 
     // 1. Create Prescription Header
     const presHeader = await req.prisma.$queryRawUnsafe(`
-      INSERT INTO "${req.schemaName}".prescriptions (encounter_id, status)
-      VALUES ('${id}', 'Pending')
+      INSERT INTO "${req.schemaName}".prescriptions (encounter_id, patient_id, status)
+      VALUES ('${id}', '${patientId}', 'Pending')
       RETURNING id
     `);
     const presId = presHeader[0].id;
@@ -1495,6 +1539,8 @@ router.post("/lab/upload-external", upload.single("lab_report"), async (req, res
 router.get("/lab/orders", async (req, res, next) => {
   try {
     await ensureOrderColumns(req);
+    const patientId = req.query.patientId;
+    const patientFilter = patientId ? `WHERE lo.patient_id = '${s(patientId)}'` : '';
     const data = await req.prisma.$queryRawUnsafe(`
       SELECT lo.*, 
              COALESCE(p.name, 'Unknown') as patient_name, 
@@ -1503,6 +1549,7 @@ router.get("/lab/orders", async (req, res, next) => {
       FROM "${req.schemaName}".lab_orders lo
       LEFT JOIN "${req.schemaName}".patients p ON lo.patient_id = p.id
       LEFT JOIN "${req.schemaName}".users u ON lo.doctor_id = u.id
+      ${patientFilter}
       ORDER BY lo.created_at DESC
     `);
     res.json(data);

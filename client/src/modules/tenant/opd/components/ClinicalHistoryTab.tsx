@@ -7,6 +7,18 @@ interface ClinicalHistoryTabProps {
 }
 
 export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: ClinicalHistoryTabProps) {
+  const displayValue = (value: any, fallback = '-') => {
+    if (value === undefined || value === null || value === '') return fallback;
+    return String(value);
+  };
+
+  const getMedicationItems = (encounter: any) => {
+    if (Array.isArray(encounter?.prescriptions)) return encounter.prescriptions;
+    if (Array.isArray(encounter?.prescription_items)) return encounter.prescription_items;
+    if (Array.isArray(encounter?.items)) return encounter.items;
+    return [];
+  };
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '24px' }}>
       <div className="page-card" style={{ padding: '24px', borderRadius: '24px', background: '#0f172a', color: 'white', height: 'fit-content' }}>
@@ -75,12 +87,34 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                {pastMeds.length > 0 ? (
-                 pastMeds.slice(0, 3).map((med, i) => (
+                 pastMeds.slice(0, 3).map((med, i) => {
+                  const medicationItems = getMedicationItems(med);
+                  return (
                    <div key={i} style={{ padding: '16px', background: '#f0fdf4', borderRadius: '16px', border: '1px solid #dcfce7' }}>
-                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#166534', marginBottom: '4px' }}>Diagnosis: {med.diagnosis}</div>
-                      <div style={{ fontSize: '12px', color: '#15803d' }}>Visited: {new Date(med.created_at).toLocaleDateString()}</div>
+                      <div style={{ fontWeight: 800, fontSize: '14px', color: '#166534', marginBottom: '4px' }}>Diagnosis: {displayValue(med.diagnosis, 'Not recorded')}</div>
+                      <div style={{ fontSize: '12px', color: '#15803d', marginBottom: medicationItems.length ? '12px' : 0 }}>Visited: {new Date(med.created_at).toLocaleDateString()}</div>
+                      {medicationItems.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {medicationItems.map((item: any, itemIndex: number) => (
+                            <div key={`${i}-${itemIndex}`} style={{ padding: '10px 12px', background: 'white', border: '1px solid #bbf7d0', borderRadius: '12px' }}>
+                              <div style={{ fontSize: '13px', fontWeight: 800, color: '#14532d' }}>
+                                {displayValue(item.name || item.drug_name || item.medicine_name, 'Medicine')}
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px', fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
+                                <span>{displayValue(item.dosage)}</span>
+                                <span>{displayValue(item.frequency)}</span>
+                                <span>{displayValue(item.duration)} days</span>
+                                {item.instructions && <span>{item.instructions}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#65a30d', fontWeight: 600 }}>No medicines recorded for this visit</div>
+                      )}
                    </div>
-                 ))
+                  );
+                 })
                ) : (
                  <div style={{ padding: '24px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>No previous medication records found</div>
                )}
