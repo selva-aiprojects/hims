@@ -1211,6 +1211,12 @@ router.post("/ipd/admissions", async (req, res, next) => {
     }
     if (!admittingDoctorId) return res.status(400).json({ error: "Admitting doctor is required." });
 
+    // Get ward's base charge if dailyCharge not provided
+    if (!dailyCharge) {
+      const wardInfo = await req.prisma.$queryRawUnsafe(`SELECT base_charge FROM "${req.schemaName}".wards WHERE id = '${selectedWardId}'`);
+      dailyCharge = (wardInfo && wardInfo[0] && wardInfo[0].base_charge) || 1000;
+    }
+
     // 1. Create Admission Record
     const admId = crypto.randomUUID();
     await req.prisma.$executeRawUnsafe(`
@@ -1224,10 +1230,10 @@ router.post("/ipd/admissions", async (req, res, next) => {
     // 3. Push Admission Fee to Billing Queue
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
-      VALUES ('${patientId}', 'IPD', '${admId}', 'Admission Charges', 1, ${dailyCharge || 0})
+      VALUES ('${patientId}', 'IPD', '${admId}', 'Admission Charges', 1, ${dailyCharge})
     `);
 
-    res.status(201).json({ id: admId });
+    res.status(201).json({ id: admId, dailyCharge });
   } catch (error) { next(error); }
 });
 
@@ -1601,9 +1607,9 @@ router.post("/ipd/admissions/:id/discharge", async (req, res, next) => {
     const { id } = req.params;
     const { summary, dischargeType } = req.body;
     
-    // 1. Get Admission Details
+    // 1. Get Admission Details with Ward Info
     const adms = await req.prisma.$queryRawUnsafe(`
-      SELECT a.*, w.base_charge 
+      SELECT a.*, w.base_charge as ward_base_charge 
       FROM "${req.schemaName}".ipd_admissions a
       JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
       WHERE a.id = '${id}'
@@ -1613,30 +1619,31 @@ router.post("/ipd/admissions/:id/discharge", async (req, res, next) => {
 
     // Note: Clearance flags (pharmacy/billing/clinical) are advisory. Discharge can proceed.
 
-    // 3. Calculate Days and Room Charges
+    // 2. Calculate Days and Room Charges using ward_base_charge
     const stayMs = new Date().getTime() - new Date(adm.admitted_at).getTime();
     const days = Math.max(1, Math.ceil(stayMs / (1000 * 60 * 60 * 24)));
-    const roomCharge = days * (adm.daily_charge || adm.base_charge || 1000);
+    const dailyChargeAmount = adm.daily_charge || adm.ward_base_charge || 1000;
+    const roomCharge = days * dailyChargeAmount;
 
-    // 4. Ensure billing queue exists before posting room charges
+    // 3. Ensure billing queue exists before posting room charges
     await ensureBillingQueue(req);
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
-      VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days in ${adm.ward_id})', 1, ${roomCharge})
+      VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days)', ${days}, ${dailyChargeAmount})
     `);
 
-    // 5. Create Discharge Summary
+    // 4. Create Discharge Summary
     await ensureDischargeTable(req);
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".discharge_summaries (admission_id, patient_id, summary_text, discharge_type, status)
       VALUES ('${id}', '${adm.patient_id}', '${s(summary)}', '${s(dischargeType)}', 'Final')
     `);
 
-    // 6. Free the Bed & Update Admission Status
+    // 5. Free the Bed & Update Admission Status
     await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Vacant' WHERE id = '${adm.bed_id}'`);
     await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".ipd_admissions SET status = 'Discharged', discharged_at = NOW() WHERE id = '${id}'`);
 
-    res.json({ success: true, message: "Patient discharged and bill finalized." });
+    res.json({ success: true, message: "Patient discharged and bill finalized.", roomChargeAdded: roomCharge, daysOfStay: days });
   } catch (error) { next(error); }
 });
 
@@ -1648,7 +1655,7 @@ router.post("/ipd/admissions/:id/transfer", async (req, res, next) => {
     await ensureBillingQueue(req);
 
     const adms = await req.prisma.$queryRawUnsafe(`
-      SELECT a.*, w.base_charge, w.name as ward_name
+      SELECT a.*, w.base_charge as ward_base_charge, w.name as ward_name
       FROM "${req.schemaName}".ipd_admissions a
       JOIN "${req.schemaName}".wards w ON a.ward_id = w.id
       WHERE a.id = '${id}'
@@ -1658,11 +1665,12 @@ router.post("/ipd/admissions/:id/transfer", async (req, res, next) => {
 
     const stayMs = new Date().getTime() - new Date(adm.admitted_at).getTime();
     const days = Math.max(1, Math.ceil(stayMs / (1000 * 60 * 60 * 24)));
-    const roomCharge = days * (adm.daily_charge || adm.base_charge || 1000);
+    const dailyChargeAmount = adm.daily_charge || adm.ward_base_charge || 1000;
+    const roomCharge = days * dailyChargeAmount;
 
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
-      VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days in ${s(adm.ward_name)})', 1, ${roomCharge})
+      VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days in ${adm.ward_name})', ${days}, ${dailyChargeAmount})
     `);
 
     await req.prisma.$executeRawUnsafe(`UPDATE "${req.schemaName}".beds SET status = 'Vacant' WHERE id = '${adm.bed_id}'`);
