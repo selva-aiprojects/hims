@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
@@ -26,8 +25,6 @@ const SPECIALIZATIONS = [
   'Emergency Medicine'
 ];
 
-export default function StaffManagementPage() {
-  const navigate = useNavigate();
   const [staff, setStaff] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
