@@ -133,7 +133,9 @@ const AIChatbot: React.FC = () => {
     }
   };
 
+  const isConsultationRoute = location.pathname.startsWith('/tenant/opd/consultation');
   if (
+    !isConsultationRoute ||
     location.pathname === '/' ||
     location.pathname === '/login' ||
     localStorage.getItem('isAutomation') === 'true'

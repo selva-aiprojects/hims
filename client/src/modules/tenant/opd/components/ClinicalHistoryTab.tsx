@@ -12,6 +12,25 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
     return String(value);
   };
 
+  const getAttachmentUrl = (record: any) => {
+    return record?.attachment_url || record?.report_url || record?.file_url || record?.document_url || record?.pdf_path || record?.file_path || record?.prescription_url || record?.url || null;
+  };
+
+  const getAttachmentLabel = (record: any, fallback = 'View attachment') => {
+    return record?.file_name || record?.title || record?.name || fallback;
+  };
+
+  const renderAttachmentLink = (record: any) => {
+    const url = getAttachmentUrl(record);
+    if (!url) return null;
+    const label = getAttachmentLabel(record);
+    return (
+      <a href={url} target="_blank" rel="noreferrer" style={{ marginTop: '8px', display: 'inline-block', fontSize: '11px', fontWeight: 700, color: '#2563eb' }}>
+        {label}
+      </a>
+    );
+  };
+
   const getMedicationItems = (encounter: any) => {
     if (Array.isArray(encounter?.prescriptions)) return encounter.prescriptions;
     if (Array.isArray(encounter?.prescription_items)) return encounter.prescription_items;
@@ -68,7 +87,10 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
                {pastLabs.length > 0 ? (
                  pastLabs.slice(0, 5).map((lab, i) => (
                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                      <div style={{ fontWeight: 700, fontSize: '13px' }}>{lab.test_name}</div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '13px' }}>{lab.test_name}</div>
+                        {renderAttachmentLink(lab)}
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                          <span style={{ fontSize: '11px', color: '#64748b' }}>{new Date(lab.created_at).toLocaleDateString()}</span>
                          <span style={{ fontSize: '11px', fontWeight: 800, color: lab.status === 'Completed' ? '#10b981' : '#f59e0b' }}>{lab.status}</span>
@@ -106,12 +128,14 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
                                 <span>{displayValue(item.duration)} days</span>
                                 {item.instructions && <span>{item.instructions}</span>}
                               </div>
+                              {renderAttachmentLink(item)}
                             </div>
                           ))}
                         </div>
                       ) : (
                         <div style={{ fontSize: '12px', color: '#65a30d', fontWeight: 600 }}>No medicines recorded for this visit</div>
                       )}
+                      {renderAttachmentLink(med)}
                    </div>
                   );
                  })

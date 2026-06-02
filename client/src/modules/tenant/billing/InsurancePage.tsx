@@ -50,8 +50,13 @@ export default function InsurancePage() {
 
   const handleAddProvider = async (e: any) => {
     e.preventDefault();
+    if (!newProv.name.trim()) {
+      alert('Provider name is required');
+      return;
+    }
     try {
       await axios.post(`${API_BASE}/api/insurance/providers`, newProv, { headers });
+      setNewProv({ name: '', tpa_name: '', contact_person: '', email: '' });
       setShowProvModal(false);
       fetchData();
     } catch (err) { alert("Failed to add provider"); }
@@ -281,10 +286,10 @@ export default function InsurancePage() {
             <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '450px' }}>
               <h2 style={{ margin: '0 0 24px', fontWeight: 900 }}>Add Insurance Provider</h2>
               <form onSubmit={handleAddProvider} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <input placeholder="Provider Name" required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, name: e.target.value})} />
-                <input placeholder="TPA Name (Optional)" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, tpa_name: e.target.value})} />
-                <input placeholder="Contact Person" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, contact_person: e.target.value})} />
-                <input placeholder="Email" type="email" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, email: e.target.value})} />
+                <input value={newProv.name} placeholder="Provider Name" required style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, name: e.target.value})} />
+                <input value={newProv.tpa_name} placeholder="TPA Name (Optional)" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, tpa_name: e.target.value})} />
+                <input value={newProv.contact_person} placeholder="Contact Person" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, contact_person: e.target.value})} />
+                <input value={newProv.email} placeholder="Email" type="email" style={{ padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }} onChange={e => setNewProv({...newProv, email: e.target.value})} />
                 <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
                   <button type="button" onClick={() => setShowProvModal(false)} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', fontWeight: 700 }}>Cancel</button>
                   <button type="submit" style={{ flex: 1, padding: '14px', borderRadius: '12px', background: '#0ea5e9', color: 'white', border: 'none', fontWeight: 700 }}>Save Provider</button>

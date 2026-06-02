@@ -1,6 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
+const s = (val) => (val === undefined || val === null ? "" : String(val).replace(/'/g, "''"));
+const sqlValue = (val) => (val === undefined || val === null || val === "" ? "NULL" : `'${s(val)}'`);
+
 const insuranceTablesSynced = new Set();
 
 async function ensureInsuranceTables(req) {
@@ -13,10 +16,9 @@ async function ensureInsuranceTables(req) {
     CREATE TABLE IF NOT EXISTS "${req.schemaName}".insurance_providers (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       name VARCHAR(255) NOT NULL,
-      code VARCHAR(50),
+      tpa_name VARCHAR(255),
       contact_person VARCHAR(100),
-      phone VARCHAR(20),
-      email VARCHAR(100),
+      email VARCHAR(255),
       is_active BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP DEFAULT NOW()
     );
@@ -60,6 +62,9 @@ async function ensureInsuranceTables(req) {
   `);
 
   // Self-healing columns
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS tpa_name VARCHAR(255)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS contact_person VARCHAR(100)`);
+  await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_providers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_claims ADD COLUMN IF NOT EXISTS provider_id UUID`);
   await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".insurance_claims ADD COLUMN IF NOT EXISTS billed_amount NUMERIC DEFAULT 0`);
@@ -82,6 +87,18 @@ router.get("/providers", async (req, res, next) => {
       ORDER BY name ASC
     `);
     res.json(data);
+  } catch (error) { next(error); }
+});
+
+router.post("/providers", async (req, res, next) => {
+  try {
+    await ensureInsuranceTables(req);
+    const { name, tpa_name, contact_person, email } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".insurance_providers (name, tpa_name, contact_person, email)
+      VALUES ('${s(name)}', '${s(tpa_name)}', ${sqlValue(contact_person)}, ${sqlValue(email)})
+    `);
+    res.status(201).json({ success: true });
   } catch (error) { next(error); }
 });
 

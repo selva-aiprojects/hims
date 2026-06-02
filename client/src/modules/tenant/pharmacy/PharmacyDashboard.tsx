@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import axios from "axios";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
@@ -9,10 +10,29 @@ import { Activity } from 'lucide-react';
 export default function PharmacyDashboard({ embedded = false }: { embedded?: boolean }) {
   const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, pendingPrescriptions: 0, todaysSales: 0, recentDispenses: [] });
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchStats();
   }, []);
+
+  const changeTab = (tab: string) => {
+    if (embedded) {
+      const event = new CustomEvent('changePharmacyTab', { detail: tab });
+      window.dispatchEvent(event);
+      return;
+    }
+
+    if (tab === 'inventory') {
+      navigate('/tenant/pharmacy/inventory');
+      return;
+    }
+
+    if (tab === 'suppliers') {
+      navigate('/tenant/pharmacy');
+      return;
+    }
+  };
 
   const fetchStats = async () => {
     const headers = { 
@@ -76,21 +96,13 @@ export default function PharmacyDashboard({ embedded = false }: { embedded?: boo
                       </div>
                       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                         <button 
-                          onClick={() => {
-                            // This relies on the parent PharmacyManagementPage listening to state or simple re-render
-                            // For now, we'll suggest using the tabs, but we'll make this look like a link
-                            const event = new CustomEvent('changePharmacyTab', { detail: 'inventory' });
-                            window.dispatchEvent(event);
-                          }}
+                          onClick={() => changeTab('inventory')}
                           style={{ padding: '10px 20px', background: '#e11d48', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}
                         >
                           View Low Stock
                         </button>
                         <button 
-                          onClick={() => {
-                            const event = new CustomEvent('changePharmacyTab', { detail: 'suppliers' });
-                            window.dispatchEvent(event);
-                          }}
+                          onClick={() => changeTab('suppliers')}
                           style={{ padding: '10px 20px', background: 'white', color: '#be123c', border: '1px solid #ffe4e6', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}
                         >
                           Contact Suppliers

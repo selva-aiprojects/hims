@@ -1626,7 +1626,8 @@ router.post("/ipd/admissions/:id/discharge", async (req, res, next) => {
     const days = Math.max(1, Math.ceil(stayMs / (1000 * 60 * 60 * 24)));
     const roomCharge = days * (adm.daily_charge || adm.base_charge || 1000);
 
-    // 4. Post Room Charges to Billing Queue
+    // 4. Ensure billing queue exists before posting room charges
+    await ensureBillingQueue(req);
     await req.prisma.$executeRawUnsafe(`
       INSERT INTO "${req.schemaName}".billing_queue (patient_id, source_module, source_id, description, quantity, unit_price)
       VALUES ('${adm.patient_id}', 'IPD_ROOM', '${id}', 'Room Charges (${days} Days in ${adm.ward_id})', 1, ${roomCharge})
