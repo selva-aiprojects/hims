@@ -9,6 +9,8 @@ import { Activity } from 'lucide-react';
 
 export default function PharmacyDashboard({ embedded = false }: { embedded?: boolean }) {
   const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, pendingPrescriptions: 0, todaysSales: 0, recentDispenses: [] });
+  const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  const [showLowStockModal, setShowLowStockModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -45,9 +47,11 @@ export default function PharmacyDashboard({ embedded = false }: { embedded?: boo
         axios.get(`${API_BASE}/api/hospital/pharmacy/prescriptions`, { headers }),
         axios.get(`${API_BASE}/api/hospital/pharmacy/stats`, { headers })
       ]);
+      const lowStockList = invRes.data.filter((i: any) => i.stock_quantity < 50).sort((a: any, b: any) => a.stock_quantity - b.stock_quantity);
+      setLowStockItems(lowStockList);
       setStats({
         totalItems: invRes.data.length,
-        lowStock: invRes.data.filter((i: any) => i.stock_quantity < 50).length,
+        lowStock: lowStockList.length,
         pendingPrescriptions: preRes.data.length,
         todaysSales: statRes.data.todaysSales,
         recentDispenses: statRes.data.recentDispenses
@@ -96,7 +100,7 @@ export default function PharmacyDashboard({ embedded = false }: { embedded?: boo
                       </div>
                       <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                         <button 
-                          onClick={() => changeTab('inventory')}
+                          onClick={() => setShowLowStockModal(true)}
                           style={{ padding: '10px 20px', background: '#e11d48', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '13px' }}
                         >
                           View Low Stock
@@ -135,6 +139,106 @@ export default function PharmacyDashboard({ embedded = false }: { embedded?: boo
               </div>
            </div>
         </div>
+
+        {showLowStockModal && (
+          <div style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: 'rgba(0, 0, 0, 0.5)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{ 
+              background: 'white', 
+              borderRadius: '24px', 
+              padding: '32px', 
+              maxWidth: '600px', 
+              maxHeight: '80vh', 
+              overflow: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 900, color: '#0f172a' }}>Low Stock Items</h2>
+                <button 
+                  onClick={() => setShowLowStockModal(false)}
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#94a3b8' }}
+                >
+                  ✕
+                </button>
+              </div>
+              {lowStockItems.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {lowStockItems.map((item: any, i: number) => (
+                    <div key={i} style={{ 
+                      padding: '16px', 
+                      background: '#fff1f2', 
+                      border: '1px solid #ffe4e6', 
+                      borderRadius: '12px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <p style={{ margin: '0 0 4px', fontWeight: 800, fontSize: '14px', color: '#be123c' }}>{item.name || item.medicine_name}</p>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>Current Stock: <strong>{item.stock_quantity || 0}</strong> units</p>
+                      </div>
+                      <span style={{ 
+                        padding: '6px 12px', 
+                        background: '#ef4444', 
+                        color: 'white', 
+                        borderRadius: '8px', 
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {item.stock_quantity < 10 ? 'Critical' : 'Low'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>No low stock items found.</p>
+              )}
+              <div style={{ marginTop: '24px', display: 'flex', gap: '12px' }}>
+                <button 
+                  onClick={() => { setShowLowStockModal(false); changeTab('inventory'); }}
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    background: '#e11d48', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '12px', 
+                    fontWeight: 800, 
+                    cursor: 'pointer'
+                  }}
+                >
+                  View Full Inventory
+                </button>
+                <button 
+                  onClick={() => setShowLowStockModal(false)}
+                  style={{ 
+                    flex: 1, 
+                    padding: '12px', 
+                    background: '#f1f5f9', 
+                    color: '#0f172a', 
+                    border: '1px solid #e2e8f0', 
+                    borderRadius: '12px', 
+                    fontWeight: 800, 
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
