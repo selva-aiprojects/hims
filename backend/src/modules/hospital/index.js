@@ -281,7 +281,6 @@ async function ensureStaffColumns(req, force = false) {
             UPDATE "${req.schemaName}".users
             SET is_active = false
             WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
-            LIMIT 1000
           `);
         } catch (bgErr) {
           console.warn(`[STAFF_CLEANUP_BG] Background cleanup error for ${schema}:`, bgErr.message);
