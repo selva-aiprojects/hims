@@ -9,7 +9,7 @@ import {
   User, Activity, Pill, FlaskConical,
   CheckCircle2, FileText,
   Stethoscope, Thermometer, Scale, Zap,
-  AlertTriangle, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Clock, Timer,
+  AlertTriangle, Info, Briefcase, Sparkles, Brain, Loader2, Wand2, Timer,
   HeartPulse, ChevronDown
 } from 'lucide-react';
 import PrescriptionTab from './components/PrescriptionTab';
@@ -661,7 +661,7 @@ export default function OPDConsultationPage() {
                 {[
                   { key: 'prescription', label: 'Prescription', icon: <Pill size={15} />, count: prescriptions.length },
                   { key: 'lab', label: 'Lab Tests', icon: <FlaskConical size={15} />, count: selectedLabTests.length },
-                  { key: 'history', label: 'History', icon: <Zap size={15} />, count: 0 }
+                  { key: 'history', label: 'History', icon: <Zap size={15} />, count: pastLabs.length + pastMeds.length }
                 ].map(tab => (
                   <button
                     key={tab.key}

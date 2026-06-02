@@ -35,9 +35,20 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds, onRefr
     if (!url) return null;
     const label = getAttachmentLabel(record, 'View document');
     
+    const token = localStorage.getItem("token") || "";
+    const tenantId = localStorage.getItem("tenant") || "";
+    
     // Check if URL is local path, format appropriately
     const fullUrl = url.startsWith('http') || url.startsWith('/') ? url : `/${url}`;
-    const absoluteUrl = fullUrl.startsWith('http') ? fullUrl : `${API_BASE}${fullUrl}`;
+    let absoluteUrl = fullUrl.startsWith('http') ? fullUrl : `${API_BASE}${fullUrl}`;
+    
+    if (token || tenantId) {
+      const separator = absoluteUrl.includes('?') ? '&' : '?';
+      const params = [];
+      if (token) params.push(`token=${encodeURIComponent(token)}`);
+      if (tenantId) params.push(`tenantId=${encodeURIComponent(tenantId)}`);
+      absoluteUrl = `${absoluteUrl}${separator}${params.join('&')}`;
+    }
     
     return (
       <a href={absoluteUrl} target="_blank" rel="noreferrer" style={{ marginTop: '8px', display: 'inline-block', fontSize: '12px', fontWeight: 800, color: '#3b82f6', textDecoration: 'underline' }}>

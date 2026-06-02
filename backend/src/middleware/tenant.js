@@ -1,7 +1,7 @@
 const { prisma } = require("../config/prisma");
 
 async function tenant(req, res, next) {
-  const tenantId = req.headers["x-tenant-id"] || req.body.facility;
+  const tenantId = req.headers["x-tenant-id"] || req.body.facility || req.query.tenantId || req.query.tenant;
   
   if (!tenantId) {
     console.warn(`[TENANT] Blocking request: Missing x-tenant-id header.`);

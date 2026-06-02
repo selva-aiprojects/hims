@@ -1556,6 +1556,97 @@ router.post("/lab/upload-external", upload.single("lab_report"), async (req, res
   } catch (error) { next(error); }
 });
 
+// --- VIEW PRESCRIPTION PDF ---
+router.get("/prescriptions/:id/view", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await ensureOrderColumns(req);
+
+    // 1. Fetch prescription
+    const prescriptions = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".prescriptions WHERE id = '${s(id)}'
+    `);
+    const prescription = prescriptions[0];
+    if (!prescription) {
+      return res.status(404).send("Prescription not found");
+    }
+
+    // 2. Fetch patient details
+    const patients = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".patients WHERE id = '${prescription.patient_id}'
+    `);
+    const patient = patients[0];
+
+    // 3. Fetch encounter & doctor name
+    const encounters = await req.prisma.$queryRawUnsafe(`
+      SELECT e.*, u.name as doctor_name 
+      FROM "${req.schemaName}".encounters e
+      LEFT JOIN "${req.schemaName}".users u ON e.doctor_id = u.id
+      WHERE e.id = '${prescription.encounter_id}'
+    `);
+    const encounter = encounters[0];
+
+    // 4. Fetch prescription items
+    const items = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".prescription_items WHERE prescription_id = '${s(id)}'
+    `);
+
+    // Generate beautiful PDF using pdfService
+    const pdfData = await pdfService.createPrescriptionPDF(req.tenantName, prescription, patient, encounter, items);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="prescription_${id}.pdf"`);
+    res.send(pdfData);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// --- VIEW LAB REPORT PDF ---
+router.get("/lab/orders/:id/view", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await ensureOrderColumns(req);
+
+    // 1. Fetch lab order
+    const labOrders = await req.prisma.$queryRawUnsafe(`
+      SELECT lo.*, u.name as doctor_name 
+      FROM "${req.schemaName}".lab_orders lo
+      LEFT JOIN "${req.schemaName}".users u ON lo.doctor_id = u.id
+      WHERE lo.id = '${s(id)}'
+    `);
+    const labOrder = labOrders[0];
+    if (!labOrder) {
+      return res.status(404).send("Lab order not found");
+    }
+
+    // 2. Fetch patient details
+    const patients = await req.prisma.$queryRawUnsafe(`
+      SELECT * FROM "${req.schemaName}".patients WHERE id = '${labOrder.patient_id}'
+    `);
+    const patient = patients[0];
+
+    // Parse results
+    let results = [];
+    if (labOrder.results) {
+      try {
+        results = typeof labOrder.results === 'string' ? JSON.parse(labOrder.results) : labOrder.results;
+      } catch (e) {
+        results = [];
+      }
+    }
+
+    // Generate beautiful PDF using pdfService
+    const pdfData = await pdfService.createLabReportPDF(req.tenantName, labOrder, patient, results);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="lab_report_${id}.pdf"`);
+    res.send(pdfData);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/lab/orders", async (req, res, next) => {
   try {
     await ensureOrderColumns(req);
