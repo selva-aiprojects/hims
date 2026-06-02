@@ -510,6 +510,28 @@ app.use(cors({
 
 app.use(express.json());
 
+// Response Interceptor Middleware for rephrasing technical errors
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function (body) {
+    if (res.statusCode >= 400 && body && body.error && typeof body.error === 'string') {
+      const { rephraseError } = require("./services/aiService");
+      rephraseError({ message: body.error, code: body.details })
+        .then((polishedMsg) => {
+          body.error = polishedMsg;
+          originalJson.call(res, body);
+        })
+        .catch((err) => {
+          console.error("[ERROR_INTERCEPTOR] Rephrasing failed:", err.message);
+          originalJson.call(res, body);
+        });
+      return res;
+    }
+    return originalJson.call(this, body);
+  };
+  next();
+});
+
 // Attach Prisma to req globally
 app.use((req, res, next) => {
   req.prisma = prisma;

@@ -444,15 +444,114 @@ async function predictJDMatch(requisition, candidate) {
     };
   } catch (error) {
     console.error("[AI] JD Matcher Error:", error.message);
-    return {
-      matchScore: 50,
-      matchAnalysis: JSON.stringify({
-        strengths: ["Background review completed."],
-        gaps: ["AI parsing error occurred during detailed evaluation."],
-        recommendation: "Interview"
-      })
-    };
   }
+}
+
+/**
+ * Polites rephraser for server/database error messages
+ */
+async function rephraseError(err) {
+  const rawMessage = (err && (err.message || String(err))) || "";
+  const errCode = (err && (err.code || "")) || "";
+
+  // 1. Local rule-based translation dictionary (extremely fast fallback)
+  let localPolishedMessage = "";
+
+  // Unique constraint / duplicate key violations
+  if (rawMessage.includes("23505") || rawMessage.includes("unique constraint") || errCode === "P2002") {
+    if (rawMessage.includes("users_email_key") || rawMessage.includes("users.email") || rawMessage.includes("email")) {
+      localPolishedMessage = "A user or staff member with this email address is already registered in the system. Please use a different email address.";
+    } else if (rawMessage.includes("patients_email_key")) {
+      localPolishedMessage = "A patient with this email address is already registered. Please check the details.";
+    } else if (rawMessage.includes("mrn")) {
+      localPolishedMessage = "A patient with this Medical Record Number (MRN) already exists. Please verify the MRN.";
+    } else {
+      localPolishedMessage = "This record already exists in our database. Please check for duplicate entries.";
+    }
+  }
+  // Foreign key / relational link violations
+  else if (rawMessage.includes("23503") || rawMessage.includes("foreign key constraint") || errCode === "P2003") {
+    localPolishedMessage = "This record cannot be modified or deleted because it is linked to other information in the system.";
+  }
+  // Required/Null constraints
+  else if (rawMessage.includes("23502") || rawMessage.includes("violates not-null constraint") || errCode === "P2011" || errCode === "P2012") {
+    localPolishedMessage = "One or more required fields are missing. Please verify all mandatory details are provided.";
+  }
+  // Check constraints
+  else if (rawMessage.includes("violates check constraint")) {
+    localPolishedMessage = "The values entered do not satisfy the required system validation criteria.";
+  }
+  // Database connection errors
+  else if (rawMessage.includes("PrismaClientInitializationError") || rawMessage.includes("Can't reach database") || rawMessage.includes("Connection failed")) {
+    localPolishedMessage = "We are experiencing a temporary database connection issue. Please wait a moment and try again.";
+  }
+  // Custom API validation errors (less than 500 status code and not database-specific)
+  else if (err && err.status && err.status < 500 && !rawMessage.includes("prisma") && !rawMessage.includes("SQL")) {
+    localPolishedMessage = rawMessage;
+  }
+
+  // If local check didn't produce a translation, give it a clean default error
+  if (!localPolishedMessage) {
+    localPolishedMessage = "An unexpected error occurred while processing your request. Please try again shortly or contact support if the issue persists.";
+  }
+
+  // 2. LLM rephrasing (if GEMINI_API_KEY is configured)
+  if (ai) {
+    try {
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const prompt = `
+      You are a polite, helpful assistant for Healthezee, a Hospital Information Management System (HIMS).
+      A hospital staff member encountered an error while using the application.
+      Here is the raw error message:
+      "${rawMessage}"
+      Error code: "${errCode}"
+
+      Rephrase this raw error into a polite, professional, and clear user-facing error message.
+      Strict Rules:
+      - Keep it short (1-2 sentences maximum).
+      - Do NOT expose any technical jargon, database table names, SQL constraints, schema names, code paths, stack traces, Prisma keyword, or internal files.
+      - Make it natural, respectful, and actionable for hospital staff.
+      - Return ONLY the final polished message text. Do NOT prefix with "Here is the rephrased message:" or include quotes.
+      `;
+      
+      const result = await model.generateContent(prompt);
+      const rephrased = result.response.text().trim();
+      if (rephrased && rephrased.length > 5 && !rephrased.toLowerCase().includes("internal server error")) {
+        return rephrased;
+      }
+    } catch (aiErr) {
+      console.warn("[AI-GEMINI] Error rephrasing message with Gemini:", aiErr.message);
+    }
+  }
+  // 3. Groq rephrasing (if GROQ_KEY is configured and Gemini is not)
+  else if (GROQ_KEY) {
+    try {
+      const response = await axios.post(GROQ_API_URL, {
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: "You are a polite, professional system assistant for Healthezee HIMS. Your task is to rephrase raw database/SQL/system errors into friendly, professional, clear, and actionable user-facing messages. Keep it to 1-2 sentences. Never expose table names, SQL syntax, raw codes, or code stacks."
+          },
+          {
+            role: "user",
+            content: `Rephrase this raw error: "${rawMessage}". Error code: "${errCode}". Return ONLY the final rephrased message.`
+          }
+        ]
+      }, {
+        headers: { "Authorization": `Bearer ${GROQ_KEY}`, "Content-Type": "application/json" }
+      });
+
+      const rephrased = response.data.choices[0].message.content.trim();
+      if (rephrased && rephrased.length > 5 && !rephrased.toLowerCase().includes("internal server error")) {
+        return rephrased;
+      }
+    } catch (groqErr) {
+      console.warn("[AI-GROQ] Error rephrasing message with Groq:", groqErr.message);
+    }
+  }
+
+  return localPolishedMessage;
 }
 
 module.exports = {
@@ -462,5 +561,6 @@ module.exports = {
   parseExternalLabReport,
   hospitalChat,
   predictConsultationMetrics,
-  predictJDMatch
+  predictJDMatch,
+  rephraseError
 };
