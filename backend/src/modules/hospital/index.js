@@ -1050,6 +1050,9 @@ router.get("/encounters", async (req, res, next) => {
           p.id as prescription_id,
           p.status as prescription_status,
           p.created_at as prescription_created_at,
+          p.attachment_url,
+          p.prescription_url,
+          p.pdf_path,
           pi.drug_name,
           pi.dosage,
           pi.frequency,
@@ -1071,13 +1074,33 @@ router.get("/encounters", async (req, res, next) => {
             dosage: row.dosage,
             frequency: row.frequency,
             duration: row.duration,
-            instructions: row.instructions
+            instructions: row.instructions,
+            attachment_url: row.attachment_url,
+            prescription_url: row.prescription_url,
+            pdf_path: row.pdf_path
+          });
+        } else if (!row.drug_name && row.prescription_id) {
+          // If there's an attachment but no items (e.g. past history prescription record)
+          // ensure the prescription object still exists in the array
+          acc[row.encounter_id].push({
+            prescription_id: row.prescription_id,
+            status: row.prescription_status,
+            created_at: row.prescription_created_at,
+            attachment_url: row.attachment_url,
+            prescription_url: row.prescription_url,
+            pdf_path: row.pdf_path
           });
         }
         return acc;
       }, {});
       encounters.forEach(enc => {
-        enc.prescriptions = byEncounter[enc.id] || [];
+        const pres = byEncounter[enc.id] || [];
+        enc.prescriptions = pres;
+        if (pres.length > 0) {
+          enc.attachment_url = pres[0].attachment_url;
+          enc.prescription_url = pres[0].prescription_url;
+          enc.pdf_path = pres[0].pdf_path;
+        }
       });
     }
 
@@ -2632,6 +2655,60 @@ router.put("/leaves/:id", async (req, res, next) => {
     `);
     res.json({ success: true, status });
   } catch (error) { next(error); }
+});
+
+// --- UPLOAD PAST MEDICAL HISTORY RECORDS ---
+router.post("/patients/:patientId/past-records", upload.single("file"), async (req, res, next) => {
+  try {
+    await ensureOrderColumns(req);
+    const { patientId } = req.params;
+    const { recordType, title, recordDate } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const dateStr = recordDate ? s(recordDate) : new Date().toISOString().slice(0, 10);
+    
+    if (recordType === 'lab') {
+      const orderId = crypto.randomUUID();
+      // Insert a completed lab order
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".lab_orders (id, patient_id, test_name, priority, status, report_url, attachment_url, created_at)
+        VALUES ('${orderId}', '${s(patientId)}', '${s(title || 'Lab Report')}', 'Normal', 'Completed', '${fileUrl}', '${fileUrl}', '${dateStr}')
+      `);
+      return res.json({ success: true, message: "Past lab report uploaded successfully." });
+    } else {
+      // It's a prescription
+      const encounterId = crypto.randomUUID();
+      const presId = crypto.randomUUID();
+      const doctorId = await getCurrentUserId(req);
+      
+      // 1. Insert a Completed encounter
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".encounters (id, patient_id, doctor_id, diagnosis, status, notes, created_at)
+        VALUES ('${encounterId}', '${s(patientId)}', ${doctorId ? `'${doctorId}'` : 'NULL'}, '${s(title || 'Completed Visit')}', 'Completed', 'Uploaded past prescription', '${dateStr}')
+      `);
+      
+      // 2. Insert a prescription
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".prescriptions (id, encounter_id, patient_id, status, is_paid, attachment_url, prescription_url, created_at)
+        VALUES ('${presId}', '${encounterId}', '${s(patientId)}', 'Completed', true, '${fileUrl}', '${fileUrl}', '${dateStr}')
+      `);
+      
+      // 3. Optional: add a generic item so it shows up in prescription items if needed
+      const itemId = crypto.randomUUID();
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".prescription_items (id, prescription_id, drug_name, dosage, frequency, duration, instructions, created_at)
+        VALUES ('${itemId}', '${presId}', '${s(title || 'Past Prescription Record')}', '-', '-', '-', '-', '${dateStr}')
+      `);
+      
+      return res.json({ success: true, message: "Past prescription uploaded successfully." });
+    }
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;

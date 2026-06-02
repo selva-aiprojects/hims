@@ -1,12 +1,22 @@
-import { Zap, Heart, FlaskConical, Pill } from 'lucide-react';
+import { useState } from 'react';
+import axios from 'axios';
+import { Zap, Heart, FlaskConical, Pill, Upload, FileText, Loader2 } from 'lucide-react';
+import { API_BASE_URL as API_BASE } from "../../../../config/api";
 
 interface ClinicalHistoryTabProps {
   patient: any;
   pastLabs: any[];
   pastMeds: any[];
+  onRefresh?: () => void;
 }
 
-export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: ClinicalHistoryTabProps) {
+export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds, onRefresh }: ClinicalHistoryTabProps) {
+  const [uploadType, setUploadType] = useState<'lab' | 'prescription'>('lab');
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadDate, setUploadDate] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const displayValue = (value: any, fallback = '-') => {
     if (value === undefined || value === null || value === '') return fallback;
     return String(value);
@@ -23,9 +33,15 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
   const renderAttachmentLink = (record: any) => {
     const url = getAttachmentUrl(record);
     if (!url) return null;
-    const label = getAttachmentLabel(record);
+    const label = getAttachmentLabel(record, 'View document');
+    
+    // Check if URL is local path, format appropriately
+    const fullUrl = url.startsWith('http') || url.startsWith('/') ? url : `/${url}`;
+    const absoluteUrl = fullUrl.startsWith('http') ? fullUrl : `${API_BASE}${fullUrl}`;
+    
     return (
-      <a href={url} target="_blank" rel="noreferrer" style={{ marginTop: '8px', display: 'inline-block', fontSize: '11px', fontWeight: 700, color: '#2563eb' }}>
+      <a href={absoluteUrl} target="_blank" rel="noreferrer" style={{ marginTop: '8px', display: 'inline-block', fontSize: '12px', fontWeight: 800, color: '#3b82f6', textDecoration: 'underline' }}>
+        <FileText size={12} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
         {label}
       </a>
     );
@@ -36,6 +52,45 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
     if (Array.isArray(encounter?.prescription_items)) return encounter.prescription_items;
     if (Array.isArray(encounter?.items)) return encounter.items;
     return [];
+  };
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      alert("Please select a file to upload.");
+      return;
+    }
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("file", uploadFile);
+    formData.append("recordType", uploadType);
+    formData.append("title", uploadTitle);
+    formData.append("recordDate", uploadDate);
+
+    try {
+      const getHeaders = () => ({
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "x-tenant-id": localStorage.getItem("tenant") || ""
+      });
+      await axios.post(`${API_BASE}/api/hospital/patients/${patient.id}/past-records`, formData, {
+        headers: {
+          ...getHeaders(),
+          "Content-Type": "multipart/form-data"
+        }
+      });
+      alert("Past record uploaded successfully!");
+      setUploadTitle('');
+      setUploadDate('');
+      setUploadFile(null);
+      const fileInput = document.getElementById("past-record-file-input") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || "Failed to upload past record.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -74,6 +129,73 @@ export default function ClinicalHistoryTab({ patient, pastLabs, pastMeds }: Clin
                 <span style={{ fontSize: '11px', fontWeight: 900, color: '#3b82f6' }}>AI RISK SCORE</span>
              </div>
              <div style={{ fontSize: '24px', fontWeight: 900, color: 'white' }}>Low <span style={{ fontSize: '14px', fontWeight: 600, color: '#94a3b8' }}>Risk</span></div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', margin: '10px 0' }} />
+          
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 900, color: '#10b981', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
+              <Upload size={14} /> Upload Past Record
+            </div>
+            <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '10px', color: '#94a3b8', fontWeight: 700, marginBottom: '4px' }}>RECORD TYPE</label>
+                <select 
+                  style={{ width: '100%', padding: '8px', borderRadius: '8px', background: '#1e293b', border: '1px solid #475569', color: 'white', fontSize: '12px' }}
+                  value={uploadType} 
+                  onChange={e => setUploadType(e.target.value as any)}
+                >
+                  <option value="lab">Lab Report</option>
+                  <option value="prescription">Prescription</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '10px', color: '#94a3b8', fontWeight: 700, marginBottom: '4px' }}>TITLE / DIAGNOSIS</label>
+                <input 
+                  required 
+                  placeholder={uploadType === 'lab' ? "e.g. Blood Test Report" : "e.g. Chronic Asthma"}
+                  style={{ width: '100%', padding: '8px', borderRadius: '8px', background: '#1e293b', border: '1px solid #475569', color: 'white', fontSize: '12px' }}
+                  value={uploadTitle}
+                  onChange={e => setUploadTitle(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '10px', color: '#94a3b8', fontWeight: 700, marginBottom: '4px' }}>RECORD DATE</label>
+                <input 
+                  type="date"
+                  style={{ width: '100%', padding: '8px', borderRadius: '8px', background: '#1e293b', border: '1px solid #475569', color: 'white', fontSize: '12px' }}
+                  value={uploadDate}
+                  onChange={e => setUploadDate(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '10px', color: '#94a3b8', fontWeight: 700, marginBottom: '4px' }}>SELECT FILE</label>
+                <input 
+                  id="past-record-file-input"
+                  required
+                  type="file"
+                  accept=".pdf,image/*"
+                  style={{ width: '100%', fontSize: '11px', color: '#94a3b8' }}
+                  onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isUploading}
+                style={{ 
+                  width: '100%', padding: '10px', borderRadius: '8px', background: '#10b981', color: 'white', 
+                  border: 'none', fontWeight: 800, fontSize: '12px', cursor: 'pointer', marginTop: '6px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
+                }}
+              >
+                {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {isUploading ? 'Uploading...' : 'Upload Record'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

@@ -713,6 +713,7 @@ export default function OPDConsultationPage() {
                     patient={patient}
                     pastLabs={pastLabs}
                     pastMeds={pastMeds}
+                    onRefresh={() => fetchPatientDetails(patient.id)}
                   />
                 )}
               </div>

@@ -619,6 +619,8 @@ app.get("/api/nexus/utilization/sync-actuals", async (req, res) => {
   res.json({ success, message: success ? "Metrics synchronized" : "Sync failed" });
 });
 
+app.use("/uploads", express.static(path.join(__dirname, "../../uploads")));
+
 app.use(audit);
 app.use("/api", routes);
 
