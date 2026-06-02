@@ -25,6 +25,7 @@ const SPECIALIZATIONS = [
   'Emergency Medicine'
 ];
 
+export default function StaffManagementPage() {
   const [staff, setStaff] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
