@@ -144,10 +144,12 @@ const staffSyncedSchemas = new Set();
 async function ensureStaffColumns(req, force = false) {
   const schema = req.schemaName;
   if (!schema) return;
+  
+  // Return immediately if already synced (use cache)
   if (staffSyncedSchemas.has(schema) && !force) return;
   
   try {
-    // 1. Create contractor_vendors Table
+    // 1. Create contractor_vendors Table (lightweight)
     await req.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "${req.schemaName}".contractor_vendors (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -160,7 +162,7 @@ async function ensureStaffColumns(req, force = false) {
       );
     `);
 
-    // 2. Column Healing for users table (including employment_type, vendor_id, and is_manager)
+    // 2. Column Healing for users table (lightweight)
     await req.prisma.$executeRawUnsafe(`
       ALTER TABLE "${req.schemaName}".users 
       ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
@@ -240,68 +242,40 @@ async function ensureStaffColumns(req, force = false) {
       );
     `);
 
-    // 2. Dynamic, Isolated Seeding
-    const hospitalPrefix = req.tenantName?.split(' ')[0] || schema.split('_')[0].toUpperCase();
-    const domain = `${schema.replace(/_/g, '-')}.hims.com`;
-    const pwd = await bcrypt.hash('Healthezee@123', 10);
-    
-    // Cleanup any OLD mock staff from previous global seeding or base schema
-    const legacyEmails = [
-      'sankaran@apollo.com', 'maheswaran@apollo.com', 'aravind@apollo.com', 
-      'clara@apollo.com', 'florence@apollo.com', 'pharmacy@apollo.com', 
-      'lab@apollo.com', 'reception@apollo.com', 'mrutyunjaya@apollo.com', 
-      'santhanakrishnan@apollo.com'
-    ];
-    
-    await req.prisma.$executeRawUnsafe(`
-      DELETE FROM "${req.schemaName}".rbac_user_roles 
-      WHERE user_id IN (
-        SELECT id FROM "${req.schemaName}".users
-        WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
-        OR (name LIKE 'Dr.%' AND email LIKE '%@apollo.com')
-        OR (name IN ('Dr. Mrutyunjaya', 'Dr. Santhanakrishnan', 'Dr. Aravind Kumar', 'Dr. Sankaran R', 'Dr. Maheswaran R'))
-        OR (email LIKE 'aravind@%')
-        OR (email LIKE 'santhan@%')
-      )
-    `);
-    
-    await req.prisma.$executeRawUnsafe(`
-      UPDATE "${req.schemaName}".users
-      SET is_active = false
-      WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
-      OR (name LIKE 'Dr.%' AND email LIKE '%@apollo.com')
-      OR (name IN ('Dr. Mrutyunjaya', 'Dr. Santhanakrishnan', 'Dr. Aravind Kumar', 'Dr. Sankaran R', 'Dr. Maheswaran R'))
-      OR (email LIKE 'aravind@%')
-      OR (email LIKE 'santhan@%')
-    `);
-
-    const staffTemplate = [
-      { name: `Dr. ${hospitalPrefix} Senior Surgeon`, email: `surgeon1@${domain}`, role: 'DOCTOR', spec: 'General Surgery', dept: 'Surgery' },
-      { name: `Dr. ${hospitalPrefix} Consultant`, email: `consultant1@${domain}`, role: 'DOCTOR', spec: 'Internal Medicine', dept: 'OPD' },
-      { name: `Dr. ${hospitalPrefix} Specialist`, email: `specialist1@${domain}`, role: 'DOCTOR', spec: 'Cardiology', dept: 'Cardiology' }
-    ];
-
-    for (const s of staffTemplate) {
-      const id = crypto.randomUUID();
-      await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".users (id, name, email, password_hash, role, specialization, department, is_active)
-        VALUES ('${id}', '${s.name}', '${s.email}', '${pwd}', '${s.role}', '${s.spec}', '${s.dept}', true)
-        ON CONFLICT (email) DO UPDATE SET
-          name = EXCLUDED.name,
-          specialization = EXCLUDED.specialization,
-          department = EXCLUDED.department,
-          is_active = true
-      `);
-    }
-
-    // 3. Deduplication Cleanup
-    await req.prisma.$executeRawUnsafe(`
-      DELETE FROM "${req.schemaName}".users a
-      USING "${req.schemaName}".users b
-      WHERE a.id > b.id AND a.email = b.email
-    `);
-    
+    // Mark schema as synced immediately to prevent race conditions
     staffSyncedSchemas.add(schema);
+    
+    // 7. Async cleanup (non-blocking) - only on force or first time, run in background
+    if (force) {
+      setImmediate(async () => {
+        try {
+          const legacyEmails = [
+            'sankaran@apollo.com', 'maheswaran@apollo.com', 'aravind@apollo.com', 
+            'clara@apollo.com', 'florence@apollo.com', 'pharmacy@apollo.com', 
+            'lab@apollo.com', 'reception@apollo.com', 'mrutyunjaya@apollo.com', 
+            'santhanakrishnan@apollo.com'
+          ];
+          
+          await req.prisma.$executeRawUnsafe(`
+            DELETE FROM "${req.schemaName}".rbac_user_roles 
+            WHERE user_id IN (
+              SELECT id FROM "${req.schemaName}".users
+              WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
+              LIMIT 1000
+            )
+          `);
+          
+          await req.prisma.$executeRawUnsafe(`
+            UPDATE "${req.schemaName}".users
+            SET is_active = false
+            WHERE email IN (${legacyEmails.map(e => `'${e}'`).join(',')})
+            LIMIT 1000
+          `);
+        } catch (bgErr) {
+          console.warn(`[STAFF_CLEANUP_BG] Background cleanup error for ${schema}:`, bgErr.message);
+        }
+      });
+    }
   } catch (err) {
     console.warn(`[STAFF_HEALING] Error for ${req.schemaName}:`, err.message);
   }
