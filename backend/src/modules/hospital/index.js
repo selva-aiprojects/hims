@@ -2236,7 +2236,30 @@ router.get("/staff/vendors", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Alias for backwards compatibility
+router.get("/vendors", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const data = await req.prisma.$queryRawUnsafe(`SELECT * FROM "${req.schemaName}".contractor_vendors ORDER BY name ASC`);
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
 router.post("/staff/vendors", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { name, contact_person, email, phone, address } = req.body;
+    const id = crypto.randomUUID();
+    await req.prisma.$executeRawUnsafe(`
+      INSERT INTO "${req.schemaName}".contractor_vendors (id, name, contact_person, email, phone, address)
+      VALUES ('${id}', '${s(name)}', ${sqlValue(contact_person)}, ${sqlValue(email)}, ${sqlValue(phone)}, ${sqlValue(address)})
+    `);
+    res.status(201).json({ id, name });
+  } catch (error) { next(error); }
+});
+
+// Alias for backwards compatibility
+router.post("/vendors", async (req, res, next) => {
   try {
     await ensureStaffColumns(req);
     const { name, contact_person, email, phone, address } = req.body;
@@ -2267,7 +2290,36 @@ router.put("/staff/vendors/:id", async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Alias for backwards compatibility
+router.put("/vendors/:id", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    const { name, contact_person, email, phone, address } = req.body;
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".contractor_vendors 
+      SET name = '${s(name)}', 
+          contact_person = ${sqlValue(contact_person)}, 
+          email = ${sqlValue(email)}, 
+          phone = ${sqlValue(phone)}, 
+          address = ${sqlValue(address)}
+      WHERE id = '${id}'
+    `);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
 router.delete("/staff/vendors/:id", async (req, res, next) => {
+  try {
+    await ensureStaffColumns(req);
+    const { id } = req.params;
+    await req.prisma.$executeRawUnsafe(`DELETE FROM "${req.schemaName}".contractor_vendors WHERE id = '${id}'`);
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+// Alias for backwards compatibility
+router.delete("/vendors/:id", async (req, res, next) => {
   try {
     await ensureStaffColumns(req);
     const { id } = req.params;

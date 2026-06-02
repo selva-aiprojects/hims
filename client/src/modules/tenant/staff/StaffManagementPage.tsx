@@ -5,7 +5,7 @@ import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 
-const SPECIALIZATIONS = [
+export const SPECIALIZATIONS = [
   'General Medicine',
   'Internal Medicine',
   'Cardiology',
