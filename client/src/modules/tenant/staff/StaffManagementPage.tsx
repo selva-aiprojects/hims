@@ -40,6 +40,7 @@ export default function StaffManagementPage() {
   const [activeTab, setActiveTab] = useState<'list' | 'vendors' | 'rbac'>('list');
   const [searchTerm, setSearchTerm] = useState("");
   const [departments, setDepartments] = useState<string[]>([]);
+  const [specializations, setSpecializations] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -129,10 +130,26 @@ export default function StaffManagementPage() {
     }
   };
 
+  const fetchSpecializations = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/hospital/masters/specialities`, { headers: getHeaders() });
+      const names = (res.data || []).map((s: any) => s.name).filter(Boolean);
+      if (names.length > 0) {
+        setSpecializations(names);
+      } else {
+        setSpecializations(SPECIALIZATIONS);
+      }
+    } catch (err) {
+      console.error("Failed to fetch specializations:", err);
+      setSpecializations(SPECIALIZATIONS);
+    }
+  };
+
   useEffect(() => {
     fetchStaff(searchTerm);
     fetchVendors();
     fetchDepartments();
+    fetchSpecializations();
   }, [searchTerm]);
 
   const resetForm = () => setFormData({
@@ -670,7 +687,7 @@ export default function StaffManagementPage() {
                       <select style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0' }}
                         value={formData.specialization} onChange={e => setFormData({ ...formData, specialization: e.target.value })}>
                         <option value="">Select Specialization</option>
-                        {SPECIALIZATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                        {specializations.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                   </div>
