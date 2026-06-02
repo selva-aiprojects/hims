@@ -1420,6 +1420,7 @@ router.post("/encounters/:id/prescriptions", async (req, res, next) => {
       RETURNING id
     `);
     const presId = presHeader[0].id;
+    const prescriptionUrl = `/api/hospital/prescriptions/${presId}/view`;
 
     // 2. Create Prescription Items & Billing
     for (const item of items) {
@@ -1439,7 +1440,11 @@ router.post("/encounters/:id/prescriptions", async (req, res, next) => {
         VALUES ('${patientId}', '${id}', 'PHARMACY', '${presId}', 'Medicine: ${s(item.name)}', 1, ${price})
       `);
     }
-    res.json({ message: "Prescriptions saved and billed.", prescriptionId: presId });
+    // 3. Update prescription with attachment URL
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".prescriptions SET prescription_url = '${prescriptionUrl}', attachment_url = '${prescriptionUrl}' WHERE id = '${presId}'
+    `);
+    res.json({ message: "Prescriptions saved and billed.", prescriptionId: presId, prescriptionUrl });
   } catch (error) { 
     console.error("[PRESCRIPTION_POST_ERROR]", error.message);
     next(error); 
@@ -1470,10 +1475,11 @@ router.post("/encounters/:id/lab-orders", async (req, res, next) => {
       const diag = await req.prisma.$queryRawUnsafe(`SELECT name, price FROM "${req.schemaName}".diagnostics WHERE id::text = '${testId}' OR name = '${testId}' LIMIT 1`);
       const testName = diag[0]?.name || testId;
       const price = diag[0]?.price || 500;
+      const reportUrl = `/api/hospital/lab/orders/${orderId}/view`;
 
       await req.prisma.$executeRawUnsafe(`
-        INSERT INTO "${req.schemaName}".lab_orders (id, encounter_id, patient_id, doctor_id, test_name, priority, status)
-        VALUES ('${orderId}', '${id}', '${patientId}', ${doctorId ? `'${doctorId}'` : 'NULL'}, '${s(testName)}', '${s(priority || 'Normal')}', 'Pending')
+        INSERT INTO "${req.schemaName}".lab_orders (id, encounter_id, patient_id, doctor_id, test_name, priority, status, report_url, attachment_url)
+        VALUES ('${orderId}', '${id}', '${patientId}', ${doctorId ? `'${doctorId}'` : 'NULL'}, '${s(testName)}', '${s(priority || 'Normal')}', 'Pending', '${reportUrl}', '${reportUrl}')
       `);
 
       // Push to Billing Queue
