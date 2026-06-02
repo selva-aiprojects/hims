@@ -161,6 +161,7 @@ export default function StaffManagementPage() {
     setIsEditing(false);
     setEditId(null);
     setShowModal(true);
+    fetchSpecializations();
   };
 
   const handleOpenEditModal = (member: any) => {
@@ -185,6 +186,7 @@ export default function StaffManagementPage() {
     setIsEditing(true);
     setEditId(member.id);
     setShowModal(true);
+    fetchSpecializations();
   };
 
   const handleDobChange = (val: string) => {
