@@ -8,16 +8,16 @@ import { applyTheme as applyThemeUtil, getNamespacedItem, setNamespacedItem } fr
 export default function SettingsPage() {
   const [hospitalName, setHospitalName] = useState(getNamespacedItem('tenantName') || localStorage.getItem('tenantName') || 'Healthezee Hospital');
   const [primaryDark, setPrimaryDark] = useState(getNamespacedItem('theme_primary_dark') || '#0f172a');
-  const [primaryAccent, setPrimaryAccent] = useState(getNamespacedItem('theme_primary_accent') || '#3b82f6');
-  const [appBg, setAppBg] = useState(getNamespacedItem('theme_app_bg') || '#f8fafc');
-  const [textMain, setTextMain] = useState(getNamespacedItem('theme_text_main') || '#1e293b');
+  const [primaryAccent, setPrimaryAccent] = useState(getNamespacedItem('theme_primary_accent') || '#6366f1');
+  const [appBg, setAppBg] = useState(getNamespacedItem('theme_app_bg') || '#f4f6fa');
+  const [textMain, setTextMain] = useState(getNamespacedItem('theme_text_main') || '#0f172a');
   const [sidebarText, setSidebarText] = useState(getNamespacedItem('theme_sidebar_text') || '#94a3b8');
   const [fontSize, setFontSize] = useState(getNamespacedItem('theme_font_size') || '14');
   const [logoUrl, setLogoUrl] = useState(getNamespacedItem('theme_logo_url') || '');
   
   // Hero Settings
-  const [heroBg, setHeroBg] = useState(getNamespacedItem('theme_hero_bg') || localStorage.getItem('theme_hero_bg') || '#ffffff');
-  const [heroText, setHeroText] = useState(getNamespacedItem('theme_hero_text') || localStorage.getItem('theme_hero_text') || '#0f172a');
+  const [heroBg, setHeroBg] = useState(getNamespacedItem('theme_hero_bg') || localStorage.getItem('theme_hero_bg') || 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)');
+  const [heroText, setHeroText] = useState(getNamespacedItem('theme_hero_text') || localStorage.getItem('theme_hero_text') || '#ffffff');
 
   const applyTheme = async () => {
     const tenantId = localStorage.getItem('tenant');

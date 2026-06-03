@@ -93,7 +93,7 @@ export default function StaffPage() {
 
         {showModal && (
            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '400px' }}>
+              <div style={{ background: 'white', padding: '32px', borderRadius: '24px', width: '100%', maxWidth: '600px' }}>
                  <h3 style={{ margin: '0 0 20px', fontWeight: 900 }}>Add New Employee</h3>
                  <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <input required placeholder="Full Name" style={{ padding: '12px', borderRadius: '10px', border: '1px solid #e2e8f0' }} onChange={e => setNewStaff({...newStaff, name: e.target.value})} />

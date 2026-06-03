@@ -262,7 +262,7 @@ export default function Sidebar() {
         document.querySelector('.mobile-overlay')?.classList.remove('active');
       }}></div>
       
-      <div className="sidebar" style={{ width: '280px', background: 'var(--primary-dark, #0f172a)', height: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
+      <div className="sidebar" style={{ width: '280px', background: 'linear-gradient(180deg, #090d16 0%, var(--primary-dark, #0f172a) 100%)', height: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
         <button 
           className="sidebar-close" 
           onClick={() => {
@@ -354,16 +354,17 @@ export default function Sidebar() {
           display: flex;
           align-items: center;
           gap: 10px;
-          padding: 10px 12px;
-          border-radius: 8px;
+          padding: 10px 14px;
+          border-radius: 12px;
           color: var(--sidebar-text, #94a3b8);
           text-decoration: none;
           font-size: 13px;
           font-weight: 600;
-          transition: all 0.2s;
-          margin-bottom: 2px;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          margin-bottom: 4px;
           position: relative;
           overflow: hidden;
+          border: 1px solid transparent;
         }
         .nav-item span {
           white-space: nowrap;
@@ -372,16 +373,21 @@ export default function Sidebar() {
           flex: 1;
         }
         .nav-item:hover { background: rgba(255,255,255,0.03); color: white; }
-        .nav-item.active { background: rgba(255, 255, 255, 0.05); color: #38bdf8; }
+        .nav-item.active {
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.04) 100%);
+          color: #a5b4fc;
+          border-color: rgba(99, 102, 241, 0.25);
+        }
         .nav-item.active::after {
           content: "";
           position: absolute;
           left: 0;
-          top: 6px;
-          bottom: 6px;
+          top: 8px;
+          bottom: 8px;
           width: 3px;
-          background: #38bdf8;
+          background: #6366f1;
           border-radius: 0 4px 4px 0;
+          box-shadow: 0 0 10px #6366f1;
         }
       `}</style>
       <style>{`

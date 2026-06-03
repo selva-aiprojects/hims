@@ -596,16 +596,38 @@ export default function DashboardPage() {
       <main className="main-content" style={{ padding: isMobile ? '16px' : '32px 40px', backgroundColor: '#f8fafc', flex: 1, overflowX: 'hidden' }}>
         
         {/* TOP BRANDING HEADER BAR */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <h1 style={{ fontSize: '26px', fontWeight: 800, color: '#0f172a', margin: 0 }}>Welcome, {userName}</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>Authorized Session: {userName}</span>
+        <div className="dashboard-header" style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '24px 32px',
+          width: '100%',
+          marginBottom: '32px',
+          gap: isMobile ? '20px' : '0'
+        }}>
+          {/* Left Welcome Text */}
+          <div style={{ zIndex: 2 }}>
+            <h1 style={{ 
+              fontSize: '28px', 
+              fontWeight: 900, 
+              color: '#ffffff', 
+              margin: 0,
+              letterSpacing: '-0.02em',
+              textShadow: '0 2px 10px rgba(0,0,0,0.15)'
+            }}>Welcome, {userName}</h1>
+            <p style={{ margin: '4px 0 12px', color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px', fontWeight: 500 }}>
+              Let's make today a productive day for HIMS. Here is your clinic status overview.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.75)', fontWeight: 700 }}>Session: {userName}</span>
+              <div style={{ width: '1px', height: '12px', background: 'rgba(255, 255, 255, 0.2)' }} />
               <span style={{ 
                 fontSize: '10px', 
                 fontWeight: 800, 
-                color: plan === 'basic' ? '#2563eb' : plan === 'standard' ? '#0d9488' : '#7c3aed', 
-                backgroundColor: plan === 'basic' ? '#eff6ff' : plan === 'standard' ? '#ecfdf5' : '#f5f3ff',
+                color: '#ffffff', 
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
                 padding: '2px 8px',
                 borderRadius: '6px',
                 textTransform: 'uppercase',
@@ -614,14 +636,29 @@ export default function DashboardPage() {
                 alignItems: 'center',
                 gap: '4px'
               }}>
-                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: plan === 'basic' ? '#2563eb' : plan === 'standard' ? '#0d9488' : '#7c3aed' }} />
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#34d399' }} />
                 Wellness {plan}
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '8px 16px', fontSize: '13px', fontWeight: 700, color: '#475569', cursor: 'pointer' }}>
+          {/* Right Action Blocks */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap', zIndex: 2 }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              backgroundColor: 'rgba(255, 255, 255, 0.15)', 
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.25)', 
+              borderRadius: '12px', 
+              padding: '8px 16px', 
+              fontSize: '13px', 
+              fontWeight: 700, 
+              color: '#ffffff', 
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+            }}>
               <Calendar size={16} />
               <span>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
               <ChevronDown size={14} />
@@ -634,11 +671,17 @@ export default function DashboardPage() {
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '6px',
-                padding: '8px 16px',
+                padding: '10px 18px',
                 fontSize: '11px',
                 fontWeight: 800,
                 borderRadius: '12px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                color: '#ffffff',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                transition: 'all 0.2s ease'
               }}
             >
               <LogOut size={12} />
