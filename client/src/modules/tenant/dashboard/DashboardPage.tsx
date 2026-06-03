@@ -554,7 +554,42 @@ export default function DashboardPage() {
   const displayComplaints = stats.topComplaints && stats.topComplaints.length > 0 ? stats.topComplaints : [];
 
   return (
-    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc', display: 'flex', minHeight: '100vh', width: '100%' }}>
+    <div className="dashboard-layout" style={{ display: 'flex', minHeight: '100vh', width: '100%', overflow: 'hidden', position: 'relative' }}>
+      {/* Dynamic ambient mesh glow layers */}
+      <div style={{
+        position: 'fixed',
+        top: '-10%',
+        left: '-10%',
+        width: '50vw',
+        height: '50vw',
+        background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
+        filter: 'blur(80px)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+      <div style={{
+        position: 'fixed',
+        bottom: '10%',
+        right: '-10%',
+        width: '45vw',
+        height: '45vw',
+        background: 'radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, transparent 70%)',
+        filter: 'blur(80px)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+      <div style={{
+        position: 'fixed',
+        top: '40%',
+        left: '50%',
+        width: '35vw',
+        height: '35vw',
+        background: 'radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 70%)',
+        filter: 'blur(90px)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+
       <style>{`
         body, div, span, p, a, button, input, select, textarea, label, td, th, strong, em, li, ul, ol {
           font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
@@ -593,7 +628,7 @@ export default function DashboardPage() {
         }
       `}</style>
       <Sidebar />
-      <main className="main-content" style={{ padding: isMobile ? '16px' : '32px 40px', backgroundColor: '#f8fafc', flex: 1, overflowX: 'hidden' }}>
+      <main className="main-content" style={{ padding: isMobile ? '16px' : '32px 40px', flex: 1, overflowX: 'hidden', zIndex: 1 }}>
         
         {/* TOP BRANDING HEADER BAR */}
         <div className="dashboard-header" style={{

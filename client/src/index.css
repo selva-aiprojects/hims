@@ -13,12 +13,27 @@
   --text-muted: #64748b;
   --error-bg: #fee2e2;
   --error-text: #ef4444;
-  --card-bg: rgba(255, 255, 255, 0.85);
-  --input-bg: #ffffff;
-  --input-border: rgba(226, 232, 240, 0.8);
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.4);
+  --card-bg: rgba(255, 255, 255, 0.55);
+  --input-bg: rgba(255, 255, 255, 0.7);
+  --input-border: rgba(226, 232, 240, 0.6);
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  
+  /* Filmy Glassmorphism parameters */
+  --filmy-glass-light: rgba(255, 255, 255, 0.55);
+  --filmy-glass-border-light: rgba(255, 255, 255, 0.5);
+  --filmy-glass-inset-light: rgba(255, 255, 255, 0.45);
+  --filmy-glass-dark: rgba(15, 23, 42, 0.55);
+  --filmy-glass-border-dark: rgba(255, 255, 255, 0.08);
+  --filmy-glass-inset-dark: rgba(255, 255, 255, 0.05);
+  --filmy-blur: blur(24px) saturate(190%);
+  
+  /* Ambient glow layers */
+  --glow-1: rgba(99, 102, 241, 0.08);
+  --glow-2: rgba(6, 182, 212, 0.08);
+  --glow-3: rgba(236, 72, 153, 0.05);
 }
+
 
 * {
   margin: 0;
@@ -367,40 +382,48 @@ code, pre, .font-mono, [style*="monospace"] {
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
-  background-color: #f8fafc;
+  background-color: var(--app-bg, #f4f6fa);
+  background-image: 
+    radial-gradient(at 0% 0%, var(--glow-2) 0px, transparent 50%),
+    radial-gradient(at 50% 0%, var(--glow-1) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, var(--glow-3) 0px, transparent 50%);
+  background-attachment: fixed;
+  position: relative;
 }
 
 .sidebar {
   width: 280px;
-  background: var(--primary-dark);
+  background: rgba(9, 13, 22, 0.72) !important;
+  backdrop-filter: var(--filmy-blur) !important;
+  -webkit-backdrop-filter: var(--filmy-blur) !important;
   color: white;
   display: flex;
   flex-direction: column;
   padding: 16px 20px;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
   height: 100vh;
   position: sticky;
   top: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  border-right: 1px solid var(--filmy-glass-border-dark, rgba(255, 255, 255, 0.08)) !important;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
 }
 
 /* Premium Sidebar Scrollbar */
 .sidebar::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 .sidebar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.05);
 }
 .sidebar::-webkit-scrollbar-thumb {
-  background: rgba(16, 185, 129, 0.5);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: content-box;
 }
 .sidebar::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .sidebar-logo {
@@ -423,24 +446,28 @@ code, pre, .font-mono, [style*="monospace"] {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  color: #94a3b8;
+  color: var(--sidebar-text, #94a3b8);
   text-decoration: none;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 500;
-  transition: all 0.2s ease;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: white;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: white !important;
+  transform: translateX(4px);
+  border-color: rgba(255, 255, 255, 0.03);
 }
 
 .nav-item.active {
-  background: var(--primary-accent);
-  color: white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18) 0%, rgba(99, 102, 241, 0.06) 100%) !important;
+  color: #a5b4fc !important;
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.1);
 }
 
 .main-content {
@@ -527,22 +554,26 @@ code, pre, .font-mono, [style*="monospace"] {
 }
 
 .stat-card {
-  background: var(--card-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--card-bg) !important;
+  backdrop-filter: var(--filmy-blur) !important;
+  -webkit-backdrop-filter: var(--filmy-blur) !important;
   padding: 24px;
   border-radius: 24px;
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.01);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.04), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--glass-border) !important;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .stat-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 1px 5px rgba(0, 0, 0, 0.02);
+  background: rgba(255, 255, 255, 0.72) !important;
+  transform: translateY(-5px) scale(1.01) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  box-shadow: 0 20px 40px -10px rgba(99, 102, 241, 0.12), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
 .stat-header {
@@ -597,13 +628,22 @@ code, pre, .font-mono, [style*="monospace"] {
 
 .page-card,
 .form-card {
-  background: var(--card-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--card-bg) !important;
+  backdrop-filter: var(--filmy-blur) !important;
+  -webkit-backdrop-filter: var(--filmy-blur) !important;
   border-radius: 24px;
-  border: 1px solid rgba(226, 232, 240, 0.8);
-  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.06);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.04), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.page-card:hover,
+.form-card:hover {
+  background: rgba(255, 255, 255, 0.68) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  box-shadow: 0 20px 45px rgba(99, 102, 241, 0.1), 
+              inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
 .form-card {

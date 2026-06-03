@@ -57,9 +57,44 @@ export default function DoctorDashboardPage() {
   }, []);
 
   return (
-    <div className="dashboard-layout" style={{ backgroundColor: '#f8fafc' }}>
+    <div className="dashboard-layout" style={{ position: 'relative', overflowX: 'hidden' }}>
+      {/* Dynamic ambient mesh glow layers */}
+      <div style={{
+        position: 'fixed',
+        top: '-10%',
+        left: '-10%',
+        width: '50vw',
+        height: '50vw',
+        background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
+        filter: 'blur(80px)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+      <div style={{
+        position: 'fixed',
+        bottom: '10%',
+        right: '-10%',
+        width: '45vw',
+        height: '45vw',
+        background: 'radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, transparent 70%)',
+        filter: 'blur(80px)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+      <div style={{
+        position: 'fixed',
+        top: '40%',
+        left: '50%',
+        width: '35vw',
+        height: '35vw',
+        background: 'radial-gradient(circle, rgba(236, 72, 153, 0.05) 0%, transparent 70%)',
+        filter: 'blur(90px)',
+        pointerEvents: 'none',
+        zIndex: 0
+      }} />
+
       <Sidebar />
-      <main className="main-content" style={{ padding: '40px' }}>
+      <main className="main-content" style={{ padding: '40px', zIndex: 1 }}>
         <Header title={`${displayName}'s Workspace`} />
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', marginBottom: '48px', marginTop: '8px' }}>

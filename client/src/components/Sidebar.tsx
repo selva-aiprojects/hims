@@ -262,7 +262,7 @@ export default function Sidebar() {
         document.querySelector('.mobile-overlay')?.classList.remove('active');
       }}></div>
       
-      <div className="sidebar" style={{ width: '280px', background: 'linear-gradient(180deg, #090d16 0%, var(--primary-dark, #0f172a) 100%)', height: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+      <div className="sidebar" style={{ width: '280px', height: '100vh', display: 'flex', flexDirection: 'column', overflowX: 'hidden' }}>
         <button 
           className="sidebar-close" 
           onClick={() => {
@@ -372,11 +372,17 @@ export default function Sidebar() {
           text-overflow: ellipsis;
           flex: 1;
         }
-        .nav-item:hover { background: rgba(255,255,255,0.03); color: white; }
+        .nav-item:hover { 
+          background: rgba(255, 255, 255, 0.06); 
+          color: white; 
+          border-color: rgba(255, 255, 255, 0.03);
+          transform: translateX(4px);
+        }
         .nav-item.active {
-          background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.04) 100%);
+          background: linear-gradient(135deg, rgba(99, 102, 241, 0.22) 0%, rgba(99, 102, 241, 0.06) 100%);
           color: #a5b4fc;
-          border-color: rgba(99, 102, 241, 0.25);
+          border-color: rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 15px rgba(99, 102, 241, 0.12);
         }
         .nav-item.active::after {
           content: "";
