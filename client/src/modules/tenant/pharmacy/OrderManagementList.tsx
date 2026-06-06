@@ -40,7 +40,7 @@ const statusConfig: Record<string, { bg: string; color: string; icon: React.Reac
   Cancelled: { bg: '#fee2e2', color: '#dc2626', icon: <XCircle size={12} /> },
 };
 
-export default function OrderManagementList({ embedded = false }: { embedded?: boolean }) {
+export default function OrderManagementList({ embedded: _embedded = false }: { embedded?: boolean }) {
   const [medicines, setMedicines]   = useState<Medicine[]>([]);
   const [suppliers, setSuppliers]   = useState<Supplier[]>([]);
   const [orders, setOrders]         = useState<PharmacyOrder[]>([]);

@@ -6,7 +6,7 @@
  */
 
 /** Primary tenant used for all regression tests (Professional plan — full feature access). */
-export const TEST_TENANT = 'Apollo Hospitals - Professional Ltd';
+export const TEST_TENANT = 'rainbow childrens Hospitals - Professional Ltd';
 
 /** Admin credentials valid across all tenant shards. */
 export const ADMIN_EMAIL    = 'admin@hims-sys.com';
