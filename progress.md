@@ -89,10 +89,16 @@
 - [x] **Biometric Authentication**: Secure login integrated with FaceID/Fingerprint for medical staff.
 - [ ] **Clinical Co-pilot (Mobile)**: (Active) Implementing real-time patient timeline and AI-assisted clinical note-taking on handhelds.
 
+### 10. ABDM / ABHA V3 Integration (Patient Registration)
+- [x] **Milestone M1 (ABHA Identity)**: Real-time Aadhaar OTP request/validation, mobile-based discovery, dynamic public certificate retrieval, and secure client-side RSA-OAEP-SHA1 encryption.
+- [x] **Milestone M2 (Health Information Provider - HIP)**: Real-time FHIR clinical document compilation and sharing (vitals, diagnoses, and prescriptions) with care context mapping.
+- [x] **Milestone M3 (Health Information User - HIU)**: Automated patient consent flow via PHR/Aarogya Setu and secure decryption/rendering of external clinical histories.
+- [x] **Sandbox Simulation**: Dynamic demo mode toggle, system logging, and comprehensive Playwright E2E verification tests.
+
 ---
 ## 📋 Future Roadmap
 - [ ] **Internationalization**: Multi-currency and multi-language support.
 - [ ] **Tele-Health Bridge**: Seamless video consultation integration with synchronized clinical notes.
 
 ---
-*Last Updated: 2026-05-15 19:40*
+*Last Updated: 2026-06-06 11:05*
