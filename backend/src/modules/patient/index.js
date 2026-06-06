@@ -50,6 +50,17 @@ async function ensurePatientColumns(req) {
     } catch (e) {}
   }
 
+  // Ensure encounters table has ABHA columns
+  const encounterCols = [
+    'abha_linked BOOLEAN DEFAULT FALSE',
+    'abha_care_context VARCHAR(100)'
+  ];
+  for (const col of encounterCols) {
+    try {
+      await req.prisma.$executeRawUnsafe(`ALTER TABLE "${req.schemaName}".encounters ADD COLUMN IF NOT EXISTS ${col}`);
+    } catch (e) {}
+  }
+
   // Ensure Audit Log Table exists
   try {
     await req.prisma.$executeRawUnsafe(`
@@ -325,13 +336,48 @@ router.post("/", upload.array('history_files', 5), async (req, res, next) => {
 
 router.put("/:id", async (req, res, next) => {
   try {
-    const { name, phone, gender, age } = req.body;
-    await req.prisma.$executeRawUnsafe(`
+    await ensurePatientColumns(req);
+    const { 
+      name, phone, email, gender, age, dob, 
+      blood_group, occupation, address, 
+      guardian_name, guardian_phone, 
+      medical_history, allergies, 
+      abhaId, abhaNumber, abhaStatus, abhaVerified 
+    } = req.body;
+
+    const s = (val) => val ? val.toString().replace(/'/g, "''") : '';
+    
+    const abha_id = abhaId || req.body.abha_id || '';
+    const abha_number = abhaNumber || req.body.abha_number || '';
+    const abha_status = abhaStatus || req.body.abha_status || '';
+    const abha_verified = abhaVerified !== undefined ? abhaVerified : (req.body.abha_verified || false);
+
+    const query = `
       UPDATE "${req.schemaName}".patients 
-      SET name = '${name}', phone = '${phone}', gender = '${gender}', age = ${age}
+      SET 
+        name = '${s(name)}', 
+        phone = '${s(phone)}', 
+        email = '${s(email)}',
+        gender = '${s(gender)}', 
+        age = ${parseInt(age) || 0},
+        dob = ${dob ? `'${dob}'` : 'NULL'},
+        blood_group = '${s(blood_group)}',
+        occupation = '${s(occupation)}',
+        address = '${s(address)}',
+        guardian_name = '${s(guardian_name)}',
+        guardian_phone = '${s(guardian_phone)}',
+        medical_history = '${s(medical_history)}',
+        allergies = '${s(allergies)}',
+        abha_id = '${s(abha_id)}',
+        abha_number = '${s(abha_number)}',
+        abha_status = '${s(abha_status)}',
+        abha_verified = ${abha_verified ? 'TRUE' : 'FALSE'},
+        abha_linked_at = ${abha_verified ? 'NOW()' : 'NULL'}
       WHERE id = '${req.params.id}'
-    `);
-    res.json({ message: "Patient updated" });
+    `;
+
+    await req.prisma.$executeRawUnsafe(query);
+    res.json({ message: "Patient updated successfully" });
   } catch (error) { next(error); }
 });
 

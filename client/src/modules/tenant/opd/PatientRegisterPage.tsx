@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../../../components/Sidebar";
 import Header from "../../../components/Header";
+import { useToast } from "../../../components/ToastProvider";
 import { API_BASE_URL as API_BASE } from "../../../config/api";
 import { 
   Search, 
@@ -17,16 +18,41 @@ import {
   Activity, 
   Heart, 
   ShieldAlert, 
-  UserCheck 
+  UserCheck,
+  Shield,
+  CheckCircle2,
+  RefreshCw,
+  Zap
 } from "lucide-react";
 
 export default function PatientRegisterPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  // ABDM / ABHA Integration states
+  const [modalTab, setModalTab] = useState<'CLINICAL' | 'ABDM'>('CLINICAL');
+  const [abdmStatus, setAbdmStatus] = useState<any>(null);
+  const [abdmLoading, setAbdmLoading] = useState(false);
+  const [consentStatus, setConsentStatus] = useState<'NONE' | 'INITIATING' | 'GRANTED'>('NONE');
+  const [externalRecords, setExternalRecords] = useState<any[]>([]);
+  const [consentId, setConsentId] = useState("");
+  const [syncingEncounterId, setSyncingEncounterId] = useState<string | null>(null);
+  const [isAbhaLoading, setIsAbhaLoading] = useState(false);
+  
+  // ABHA registration states
+  const [aadhaarInput, setAadhaarInput] = useState("");
+  const [otpInput, setOtpInput] = useState("");
+  const [abhaTxnId, setAbhaTxnId] = useState("");
+  const [abhaStep, setAbhaStep] = useState<'IDLE' | 'OTP_SENT' | 'VERIFIED'>('IDLE');
+  const [hasConsent, setHasConsent] = useState(false);
+  const [discoveredAbhas, setDiscoveredAbhas] = useState<any[]>([]);
+  const [abhaMobile, setAbhaMobile] = useState("");
+  const [abhaMessage, setAbhaMessage] = useState("");
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -34,10 +60,172 @@ export default function PatientRegisterPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const openPatientProfile = (p: any) => {
+    setSelectedPatient(p);
+    setModalTab('CLINICAL');
+    setConsentStatus('NONE');
+    setExternalRecords([]);
+    setConsentId("");
+    setAbhaStep('IDLE');
+    setAadhaarInput("");
+    setOtpInput("");
+    setAbhaTxnId("");
+    setHasConsent(false);
+    setDiscoveredAbhas([]);
+    setAbdmStatus(null);
+  };
+
   const getHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem("token")}`,
     "x-tenant-id": localStorage.getItem("tenant") || ""
   });
+
+  const fetchAbdmStatus = async (patientId: string) => {
+    setAbdmLoading(true);
+    try {
+      const res = await axios.get(`${API_BASE}/api/abha/patients/${patientId}/status`, { headers: getHeaders() });
+      setAbdmStatus(res.data);
+    } catch (err) {
+      console.error("Failed to fetch ABDM status", err);
+      showToast("Failed to fetch ABDM integration details", "error");
+    } finally {
+      setAbdmLoading(false);
+    }
+  };
+
+  const handleAbhaOtpRequest = async () => {
+    if (aadhaarInput.length !== 12) {
+      showToast("Please enter a valid 12-digit Aadhaar number", "error");
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/abha/generate-otp`, { aadhaar: aadhaarInput }, { headers: getHeaders() });
+      setAbhaTxnId(res.data.txnId);
+      setAbhaMobile(selectedPatient?.phone || "");
+      setAbhaMessage(res.data.message || "OTP sent to Aadhaar-registered mobile number.");
+      setAbhaStep('OTP_SENT');
+      showToast("OTP sent to Aadhaar-registered mobile", "success");
+    } catch (err: any) {
+      showToast(err.response?.data?.error || "Failed to generate ABHA OTP", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
+  const handleAbhaDiscovery = async () => {
+    if (!selectedPatient?.phone || selectedPatient.phone.length < 10) {
+      showToast("Patient phone contact is invalid", "error");
+      return;
+    }
+    if (!hasConsent) {
+      showToast("ABDM Consent is required for discovery", "error");
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/abha/search-mobile`, { mobile: selectedPatient.phone }, { headers: getHeaders() });
+      if (res.data.healthIds && res.data.healthIds.length > 0) {
+        setDiscoveredAbhas(res.data.healthIds);
+        showToast(`Found ${res.data.healthIds.length} existing ABHA(s)`, "success");
+      } else {
+        showToast("No existing ABHA found for this mobile. Please use Aadhaar flow.", "info");
+      }
+    } catch (err: any) {
+      showToast("Discovery failed", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
+  const linkDiscoveredAbha = async (abha: any) => {
+    setIsAbhaLoading(true);
+    try {
+      await axios.post(`${API_BASE}/api/abha/patients/${selectedPatient.id}/link`, {
+        abhaId: abha.healthId,
+        abhaNumber: abha.healthIdNumber,
+        abhaStatus: 'ACTIVE',
+        abhaVerified: true
+      }, { headers: getHeaders() });
+      showToast("ABHA linked to patient successfully!", "success");
+      setDiscoveredAbhas([]);
+      setAbhaStep('IDLE');
+      fetchAbdmStatus(selectedPatient.id);
+      fetchPatients(searchQuery); // refresh table
+    } catch (err: any) {
+      showToast(err.response?.data?.error || "Failed to link ABHA ID", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
+  const handleAbhaVerify = async () => {
+    if (otpInput.length !== 6) {
+      showToast("Please enter 6-digit OTP", "error");
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      const payload: any = { otp: otpInput, txnId: abhaTxnId };
+      if (abhaMobile && abhaMobile.length === 10) {
+        payload.mobile = abhaMobile;
+      }
+      const res = await axios.post(`${API_BASE}/api/abha/verify-otp`, payload, { headers: getHeaders() });
+      const profile = res.data;
+
+      // Link in DB
+      await axios.post(`${API_BASE}/api/abha/patients/${selectedPatient.id}/link`, {
+        abhaId: profile.healthId || '',
+        abhaNumber: profile.healthIdNumber || '',
+        abhaStatus: profile.status || 'ACTIVE',
+        abhaVerified: true
+      }, { headers: getHeaders() });
+
+      showToast("ABHA created and linked successfully!", "success");
+      setAbhaStep('IDLE');
+      setOtpInput('');
+      setAbhaTxnId('');
+      fetchAbdmStatus(selectedPatient.id);
+      fetchPatients(searchQuery); // refresh table
+    } catch (err: any) {
+      const msg = err.response?.data?.error || err.response?.data?.message || "ABHA Verification failed";
+      showToast(msg, "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
+  const handlePushEncounter = async (encounterId: string) => {
+    setSyncingEncounterId(encounterId);
+    try {
+      await axios.post(`${API_BASE}/api/abha/encounters/${encounterId}/push`, {}, { headers: getHeaders() });
+      showToast("Clinical records pushed and shared with ABDM!", "success");
+      fetchAbdmStatus(selectedPatient.id);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || "Failed to share records with ABDM", "error");
+    } finally {
+      setSyncingEncounterId(null);
+    }
+  };
+
+  const handleRequestConsent = async () => {
+    setConsentStatus('INITIATING');
+    setTimeout(async () => {
+      try {
+        const res = await axios.post(`${API_BASE}/api/abha/patients/${selectedPatient.id}/request-consent`, {}, { headers: getHeaders() });
+        setConsentId(res.data.consentId);
+        setConsentStatus('GRANTED');
+        showToast("Consent granted by patient via ABHA PHR app!", "success");
+        
+        // Auto fetch external records
+        const recordsRes = await axios.get(`${API_BASE}/api/abha/patients/${selectedPatient.id}/fetch-external-records?consentId=${res.data.consentId}`, { headers: getHeaders() });
+        setExternalRecords(recordsRes.data || []);
+      } catch (err: any) {
+        showToast("Consent request failed", "error");
+        setConsentStatus('NONE');
+      }
+    }, 1500);
+  };
 
   const fetchPatients = async (query = "") => {
     setLoading(true);
@@ -194,7 +382,7 @@ export default function PatientRegisterPage() {
                         <div style={{ fontWeight: 800, color: "#0f172a", fontSize: "15px", maxWidth: '260px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                     </div>
                     <button 
-                      onClick={() => setSelectedPatient(p)}
+                      onClick={() => openPatientProfile(p)}
                       style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer" }}
                     >
                       <Info size={18} />
@@ -217,7 +405,7 @@ export default function PatientRegisterPage() {
 
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button 
-                      onClick={() => setSelectedPatient(p)}
+                      onClick={() => openPatientProfile(p)}
                       style={{ flex: 1, padding: "8px", background: "#f1f5f9", color: "#475569", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                     >
                       View Profile
@@ -298,7 +486,7 @@ export default function PatientRegisterPage() {
                     <td style={{ padding: "16px 24px", textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "8px" }}>
                         <button 
-                          onClick={() => setSelectedPatient(p)}
+                          onClick={() => openPatientProfile(p)}
                           style={{
                             padding: "8px 14px",
                             background: "#f1f5f9",
@@ -375,123 +563,496 @@ export default function PatientRegisterPage() {
                 </button>
               </div>
 
+              {/* Tab Switcher */}
+              <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px", marginBottom: "20px" }}>
+                <button
+                  type="button"
+                  onClick={() => setModalTab('CLINICAL')}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: modalTab === 'CLINICAL' ? '#eff6ff' : 'none',
+                    color: modalTab === 'CLINICAL' ? '#2563eb' : '#64748b',
+                    fontWeight: 700,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  <UserCheck size={16} /> Clinical Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalTab('ABDM');
+                    fetchAbdmStatus(selectedPatient.id);
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: modalTab === 'ABDM' ? '#f0f9ff' : 'none',
+                    color: modalTab === 'ABDM' ? '#0369a1' : '#64748b',
+                    fontWeight: 700,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  <Shield size={16} /> ABDM / ABHA Portal
+                </button>
+              </div>
+
               {/* Modal Body */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                
-                {/* Section 1: Demographics */}
-                <div>
-                  <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <UserCheck size={14} style={{ color: "#3b82f6" }} /> Personal Demographics
-                  </h4>
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: "16px", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
-                    <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>GENDER & AGE</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
-                        {selectedPatient.gender || "—"}, {selectedPatient.age || "—"} yrs
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>DATE OF BIRTH</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
-                        {selectedPatient.dob ? formatDate(selectedPatient.dob) : "—"}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>BLOOD GROUP</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#ef4444", display: "flex", alignItems: "center", gap: "4px" }}>
-                        <Heart size={12} fill="#ef4444" /> {selectedPatient.blood_group || "—"}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>CONTACT PHONE</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.phone || "—"}</span>
-                    </div>
-                    <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>EMAIL ADDRESS</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.email || "—"}</span>
-                    </div>
-                    <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>OCCUPATION</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.occupation || "—"}</span>
-                    </div>
-                    <div style={{ gridColumn: isMobile ? "span 1" : "span 3" }}>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>RESIDENTIAL ADDRESS</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.address || "—"}</span>
+              {modalTab === 'CLINICAL' && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  
+                  {/* Section 1: Demographics */}
+                  <div>
+                    <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <UserCheck size={14} style={{ color: "#3b82f6" }} /> Personal Demographics
+                    </h4>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: "16px", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>GENDER & AGE</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
+                          {selectedPatient.gender || "—"}, {selectedPatient.age || "—"} yrs
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>DATE OF BIRTH</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
+                          {selectedPatient.dob ? formatDate(selectedPatient.dob) : "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>BLOOD GROUP</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#ef4444", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <Heart size={12} fill="#ef4444" /> {selectedPatient.blood_group || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>CONTACT PHONE</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.phone || "—"}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>EMAIL ADDRESS</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.email || "—"}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>OCCUPATION</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.occupation || "—"}</span>
+                      </div>
+                      <div style={{ gridColumn: isMobile ? "span 1" : "span 3" }}>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>RESIDENTIAL ADDRESS</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.address || "—"}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Section 2: Guardian Details */}
-                <div>
-                  <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <Activity size={14} style={{ color: "#10b981" }} /> Emergency contact & Guardian
-                  </h4>
+                  {/* Section 2: Guardian Details */}
+                  <div>
+                    <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Activity size={14} style={{ color: "#10b981" }} /> Emergency contact & Guardian
+                    </h4>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>GUARDIAN NAME</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.guardian_name || "—"}</span>
+                      </div>
+                      <div>
+                        <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>GUARDIAN PHONE</span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.guardian_phone || "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Clinical Information */}
+                  <div>
+                    <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Stethoscope size={14} style={{ color: "#f59e0b" }} /> Clinical Profile
+                    </h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div style={{ background: "#fffbeb", padding: "16px", borderRadius: "12px", border: "1px solid #fef3c7" }}>
+                        <span style={{ display: "block", fontSize: "11px", color: "#b45309", fontWeight: 800, textTransform: "uppercase" }}>Primary Medical History</span>
+                        <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#78350f", fontWeight: 600, lineHeight: 1.5 }}>
+                          {selectedPatient.medical_history || "No documented primary medical history."}
+                        </p>
+                      </div>
+
+                      {selectedPatient.allergies && (
+                        <div style={{ background: "#fef2f2", padding: "16px", borderRadius: "12px", border: "1px solid #fee2e2" }}>
+                          <span style={{ fontSize: "11px", color: "#b91c1c", fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                            <ShieldAlert size={12} /> Critical Allergies & Intolerances
+                          </span>
+                          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#991b1b", fontWeight: 700, lineHeight: 1.5 }}>
+                            {selectedPatient.allergies}
+                          </p>
+                        </div>
+                      )}
+
+                      {selectedPatient.ai_summary && (
+                        <div style={{ background: "#f0fdf4", padding: "16px", borderRadius: "12px", border: "1px solid #dcfce7" }}>
+                          <span style={{ fontSize: "11px", color: "#166534", fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
+                            <FileText size={12} /> AI Clinical Summary
+                          </span>
+                          <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#14532d", fontWeight: 600, lineHeight: 1.5, whiteSpace: "pre-line" }}>
+                            {selectedPatient.ai_summary}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section 4: Visitation & Physician */}
                   <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
                     <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>GUARDIAN NAME</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.guardian_name || "—"}</span>
+                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>PRIMARY ASSIGNED PHYSICIAN</span>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
+                        {selectedPatient.primary_doctor ? `Dr. ${selectedPatient.primary_doctor}` : "No physician consultations recorded."}
+                      </span>
                     </div>
                     <div>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>GUARDIAN PHONE</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>{selectedPatient.guardian_phone || "—"}</span>
+                      <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>LAST VISIT DATE</span>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
+                        {selectedPatient.last_visit_date ? formatDate(selectedPatient.last_visit_date) : "No records of clinical visits."}
+                      </span>
                     </div>
                   </div>
-                </div>
 
-                {/* Section 3: Clinical Information */}
-                <div>
-                  <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
-                    <Stethoscope size={14} style={{ color: "#f59e0b" }} /> Clinical Profile
-                  </h4>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <div style={{ background: "#fffbeb", padding: "16px", borderRadius: "12px", border: "1px solid #fef3c7" }}>
-                      <span style={{ display: "block", fontSize: "11px", color: "#b45309", fontWeight: 800, textTransform: "uppercase" }}>Primary Medical History</span>
-                      <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#78350f", fontWeight: 600, lineHeight: 1.5 }}>
-                        {selectedPatient.medical_history || "No documented primary medical history."}
-                      </p>
+                </div>
+              )}
+
+              {modalTab === 'ABDM' && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                  {abdmLoading && !abdmStatus ? (
+                    <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
+                      <RefreshCw size={24} style={{ margin: "0 auto 12px", animation: "spin 1.5s linear infinite" }} />
+                      <div style={{ fontSize: "14px", fontWeight: 600 }}>Fetching ABDM registration status...</div>
                     </div>
+                  ) : (
+                    <>
+                      {/* Identity Section (Milestone 1) */}
+                      <div>
+                        <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#0c4a6e", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <Shield size={14} style={{ color: "#0369a1" }} /> ABDM identity (Milestone 1)
+                        </h4>
+                        
+                        {(abdmStatus?.patient?.abha_id || selectedPatient?.abha_id) ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#f0fdf4", padding: "16px 20px", borderRadius: "16px", border: "1px solid #86efac" }}>
+                            <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
+                            <div>
+                              <div style={{ fontSize: "14px", fontWeight: 800, color: "#15803d" }}>ABHA Identity Verified & Linked</div>
+                              <div style={{ fontSize: "12px", color: "#16a34a", fontWeight: 600 }}>
+                                ID: {abdmStatus?.patient?.abha_id || selectedPatient?.abha_id} • Number: {abdmStatus?.patient?.abha_number || selectedPatient?.abha_number}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "16px", background: "#fff7ed", padding: "20px", borderRadius: "16px", border: "1px solid #ffedd5" }}>
+                            <div style={{ display: "flex", gap: "10px" }}>
+                              <ShieldAlert size={20} style={{ color: "#ea580c" }} />
+                              <div>
+                                <div style={{ fontSize: "14px", fontWeight: 800, color: "#9a3412" }}>No ABHA Identity Linked</div>
+                                <div style={{ fontSize: "12px", color: "#ea580c" }}>This patient profile does not have an active ABDM Health ID associated. Link or generate one below.</div>
+                              </div>
+                            </div>
 
-                    {selectedPatient.allergies && (
-                      <div style={{ background: "#fef2f2", padding: "16px", borderRadius: "12px", border: "1px solid #fee2e2" }}>
-                        <span style={{ fontSize: "11px", color: "#b91c1c", fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <ShieldAlert size={12} /> Critical Allergies & Intolerances
-                        </span>
-                        <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#991b1b", fontWeight: 700, lineHeight: 1.5 }}>
-                          {selectedPatient.allergies}
-                        </p>
+                            {abhaStep === 'IDLE' && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #fed7aa" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "#eff6ff", padding: "10px 14px", borderRadius: "10px", border: "1px solid #dbeafe" }}>
+                                  <input 
+                                    type="checkbox" 
+                                    id="abha-dossier-consent"
+                                    checked={hasConsent}
+                                    onChange={(e) => setHasConsent(e.target.checked)}
+                                    style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                                  />
+                                  <label htmlFor="abha-dossier-consent" style={{ fontSize: "11px", color: "#1e40af", fontWeight: 600, cursor: "pointer" }}>
+                                    I consent to use my ABHA for healthcare services (Mandatory)
+                                  </label>
+                                </div>
+
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                  <input 
+                                    placeholder="Enter 12 Digit Aadhaar" 
+                                    className="input-field" 
+                                    style={{ height: "42px", fontSize: "13px" }}
+                                    value={aadhaarInput}
+                                    onChange={e => setAadhaarInput(e.target.value)}
+                                    maxLength={12}
+                                  />
+                                  <button 
+                                    onClick={handleAbhaOtpRequest}
+                                    disabled={isAbhaLoading || !hasConsent}
+                                    style={{ padding: "0 16px", height: "42px", background: "#0369a1", color: "white", borderRadius: "8px", border: "none", fontWeight: 700, cursor: "pointer", opacity: (!hasConsent || isAbhaLoading) ? 0.6 : 1 }}
+                                  >
+                                    {isAbhaLoading ? "..." : "GET OTP"}
+                                  </button>
+                                </div>
+
+                                <div style={{ textAlign: "center", fontSize: "10px", color: "#cbd5e1", fontWeight: 700 }}>— OR —</div>
+
+                                <button 
+                                  onClick={handleAbhaDiscovery}
+                                  disabled={isAbhaLoading || !hasConsent}
+                                  style={{ padding: "10px", background: "white", color: "#0369a1", borderRadius: "8px", border: "2px dashed #0369a1", fontWeight: 800, cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                                >
+                                  <Search size={14} /> DISCOVER EXISTING ABHA BY PHONE
+                                </button>
+
+                                {discoveredAbhas.length > 0 && (
+                                  <div style={{ background: "#f0f9ff", padding: "12px", borderRadius: "10px", border: "1px solid #bae6fd", marginTop: "8px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#0369a1", marginBottom: "8px" }}>FOUND IDENTITIES:</div>
+                                    {discoveredAbhas.map((a, idx) => (
+                                      <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px", background: "white", borderRadius: "8px", marginBottom: "6px", border: "1px solid #e0f2fe" }}>
+                                         <div>
+                                            <div style={{ fontWeight: 800, fontSize: "12px" }}>{a.name}</div>
+                                            <div style={{ fontSize: "10px", color: "#64748b" }}>{a.healthId} • {a.healthIdNumber}</div>
+                                         </div>
+                                         <button onClick={() => linkDiscoveredAbha(a)} style={{ background: "#0369a1", color: "white", border: "none", padding: "4px 8px", borderRadius: "6px", fontSize: "10px", fontWeight: 800, cursor: "pointer" }}>LINK</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {abhaStep === 'OTP_SENT' && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "10px", background: "white", padding: "16px", borderRadius: "12px", border: "1px solid #fed7aa" }}>
+                                <div style={{ fontSize: "11px", color: "#0369a1", background: "#e0f2fe", padding: "10px", borderRadius: "8px", fontWeight: 600 }}>
+                                  {abhaMessage || "OTP sent to mobile linked with Aadhaar."}
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                  <label style={{ fontSize: "10px", color: "#0369a1", fontWeight: 800 }}>Aadhaar-Registered Mobile Number*</label>
+                                  <input 
+                                    placeholder="Enter 10-Digit Mobile" 
+                                    className="input-field" 
+                                    style={{ height: "38px", fontSize: "13px" }}
+                                    value={abhaMobile}
+                                    onChange={e => setAbhaMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                                    maxLength={10}
+                                  />
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                  <label style={{ fontSize: "10px", color: "#0369a1", fontWeight: 800 }}>Enter 6-Digit OTP*</label>
+                                  <div style={{ display: "flex", gap: "8px" }}>
+                                    <input 
+                                      placeholder="Enter 6-Digit OTP" 
+                                      className="input-field" 
+                                      style={{ height: "38px", fontSize: "13px", letterSpacing: "2px" }}
+                                      value={otpInput}
+                                      onChange={e => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                      maxLength={6}
+                                    />
+                                    <button 
+                                      onClick={handleAbhaVerify}
+                                      disabled={isAbhaLoading || otpInput.length !== 6 || abhaMobile.length !== 10}
+                                      style={{ background: "#059669", color: "white", borderRadius: "8px", border: "none", padding: "0 16px", fontWeight: 700, cursor: "pointer" }}
+                                    >
+                                      {isAbhaLoading ? "..." : "VERIFY"}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => { setAbhaStep('IDLE'); setOtpInput(''); }}
+                                  style={{ background: "none", border: "none", color: "#0369a1", fontSize: "11px", cursor: "pointer", textAlign: "left", padding: 0, fontWeight: 600 }}
+                                >
+                                  ← Back / Cancel
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
 
-                    {selectedPatient.ai_summary && (
-                      <div style={{ background: "#f0fdf4", padding: "16px", borderRadius: "12px", border: "1px solid #dcfce7" }}>
-                        <span style={{ fontSize: "11px", color: "#166534", fontWeight: 800, textTransform: "uppercase", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <FileText size={12} /> AI Clinical Summary
-                        </span>
-                        <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#14532d", fontWeight: 600, lineHeight: 1.5, whiteSpace: "pre-line" }}>
-                          {selectedPatient.ai_summary}
-                        </p>
+                      {/* HIP Section (Milestone 2) */}
+                      <div>
+                        <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#0c4a6e", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <Activity size={14} style={{ color: "#0369a1" }} /> Health Information Provider (HIP - Milestone 2)
+                        </h4>
+
+                        {!(abdmStatus?.patient?.abha_id || selectedPatient?.abha_id) ? (
+                          <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", color: "#64748b", fontStyle: "italic" }}>
+                            Link ABHA Identity above to enable clinical treatment record sharing.
+                          </div>
+                        ) : !abdmStatus?.encounters || abdmStatus.encounters.length === 0 ? (
+                          <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", color: "#64748b", fontStyle: "italic" }}>
+                            No treatment encounter records found for this patient yet.
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {abdmStatus.encounters.map((enc: any, idx: number) => (
+                              <div key={enc.id || idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                                <div>
+                                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#1e293b" }}>
+                                    Visit on {formatDate(enc.created_at)}
+                                  </div>
+                                  <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                    Diagnosis: {enc.diagnosis || "None specified"} • Doctor: {enc.doctor_name || "Practitioner"}
+                                  </div>
+                                </div>
+                                
+                                {enc.abha_linked ? (
+                                  <span style={{ fontSize: "11px", background: "#d1fae5", color: "#065f46", padding: "4px 8px", borderRadius: "6px", fontWeight: 800 }}>
+                                    Shared ✓ (Context: {enc.abha_care_context})
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handlePushEncounter(enc.id)}
+                                    disabled={syncingEncounterId === enc.id}
+                                    style={{
+                                      padding: "6px 12px",
+                                      background: "#3b82f6",
+                                      color: "white",
+                                      border: "none",
+                                      borderRadius: "6px",
+                                      fontSize: "11px",
+                                      fontWeight: 800,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px"
+                                    }}
+                                  >
+                                    <Zap size={11} fill="currentColor" /> {syncingEncounterId === enc.id ? 'Pushing...' : 'Push to ABDM'}
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* Section 4: Visitation & Physician */}
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", background: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #f1f5f9" }}>
-                  <div>
-                    <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>PRIMARY ASSIGNED PHYSICIAN</span>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
-                      {selectedPatient.primary_doctor ? `Dr. ${selectedPatient.primary_doctor}` : "No physician consultations recorded."}
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ display: "block", fontSize: "11px", color: "#64748b", fontWeight: 600 }}>LAST VISIT DATE</span>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#334155" }}>
-                      {selectedPatient.last_visit_date ? formatDate(selectedPatient.last_visit_date) : "No records of clinical visits."}
-                    </span>
-                  </div>
-                </div>
+                      {/* HIU Section (Milestone 3) */}
+                      <div>
+                        <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#0c4a6e", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <FileText size={14} style={{ color: "#0369a1" }} /> Health Information User (HIU - Milestone 3)
+                        </h4>
 
-              </div>
+                        {!(abdmStatus?.patient?.abha_id || selectedPatient?.abha_id) ? (
+                          <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", color: "#64748b", fontStyle: "italic" }}>
+                            Link ABHA Identity above to request consent and retrieve external medical records.
+                          </div>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                            {consentStatus === 'NONE' && (
+                              <button
+                                onClick={handleRequestConsent}
+                                style={{
+                                  width: "100%",
+                                  padding: "12px",
+                                  background: "#0f172a",
+                                  color: "white",
+                                  border: "none",
+                                  borderRadius: "10px",
+                                  fontWeight: 800,
+                                  fontSize: "12px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "8px"
+                                }}
+                              >
+                                <Shield size={14} /> Request Patient Consent via PHR App
+                              </button>
+                            )}
+
+                            {consentStatus === 'INITIATING' && (
+                              <div style={{ padding: "16px", background: "#eff6ff", borderRadius: "12px", border: "1px solid #bfdbfe", display: "flex", alignItems: "center", gap: "10px" }}>
+                                <RefreshCw size={16} style={{ animation: "spin 1.5s linear infinite", color: "#2563eb" }} />
+                                <div style={{ fontSize: "12px", color: "#1e40af", fontWeight: 600 }}>
+                                  Initiating request... Awaiting approval on patient's ABHA App (Aarogya Setu / PHR)...
+                                </div>
+                              </div>
+                            )}
+
+                            {consentStatus === 'GRANTED' && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                                <div style={{ padding: "12px 16px", background: "#f0fdf4", borderRadius: "12px", border: "1px solid #86efac", fontSize: "12px", color: "#166534", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <CheckCircle2 size={16} style={{ color: "#16a34a" }} />
+                                  Consent GRANTED (ID: {consentId}). Decrypting health logs from Central ABDM Repository.
+                                </div>
+
+                                {externalRecords.length > 0 && (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>External Health Records Timeline</div>
+                                    
+                                    <div style={{ borderLeft: "2px solid #cbd5e1", paddingLeft: "16px", marginLeft: "8px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                                      {externalRecords.map((rec, rIdx) => (
+                                        <div key={rec.id || rIdx} style={{ position: "relative", background: "white", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                                          <div style={{ position: "absolute", left: "-25px", top: "18px", width: "16px", height: "16px", borderRadius: "50%", background: "#3b82f6", border: "4px solid white" }}></div>
+                                          
+                                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                                            <span style={{ fontSize: "11px", fontWeight: 800, color: "#3b82f6", background: "#eff6ff", padding: "2px 6px", borderRadius: "4px" }}>
+                                              {rec.recordType}
+                                            </span>
+                                            <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>
+                                              {new Date(rec.date).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                          
+                                          <div style={{ fontSize: "13px", fontWeight: 900, color: "#0f172a" }}>{rec.facilityName}</div>
+                                          <div style={{ fontSize: "11px", color: "#64748b", fontStyle: "italic", marginBottom: "8px" }}>Author: {rec.doctor}</div>
+                                          
+                                          <p style={{ margin: "0 0 8px", fontSize: "12px", color: "#334155", lineHeight: 1.4 }}>
+                                            <strong>Diagnosis/Findings:</strong> {rec.diagnosis || rec.notes}
+                                          </p>
+
+                                          {rec.vitals && (
+                                            <div style={{ display: "flex", gap: "10px", fontSize: "10px", color: "#64748b", background: "#f8fafc", padding: "4px 8px", borderRadius: "4px", marginBottom: "6px" }}>
+                                              {rec.vitals.bp && <span>BP: {rec.vitals.bp}</span>}
+                                              {rec.vitals.weight && <span>Weight: {rec.vitals.weight}</span>}
+                                              {rec.vitals.heartRate && <span>Pulse: {rec.vitals.heartRate}</span>}
+                                            </div>
+                                          )}
+
+                                          {rec.results && (
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "4px", background: "#f8fafc", padding: "8px", borderRadius: "6px" }}>
+                                              {rec.results.map((res: any, aIdx: number) => (
+                                                <div key={aIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: "11px" }}>
+                                                  <span style={{ color: "#475569" }}>{res.parameter}</span>
+                                                  <span style={{ fontWeight: 700, color: res.status.includes('High') ? '#ef4444' : '#1e293b' }}>
+                                                    {res.value} {res.unit} ({res.status})
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+
+                                          {rec.prescriptions && (
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px solid #f1f5f9", paddingTop: "6px" }}>
+                                              <span style={{ fontSize: "10px", fontWeight: 800, color: "#64748b" }}>PRESCRIBED MEDICINES:</span>
+                                              {rec.prescriptions.map((m: any, mIdx: number) => (
+                                                <div key={mIdx} style={{ fontSize: "11px", color: "#334155", fontWeight: 600 }}>
+                                                  • {m.drugName} ({m.dosage} — {m.frequency} for {m.duration})
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Modal Footer */}
               <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "32px", borderTop: "1px solid #f1f5f9", paddingTop: "16px" }}>
