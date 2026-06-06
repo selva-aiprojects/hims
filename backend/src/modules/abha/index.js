@@ -205,6 +205,42 @@ router.post('/patients/:patientId/link', async (req, res) => {
   }
 });
 
+// POST /api/abha/patients/:patientId/unlink — unlinks/clears ABHA ID and info in DB
+router.post('/patients/:patientId/unlink', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    await req.prisma.$executeRawUnsafe(`
+      UPDATE "${req.schemaName}".patients
+      SET 
+        abha_id = NULL,
+        abha_number = NULL,
+        abha_status = NULL,
+        abha_verified = FALSE,
+        abha_linked_at = NULL
+      WHERE id = '${patientId}'
+    `);
+
+    try {
+      await req.prisma.$executeRawUnsafe(`
+        INSERT INTO "${req.schemaName}".abha_audit_logs (patient_id, api_name, txn_id, status, request_payload, response_payload)
+        VALUES (
+          '${patientId}',
+          'abha-unlink',
+          'txn-${Date.now()}',
+          'SUCCESS',
+          '{}'::jsonb,
+          '{"message": "Unlinked successfully"}'::jsonb
+        )
+      `);
+    } catch (e) {}
+
+    res.json({ success: true, message: 'ABHA unlinked and cleared successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to unlink ABHA ID' });
+  }
+});
+
 // POST /api/abha/encounters/:encounterId/push — formats and shares treatment details to ABDM (M2)
 router.post('/encounters/:encounterId/push', async (req, res) => {
   try {

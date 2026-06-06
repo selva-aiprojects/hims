@@ -53,6 +53,7 @@ export default function PatientRegisterPage() {
   const [discoveredAbhas, setDiscoveredAbhas] = useState<any[]>([]);
   const [abhaMobile, setAbhaMobile] = useState("");
   const [abhaMessage, setAbhaMessage] = useState("");
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -195,6 +196,24 @@ export default function PatientRegisterPage() {
     }
   };
 
+  const handleAbhaUnlink = async () => {
+    if (!selectedPatient) return;
+    if (!window.confirm("Are you sure you want to unlink and clear the ABHA ID for this patient profile?")) {
+      return;
+    }
+    setIsAbhaLoading(true);
+    try {
+      await axios.post(`${API_BASE}/api/abha/patients/${selectedPatient.id}/unlink`, {}, { headers: getHeaders() });
+      showToast("ABHA ID unlinked and cleared successfully!", "success");
+      fetchAbdmStatus(selectedPatient.id);
+      fetchPatients(searchQuery); // refresh table
+    } catch (err: any) {
+      showToast(err.response?.data?.error || "Failed to unlink ABHA ID", "error");
+    } finally {
+      setIsAbhaLoading(false);
+    }
+  };
+
   const handlePushEncounter = async (encounterId: string) => {
     setSyncingEncounterId(encounterId);
     try {
@@ -244,6 +263,15 @@ export default function PatientRegisterPage() {
 
   useEffect(() => {
     fetchPatients();
+    const fetchAbhaConfig = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/api/abha/config`, { headers: getHeaders() });
+        setIsDemoMode(res.data.isDemoMode);
+      } catch (err) {
+        console.error("Failed to fetch ABHA config:", err);
+      }
+    };
+    fetchAbhaConfig();
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -739,19 +767,57 @@ export default function PatientRegisterPage() {
                     <>
                       {/* Identity Section (Milestone 1) */}
                       <div>
-                        <h4 style={{ margin: "0 0 12px", fontSize: "13px", fontWeight: 800, color: "#0c4a6e", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
-                          <Shield size={14} style={{ color: "#0369a1" }} /> ABDM identity (Milestone 1)
-                        </h4>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                          <h4 style={{ margin: 0, fontSize: "13px", fontWeight: 800, color: "#0c4a6e", textTransform: "uppercase", letterSpacing: "0.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <Shield size={14} style={{ color: "#0369a1" }} /> ABDM identity (Milestone 1)
+                          </h4>
+                          <span style={{
+                            fontSize: "10px",
+                            fontWeight: 800,
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            background: isDemoMode ? "#fff7ed" : "#ecfdf5",
+                            color: isDemoMode ? "#c2410c" : "#0f766e",
+                            border: isDemoMode ? "1px solid #ffedd5" : "1px solid #ccfbf1",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}>
+                            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: isDemoMode ? "#ea580c" : "#10b981" }}></span>
+                            {isDemoMode ? "SANDBOX MODE: SIMULATED" : "SANDBOX MODE: LIVE GATEWAY"}
+                          </span>
+                        </div>
                         
                         {(abdmStatus?.patient?.abha_id || selectedPatient?.abha_id) ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "#f0fdf4", padding: "16px 20px", borderRadius: "16px", border: "1px solid #86efac" }}>
-                            <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
-                            <div>
-                              <div style={{ fontSize: "14px", fontWeight: 800, color: "#15803d" }}>ABHA Identity Verified & Linked</div>
-                              <div style={{ fontSize: "12px", color: "#16a34a", fontWeight: 600 }}>
-                                ID: {abdmStatus?.patient?.abha_id || selectedPatient?.abha_id} • Number: {abdmStatus?.patient?.abha_number || selectedPatient?.abha_number}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f0fdf4", padding: "16px 20px", borderRadius: "16px", border: "1px solid #86efac", width: "100%" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                              <CheckCircle2 size={20} style={{ color: "#16a34a" }} />
+                              <div>
+                                <div style={{ fontSize: "14px", fontWeight: 800, color: "#15803d" }}>ABHA Identity Verified & Linked</div>
+                                <div style={{ fontSize: "12px", color: "#16a34a", fontWeight: 600 }}>
+                                  ID: {abdmStatus?.patient?.abha_id || selectedPatient?.abha_id} • Number: {abdmStatus?.patient?.abha_number || selectedPatient?.abha_number}
+                                </div>
                               </div>
                             </div>
+                            <button
+                              onClick={handleAbhaUnlink}
+                              disabled={isAbhaLoading}
+                              style={{
+                                padding: "6px 12px",
+                                background: "#fee2e2",
+                                color: "#ef4444",
+                                border: "1px solid #fecaca",
+                                borderRadius: "8px",
+                                fontSize: "11px",
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                transition: "all 0.2s"
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = "#fca5a5"}
+                              onMouseLeave={(e) => e.currentTarget.style.background = "#fee2e2"}
+                            >
+                              {isAbhaLoading ? "..." : "UNLINK ABHA"}
+                            </button>
                           </div>
                         ) : (
                           <div style={{ display: "flex", flexDirection: "column", gap: "16px", background: "#fff7ed", padding: "20px", borderRadius: "16px", border: "1px solid #ffedd5" }}>
