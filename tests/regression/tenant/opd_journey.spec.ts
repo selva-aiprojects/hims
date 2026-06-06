@@ -175,7 +175,7 @@ test.describe('OPD-3: Consultation Page', () => {
 
   test('OPD-3.3 Mock encounter loads consultation war-room', async ({ page }) => {
     await loadConsultationWithMock(page, ENC('e1'));
-    await expect(page.getByText('Clinical Consultation War-Room')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Clinical Consultation').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('OPD-3.4 Diagnosis input accepts text', async ({ page }) => {
@@ -187,7 +187,7 @@ test.describe('OPD-3: Consultation Page', () => {
 
   test('OPD-3.5 Clinical notes textarea accepts text', async ({ page }) => {
     await loadConsultationWithMock(page, ENC('e3'));
-    const n = page.getByPlaceholder(/Type clinical notes/i);
+    const n = page.getByPlaceholder(/Type clinical observations/i);
     await n.fill('Patient reports chest tightness.');
     await expect(n).toHaveValue('Patient reports chest tightness.');
   });
@@ -196,7 +196,7 @@ test.describe('OPD-3: Consultation Page', () => {
     await loadConsultationWithMock(page, ENC('e4'));
     await expect(page.getByRole('button', { name: /Prescription/i })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('button', { name: /Lab Tests/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Clinical History/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'History' })).toBeVisible();
   });
 
   test('OPD-3.7 Lab Tests tab is clickable and switches content', async ({ page }) => {
@@ -210,8 +210,8 @@ test.describe('OPD-3: Consultation Page', () => {
 
   test('OPD-3.8 Clinical History tab is clickable', async ({ page }) => {
     await loadConsultationWithMock(page, ENC('e6'));
-    await page.getByRole('button', { name: /Clinical History/i }).click();
-    await expect(page.getByRole('button', { name: /Clinical History/i })).toHaveCSS(
+    await page.getByRole('button', { name: 'History' }).click();
+    await expect(page.getByRole('button', { name: 'History' })).toHaveCSS(
       'background-color', /59, 130, 246|3b82f6/i, { timeout: 5000 }
     );
   });
@@ -221,13 +221,13 @@ test.describe('OPD-3: Consultation Page', () => {
     const btn = page.locator('button').filter({ hasText: /IPD Admission/ }).first();
     await expect(btn).toBeVisible({ timeout: 10000 });
     await btn.click();
-    await expect(page.getByPlaceholder(/Acute clinical|Post-Op Care/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByPlaceholder(/Dehydration/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('OPD-3.10 Follow-up tag appends text to notes', async ({ page }) => {
     await loadConsultationWithMock(page, ENC('e8'));
-    await page.locator('button').filter({ hasText: /Follow-up \(7D\)/ }).first().click();
-    await expect(page.getByPlaceholder(/Type clinical notes/i)).toHaveValue(/FOLLOW_UP_7D/);
+    await page.locator('button').filter({ hasText: /Follow-up 7D/ }).first().click();
+    await expect(page.getByPlaceholder(/Type clinical observations/i)).toHaveValue(/FOLLOW_UP_7D/);
   });
 
   test('OPD-3.11 Finish button label changes when diagnosis entered', async ({ page }) => {
@@ -291,8 +291,8 @@ test.describe('OPD-4: End-to-End Journey Flow', () => {
     const btn = page.locator('button').filter({ hasText: /IPD Admission/ }).first();
     await expect(btn).toBeVisible({ timeout: 10000 });
     await btn.click();
-    await expect(page.getByText('ADMISSION REASON (FOR ADMISSION DESK)')).toBeVisible({ timeout: 5000 });
-    const r = page.getByPlaceholder(/Acute clinical|Post-Op Care/i);
+    await expect(page.getByText('ADMISSION REASON', { exact: true })).toBeVisible({ timeout: 5000 });
+    const r = page.getByPlaceholder(/Dehydration/i);
     await r.fill('Hypertensive Emergency – BP 190/120');
     await expect(r).toHaveValue('Hypertensive Emergency – BP 190/120');
   });

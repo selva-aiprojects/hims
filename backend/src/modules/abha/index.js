@@ -31,8 +31,46 @@ router.post('/generate-otp', async (req, res, next) => {
 // POST /api/abha/verify-otp — verifies OTP and returns ABHA profile
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { otp, txnId, mobile } = req.body;
+    const { otp, txnId, mobile, patientId } = req.body;
     if (!otp || !txnId) return res.status(400).json({ error: 'OTP and txnId are required' });
+
+    // Dynamic mock for verify-otp in demo mode
+    if (abhaService.isDemoMode && patientId) {
+      try {
+        const patientRows = await req.prisma.$queryRawUnsafe(`
+          SELECT name, gender, dob, address FROM "${req.schemaName}".patients WHERE id = '${patientId}'
+        `);
+        if (patientRows.length > 0) {
+          const p = patientRows[0];
+          const primaryName = p.name.split(' ')[0].toLowerCase();
+          const formatDob = (dobStr) => {
+            if (!dobStr) return { day: '15', month: '06', year: '1985' };
+            const d = new Date(dobStr);
+            return {
+              day: String(d.getDate()).padStart(2, '0'),
+              month: String(d.getMonth() + 1).padStart(2, '0'),
+              year: String(d.getFullYear())
+            };
+          };
+          const dob = formatDob(p.dob);
+          const mockProfile = {
+            healthIdNumber: `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
+            healthId: `${primaryName}${Math.floor(10 + Math.random() * 89)}@abha`,
+            name: p.name,
+            gender: p.gender === 'Female' ? 'F' : 'M',
+            dayOfBirth: dob.day,
+            monthOfBirth: dob.month,
+            yearOfBirth: dob.year,
+            address: p.address || '123 Health Ave, Chennai, Tamil Nadu',
+            stateName: 'Tamil Nadu',
+            districtName: 'Chennai'
+          };
+          return res.json(mockProfile);
+        }
+      } catch (e) {
+        console.warn('[ABHA_MOCK] Failed to generate dynamic mock profile:', e.message);
+      }
+    }
 
     const profile = await abhaService.verifyAadhaarOtp(
       String(otp).trim(),
@@ -49,8 +87,32 @@ router.post('/verify-otp', async (req, res) => {
 // POST /api/abha/search-mobile — discovers existing ABHA by mobile number
 router.post('/search-mobile', async (req, res, next) => {
   try {
-    const { mobile } = req.body;
+    const { mobile, patientId } = req.body;
     if (!mobile) return res.status(400).json({ error: 'Mobile number is required' });
+
+    // Dynamic mock for search-mobile in demo mode
+    if (abhaService.isDemoMode && patientId) {
+      try {
+        const patientRows = await req.prisma.$queryRawUnsafe(`
+          SELECT name FROM "${req.schemaName}".patients WHERE id = '${patientId}'
+        `);
+        if (patientRows.length > 0) {
+          const p = patientRows[0];
+          const primaryName = p.name.split(' ')[0].toLowerCase();
+          return res.json({
+            healthIds: [
+              {
+                healthIdNumber: `91-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
+                name: p.name,
+                healthId: `${primaryName}@abha`
+              }
+            ]
+          });
+        }
+      } catch (e) {
+        console.warn('[ABHA_MOCK] Failed to generate dynamic search mobile mock:', e.message);
+      }
+    }
 
     const result = await abhaService.searchByMobile(String(mobile).trim());
     res.json(result);
@@ -323,6 +385,19 @@ router.get('/patients/:patientId/fetch-external-records', async (req, res) => {
       `);
     } catch (e) {}
 
+    // Fetch patient name dynamically for custom, premium mock data injection
+    let patientName = 'Patient';
+    try {
+      const patientRows = await req.prisma.$queryRawUnsafe(`
+        SELECT name FROM "${req.schemaName}".patients WHERE id = '${patientId}'
+      `);
+      if (patientRows.length > 0) {
+        patientName = patientRows[0].name;
+      }
+    } catch (e) {
+      console.warn('[ABHA_MOCK] Failed to read patient details for dynamic records:', e.message);
+    }
+
     const externalRecords = [
       {
         id: 'ext-1',
@@ -332,7 +407,7 @@ router.get('/patients/:patientId/fetch-external-records', async (req, res) => {
         date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
         doctor: 'Dr. R. K. Swaminathan (Cardiologist)',
         diagnosis: 'Acute Coronary Syndrome - Managed Conservatively',
-        notes: 'Patient was admitted with acute chest discomfort. Troponin-T test was positive. Managed with antiplatelets and statins. Advised regular follow-up and lifestyle modification.',
+        notes: `Patient ${patientName} was admitted with acute chest discomfort. Troponin-T test was positive. Managed with antiplatelets and statins. Advised regular follow-up and lifestyle modification.`,
         vitals: { bp: '130/80', weight: '74 kg', heartRate: '78 bpm' },
         prescriptions: [
           { drugName: 'Tab. Clopidogrel 75mg', dosage: '1-0-0', frequency: 'Daily', duration: '6 Months' },
@@ -346,7 +421,7 @@ router.get('/patients/:patientId/fetch-external-records', async (req, res) => {
         recordType: 'Lab Report',
         date: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
         doctor: 'Dr. Anjali Verma (Pathologist)',
-        notes: 'Routine Lipids & HbA1c screening.',
+        notes: `Routine Lipids & HbA1c screening for ${patientName}.`,
         results: [
           { parameter: 'HbA1c', value: '6.4%', unit: '%', referenceRange: '< 5.7% Normal, 5.7%-6.4% Prediabetes, >=6.5% Diabetes', status: 'Borderline High' },
           { parameter: 'Total Cholesterol', value: '210', unit: 'mg/dL', referenceRange: '< 200 mg/dL', status: 'High' },
@@ -362,7 +437,7 @@ router.get('/patients/:patientId/fetch-external-records', async (req, res) => {
         date: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
         doctor: 'Dr. Vivek Malhotra (General Medicine)',
         diagnosis: 'Essential Hypertension',
-        notes: 'First time detected high BP during routine executive checkup. Advised low salt diet, daily cardiovascular exercise for 30 minutes, and medication compliance check in 4 weeks.',
+        notes: `First time detected high BP during routine executive checkup for ${patientName}. Advised low salt diet, daily cardiovascular exercise for 30 minutes, and medication compliance check in 4 weeks.`,
         vitals: { bp: '148/94', temp: '98.4 F', weight: '76 kg' },
         prescriptions: [
           { drugName: 'Tab. Telmisartan 40mg', dosage: '1-0-0', frequency: 'Daily after breakfast', duration: '1 Month' }

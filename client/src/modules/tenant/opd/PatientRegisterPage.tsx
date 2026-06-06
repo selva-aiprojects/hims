@@ -124,7 +124,7 @@ export default function PatientRegisterPage() {
     }
     setIsAbhaLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/api/abha/search-mobile`, { mobile: selectedPatient.phone }, { headers: getHeaders() });
+      const res = await axios.post(`${API_BASE}/api/abha/search-mobile`, { mobile: selectedPatient.phone, patientId: selectedPatient.id }, { headers: getHeaders() });
       if (res.data.healthIds && res.data.healthIds.length > 0) {
         setDiscoveredAbhas(res.data.healthIds);
         showToast(`Found ${res.data.healthIds.length} existing ABHA(s)`, "success");
@@ -166,7 +166,7 @@ export default function PatientRegisterPage() {
     }
     setIsAbhaLoading(true);
     try {
-      const payload: any = { otp: otpInput, txnId: abhaTxnId };
+      const payload: any = { otp: otpInput, txnId: abhaTxnId, patientId: selectedPatient.id };
       if (abhaMobile && abhaMobile.length === 10) {
         payload.mobile = abhaMobile;
       }
